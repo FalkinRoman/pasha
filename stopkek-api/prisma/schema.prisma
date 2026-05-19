@@ -1,0 +1,183 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SeatStatus {
+  free
+  occupied
+  reserved
+  repair
+}
+
+enum BookingStatus {
+  draft
+  pending_payment
+  paid
+  active
+  completed
+  cancelled
+  no_show
+}
+
+enum TransactionType {
+  topup
+  booking_payment
+  extension
+  refund
+}
+
+enum PaymentStatus {
+  pending
+  waiting_for_capture
+  succeeded
+  cancelled
+  failed
+}
+
+enum PaymentProvider {
+  yookassa
+  mock
+}
+
+model User {
+  id                String   @id @default(cuid())
+  phone             String   @unique
+  name              String   @default("")
+  profileCompleted  Boolean  @default(false)
+  email             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  wallet    Wallet?
+  bookings  Booking[]
+  feedbacks Feedback[]
+  payments  Payment[]
+}
+
+model Wallet {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  balance   Int      @default(0) // копейки
+  updatedAt DateTime @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+}
+
+model Transaction {
+  id          String          @id @default(cuid())
+  walletId    String
+  type        TransactionType
+  amount      Int
+  description String?
+  externalId  String?
+  createdAt   DateTime        @default(now())
+
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId, createdAt])
+}
+
+model Payment {
+  id              String          @id @default(cuid())
+  userId          String
+  amount          Int
+  status          PaymentStatus   @default(pending)
+  provider        PaymentProvider
+  providerId      String?
+  confirmationUrl String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  paidAt          DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([providerId])
+}
+
+model Club {
+  id        String   @id @default(cuid())
+  name      String
+  address   String
+  rating    Float    @default(5)
+  hours     String   @default("24/7")
+  createdAt DateTime @default(now())
+
+  zones Zone[]
+}
+
+model Zone {
+  id           String @id @default(cuid())
+  clubId       String
+  slug         String
+  name         String
+  specs        String
+  pricePerHour Int
+  labelX       Float  @default(0)
+  labelY       Float  @default(0)
+  sortOrder    Int    @default(0)
+
+  club  Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  seats Seat[]
+
+  @@unique([clubId, slug])
+}
+
+model Seat {
+  id       String     @id @default(cuid())
+  zoneId   String
+  number   Int
+  x        Float
+  y        Float
+  w        Float      @default(22)
+  h        Float      @default(22)
+  status   SeatStatus @default(free)
+  lockId   String?
+  cellLock String?
+
+  zone         Zone          @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  bookingSeats BookingSeat[]
+
+  @@unique([zoneId, number])
+}
+
+model Booking {
+  id         String        @id @default(cuid())
+  userId     String
+  status     BookingStatus @default(draft)
+  startAt    DateTime
+  endAt      DateTime
+  totalPrice Int           @default(0)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seats BookingSeat[]
+}
+
+model BookingSeat {
+  bookingId String
+  seatId    String
+  seatNumber Int
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  seat    Seat    @relation(fields: [seatId], references: [id])
+
+  @@id([bookingId, seatId])
+}
+
+model Feedback {
+  id        String   @id @default(cuid())
+  userId    String
+  rating    Int
+  message   String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
