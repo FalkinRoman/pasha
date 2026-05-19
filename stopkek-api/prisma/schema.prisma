@@ -44,6 +44,11 @@ enum PaymentProvider {
   mock
 }
 
+enum AdminRole {
+  admin
+  superadmin
+}
+
 model User {
   id                String   @id @default(cuid())
   phone             String   @unique
@@ -180,4 +185,29 @@ model Feedback {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Admin {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String    @default("Администратор")
+  role         AdminRole @default(superadmin)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  passwordResets AdminPasswordReset[]
+}
+
+model AdminPasswordReset {
+  id        String   @id @default(cuid())
+  adminId   String
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  admin Admin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId, createdAt])
 }
