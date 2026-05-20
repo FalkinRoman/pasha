@@ -10,7 +10,6 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { SeatsPage } from './pages/SeatsPage';
 import { TransactionsPage } from './pages/TransactionsPage';
 import { UsersPage } from './pages/UsersPage';
-import { ZonesPage } from './pages/ZonesPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { admin, loading } = useAuth();
@@ -37,7 +36,7 @@ export default function App() {
           >
             <Route index element={<DashboardPage />} />
             <Route path="seats" element={<SeatsPage />} />
-            <Route path="zones" element={<ZonesPage />} />
+            <Route path="zones" element={<Navigate to="/seats" replace />} />
             <Route path="bookings" element={<BookingsPage />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="transactions" element={<TransactionsPage />} />

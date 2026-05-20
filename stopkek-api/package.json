@@ -9,7 +9,9 @@
     "start:prod": "node dist/main",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "tsx prisma/seed.ts",
+    "db:clear": "tsx prisma/db-clear.ts",
+    "admin:create": "tsx prisma/create-admin.ts",
+    "bootstrap:club": "tsx prisma/bootstrap-club.ts",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down"
   },

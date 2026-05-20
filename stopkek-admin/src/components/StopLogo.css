@@ -1,27 +1,6 @@
-.stop-logo {
-  position: relative;
+.stop-logo-img {
+  display: block;
   margin: 0 auto;
   flex-shrink: 0;
-}
-
-.stop-logo svg {
-  display: block;
-}
-
-.stop-logo-label {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-
-.stop-logo-stop,
-.stop-logo-kek {
-  font-family: 'Permanent Marker', cursive;
-  color: #fff;
-  text-align: center;
-  display: block;
+  object-fit: contain;
 }

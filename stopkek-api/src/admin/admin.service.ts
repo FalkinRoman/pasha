@@ -6,6 +6,8 @@ import {
 import { BookingStatus, SeatStatus, TransactionType } from '@prisma/client';
 import { BookingsService } from '../bookings/bookings.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { CreateSeatDto } from './dto/create-seat.dto';
+import { CreateZoneDto } from './dto/create-zone.dto';
 import { UpdateSeatDto } from './dto/update-seat.dto';
 import { UpdateZoneDto } from './dto/update-zone.dto';
 import { WalletAdjustDto } from './dto/wallet-adjust.dto';
@@ -107,9 +109,50 @@ export class AdminService {
     }));
   }
 
+  async createSeat(dto: CreateSeatDto) {
+    const zone = await this.prisma.zone.findUnique({ where: { id: dto.zoneId } });
+    if (!zone) throw new NotFoundException('Зона не найдена');
+
+    const dup = await this.prisma.seat.findUnique({
+      where: { zoneId_number: { zoneId: dto.zoneId, number: dto.number } },
+    });
+    if (dup) {
+      throw new BadRequestException(
+        `Место №${dto.number} уже есть в зоне ${zone.name}`
+      );
+    }
+
+    const { x, y } =
+      dto.x !== undefined && dto.y !== undefined
+        ? { x: dto.x, y: dto.y }
+        : await this.nextSeatPosition(dto.zoneId);
+
+    return this.prisma.seat.create({
+      data: {
+        zoneId: dto.zoneId,
+        number: dto.number,
+        status: dto.status ?? 'free',
+        x,
+        y,
+      },
+    });
+  }
+
   async updateSeat(seatId: string, dto: UpdateSeatDto) {
     const seat = await this.prisma.seat.findUnique({ where: { id: seatId } });
     if (!seat) throw new NotFoundException('Место не найдено');
+
+    const zoneId = dto.zoneId ?? seat.zoneId;
+    const number = dto.number ?? seat.number;
+
+    if (dto.zoneId !== undefined || dto.number !== undefined) {
+      const dup = await this.prisma.seat.findFirst({
+        where: { zoneId, number, NOT: { id: seatId } },
+      });
+      if (dup) {
+        throw new BadRequestException(`Место №${number} уже занято в этой зоне`);
+      }
+    }
 
     if (dto.status === 'free' && seat.status === 'occupied') {
       const active = await this.prisma.bookingSeat.findFirst({
@@ -127,8 +170,21 @@ export class AdminService {
 
     return this.prisma.seat.update({
       where: { id: seatId },
-      data: { status: dto.status },
+      data: {
+        ...(dto.status !== undefined ? { status: dto.status } : {}),
+        ...(dto.zoneId !== undefined ? { zoneId: dto.zoneId } : {}),
+        ...(dto.number !== undefined ? { number: dto.number } : {}),
+      },
     });
+  }
+
+  async deleteSeat(seatId: string) {
+    const seat = await this.prisma.seat.findUnique({ where: { id: seatId } });
+    if (!seat) throw new NotFoundException('Место не найдено');
+
+    await this.assertSeatDeletable(seatId, seat.number);
+    await this.prisma.seat.delete({ where: { id: seatId } });
+    return { ok: true };
   }
 
   async listZones() {
@@ -146,6 +202,32 @@ export class AdminService {
     }));
   }
 
+  async createZone(dto: CreateZoneDto) {
+    const club = await this.prisma.club.findFirst();
+    if (!club) throw new BadRequestException('Клуб не найден — npm run bootstrap:club');
+
+    const exists = await this.prisma.zone.findUnique({
+      where: { clubId_slug: { clubId: club.id, slug: dto.slug } },
+    });
+    if (exists) throw new BadRequestException(`Зона ${dto.slug} уже существует`);
+
+    const maxOrder = await this.prisma.zone.aggregate({
+      where: { clubId: club.id },
+      _max: { sortOrder: true },
+    });
+
+    return this.prisma.zone.create({
+      data: {
+        clubId: club.id,
+        slug: dto.slug,
+        name: dto.name.trim(),
+        specs: dto.specs?.trim() ?? '',
+        pricePerHour: dto.pricePerHour,
+        sortOrder: dto.sortOrder ?? (maxOrder._max.sortOrder ?? -1) + 1,
+      },
+    });
+  }
+
   async updateZone(zoneId: string, dto: UpdateZoneDto) {
     const zone = await this.prisma.zone.findUnique({ where: { id: zoneId } });
     if (!zone) throw new NotFoundException('Зона не найдена');
@@ -157,6 +239,67 @@ export class AdminService {
         ...(dto.pricePerHour !== undefined ? { pricePerHour: dto.pricePerHour } : {}),
       },
     });
+  }
+
+  async deleteZone(zoneId: string) {
+    const zone = await this.prisma.zone.findUnique({
+      where: { id: zoneId },
+      include: { _count: { select: { seats: true } } },
+    });
+    if (!zone) throw new NotFoundException('Зона не найдена');
+
+    if (zone._count.seats > 0) {
+      throw new BadRequestException(
+        `Сначала удалите все места в зоне (${zone._count.seats})`
+      );
+    }
+
+    await this.prisma.zone.delete({ where: { id: zoneId } });
+    return { ok: true };
+  }
+
+  private async assertSeatDeletable(seatId: string, seatNumber: number) {
+    const active = await this.prisma.bookingSeat.findFirst({
+      where: {
+        seatId,
+        booking: { status: { in: ['active', 'paid', 'pending_payment'] } },
+      },
+    });
+    if (active) {
+      throw new BadRequestException(
+        `Место №${seatNumber} в активной брони — сначала отмените бронь`
+      );
+    }
+
+    const history = await this.prisma.bookingSeat.count({ where: { seatId } });
+    if (history > 0) {
+      throw new BadRequestException(
+        `Место №${seatNumber} уже было в бронях — удалить нельзя`
+      );
+    }
+  }
+
+  private async nextSeatPosition(zoneId: string) {
+    const SEAT_W = 22;
+    const SEAT_H = 22;
+    const STEP = SEAT_W + 4;
+    const GRID_X = 12 + 74 + 10;
+    const GRID_Y = 32;
+
+    const inZone = await this.prisma.seat.findMany({
+      where: { zoneId },
+      orderBy: { number: 'desc' },
+      take: 1,
+    });
+
+    const zone = await this.prisma.zone.findUnique({ where: { id: zoneId } });
+    const row = zone?.sortOrder ?? 0;
+    const col = inZone.length;
+
+    return {
+      x: GRID_X + col * STEP,
+      y: GRID_Y + row * STEP,
+    };
   }
 
   async listBookings(status?: BookingStatus) {

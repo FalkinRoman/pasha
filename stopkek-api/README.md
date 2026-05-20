@@ -11,9 +11,20 @@ cp .env.example .env
 npm install
 npm run db:up
 npm run prisma:migrate
-npm run prisma:seed
+npm run admin:create      # ADMIN_EMAIL + ADMIN_PASSWORD в .env
+npm run bootstrap:club    # зоны и 25 мест (один раз)
 npm run start:dev
 ```
+
+Очистка всех данных (как пустой прод):
+
+```bash
+npm run db:clear
+npm run admin:create
+npm run bootstrap:club
+```
+
+Без демо-пользователей и фейковых броней. `bootstrap:club` — только карта зала.
 
 - Health: `GET http://localhost:3001/api/health`
 - Flash-call auth: `POST /api/auth/call/request`, `POST /api/auth/call/verify`

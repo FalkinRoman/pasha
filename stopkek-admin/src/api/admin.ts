@@ -21,6 +21,7 @@ export type SeatRow = {
   id: string;
   number: number;
   status: string;
+  zoneId: string;
   zoneSlug: string;
   zoneName: string;
   pricePerHour: number;
@@ -108,15 +109,45 @@ export function fetchSeats() {
   return api<SeatRow[]>('/admin/seats');
 }
 
-export function updateSeat(id: string, status: string) {
+export function createSeat(data: {
+  zoneId: string;
+  number: number;
+  status?: string;
+}) {
+  return api('/admin/seats', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateSeat(
+  id: string,
+  data: { status?: string; zoneId?: string; number?: number }
+) {
   return api(`/admin/seats/${id}`, {
     method: 'PATCH',
-    body: JSON.stringify({ status }),
+    body: JSON.stringify(data),
   });
+}
+
+export function deleteSeat(id: string) {
+  return api(`/admin/seats/${id}`, { method: 'DELETE' });
 }
 
 export function fetchZones() {
   return api<ZoneRow[]>('/admin/zones');
+}
+
+export function createZone(data: {
+  slug: string;
+  name: string;
+  specs?: string;
+  pricePerHour: number;
+}) {
+  return api('/admin/zones', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
 }
 
 export function updateZone(
@@ -127,6 +158,10 @@ export function updateZone(
     method: 'PATCH',
     body: JSON.stringify(data),
   });
+}
+
+export function deleteZone(id: string) {
+  return api(`/admin/zones/${id}`, { method: 'DELETE' });
 }
 
 export function fetchBookings(status?: string) {

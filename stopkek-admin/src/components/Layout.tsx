@@ -6,8 +6,7 @@ import './Layout.css';
 
 const nav = [
   { to: '/', label: 'Дашборд', end: true },
-  { to: '/seats', label: 'Места' },
-  { to: '/zones', label: 'Зоны' },
+  { to: '/seats', label: 'Места и зоны' },
   { to: '/bookings', label: 'Брони' },
   { to: '/users', label: 'Клиенты' },
   { to: '/transactions', label: 'Транзакции' },

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -15,6 +16,8 @@ import { CurrentAdmin } from './decorators/current-admin.decorator';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { CreateSeatDto } from './dto/create-seat.dto';
+import { CreateZoneDto } from './dto/create-zone.dto';
 import { UpdateSeatDto } from './dto/update-seat.dto';
 import { UpdateZoneDto } from './dto/update-zone.dto';
 import { WalletAdjustDto } from './dto/wallet-adjust.dto';
@@ -60,10 +63,22 @@ export class AdminController {
     return this.admin.listSeats();
   }
 
+  @Post('seats')
+  @UseGuards(AdminJwtGuard)
+  createSeat(@Body() dto: CreateSeatDto) {
+    return this.admin.createSeat(dto);
+  }
+
   @Patch('seats/:id')
   @UseGuards(AdminJwtGuard)
   updateSeat(@Param('id') id: string, @Body() dto: UpdateSeatDto) {
     return this.admin.updateSeat(id, dto);
+  }
+
+  @Delete('seats/:id')
+  @UseGuards(AdminJwtGuard)
+  deleteSeat(@Param('id') id: string) {
+    return this.admin.deleteSeat(id);
   }
 
   @Get('zones')
@@ -72,10 +87,22 @@ export class AdminController {
     return this.admin.listZones();
   }
 
+  @Post('zones')
+  @UseGuards(AdminJwtGuard)
+  createZone(@Body() dto: CreateZoneDto) {
+    return this.admin.createZone(dto);
+  }
+
   @Patch('zones/:id')
   @UseGuards(AdminJwtGuard)
   updateZone(@Param('id') id: string, @Body() dto: UpdateZoneDto) {
     return this.admin.updateZone(id, dto);
+  }
+
+  @Delete('zones/:id')
+  @UseGuards(AdminJwtGuard)
+  deleteZone(@Param('id') id: string) {
+    return this.admin.deleteZone(id);
   }
 
   @Get('bookings')
