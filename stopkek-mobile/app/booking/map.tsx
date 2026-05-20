@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { cancelBooking } from '../../src/api/bookings';
 import { fetchFloorMap } from '../../src/api/club';
+import { fetchIdentityStatus } from '../../src/api/identity';
 import { useAppDispatch, useAppSelector } from '../../src/store/hooks';
 import { setFloorMap, setPendingBookingId } from '../../src/store/bookingSlice';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -47,6 +48,27 @@ export default function MapScreen() {
     if (pendingBookingId) {
       await cancelBooking(pendingBookingId).catch(() => {});
       dispatch(setPendingBookingId(null));
+    }
+    try {
+      const id = await fetchIdentityStatus();
+      if (id.status === 'pending') {
+        router.push('/verification/pending');
+        return;
+      }
+      if (id.status === 'rejected') {
+        router.push({
+          pathname: '/verification/rejected',
+          params: { reason: id.rejectReason ?? '' },
+        });
+        return;
+      }
+      if (!id.canBook) {
+        router.push('/verification');
+        return;
+      }
+    } catch {
+      router.push('/verification');
+      return;
     }
     router.push('/booking/time');
   };

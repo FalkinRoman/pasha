@@ -20,12 +20,21 @@ export interface Zone {
   labelY: number;
 }
 
+export type IdentityStatus =
+  | 'none'
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'auto_approved';
+
 export interface User {
   id: string;
   phone: string;
   name: string;
   balance: number;
   profileCompleted?: boolean;
+  identityStatus?: IdentityStatus;
+  identityVerified?: boolean;
 }
 
 export interface ClubSummary {

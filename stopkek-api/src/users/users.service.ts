@@ -28,8 +28,10 @@ export class UsersService {
     phone: string;
     name: string;
     profileCompleted: boolean;
+    identityStatus: string;
     wallet: { balance: number } | null;
   }) {
+    const verified = ['approved', 'auto_approved'].includes(user.identityStatus);
     return {
       id: user.id,
       phone: user.phone,
@@ -37,6 +39,8 @@ export class UsersService {
       balance: user.wallet?.balance ?? 0, // копейки
       balanceRub: Math.round((user.wallet?.balance ?? 0) / 100),
       profileCompleted: user.profileCompleted,
+      identityStatus: user.identityStatus,
+      identityVerified: verified,
     };
   }
 }

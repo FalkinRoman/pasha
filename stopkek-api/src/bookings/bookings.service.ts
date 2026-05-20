@@ -75,6 +75,14 @@ export class BookingsService {
   ) {
     await this.syncSeatStates();
 
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Пользователь не найден');
+    if (!['approved', 'auto_approved'].includes(user.identityStatus)) {
+      throw new BadRequestException(
+        'Нужна верификация по паспорту. Пройдите проверку в приложении.'
+      );
+    }
+
     const seat = await this.prisma.seat.findUnique({
       where: { id: seatId },
       include: { zone: true },

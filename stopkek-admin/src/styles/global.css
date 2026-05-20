@@ -196,6 +196,21 @@ select {
 .badge-paid { background: #2e7d32; }
 .badge-completed { background: #37474f; }
 .badge-cancelled { background: #424242; }
+.badge-verified { background: #1b5e20; }
+.badge-pending { background: #f57f17; color: #000; }
+.badge-rejected { background: #b71c1c; }
+.badge-none { background: #424242; }
+
+.user-verification-block {
+  margin: 16px 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.user-verification-block h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
 
 .grid-stats {
   display: grid;
@@ -324,6 +339,91 @@ select {
 .status-chip-repair {
   background: rgba(66, 66, 66, 0.5);
   color: #9e9e9e;
+}
+
+.dashboard-task-card {
+  display: block;
+  margin-bottom: 16px;
+  border-color: rgba(196, 30, 36, 0.45);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.dashboard-task-card:hover {
+  border-color: var(--accent);
+  background: rgba(196, 30, 36, 0.08);
+}
+
+.dashboard-task-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.dashboard-task-badge {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 14px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 28px;
+  text-align: center;
+}
+
+.dashboard-task-desc {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.dashboard-task-cta {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.verification-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.verification-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.verification-timer {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--warn);
+}
+
+.verification-photo {
+  width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #111;
+}
+
+.verification-photo.placeholder {
+  height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+textarea.input {
+  resize: vertical;
+  min-height: 88px;
 }
 
 @media (max-width: 900px) {

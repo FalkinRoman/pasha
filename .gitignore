@@ -9,3 +9,4 @@ stopkek-admin/dist/
 stopkek-admin/tsconfig.tsbuildinfo
 stopkek-admin/.env
 stopkek-api/.env
+stopkek-api/uploads/

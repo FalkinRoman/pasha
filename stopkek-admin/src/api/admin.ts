@@ -12,6 +12,7 @@ export type Dashboard = {
   bookingsToday: number;
   revenueTodayRub: number;
   occupancyPercent: number;
+  pendingVerifications?: number;
   seatsByStatus: Record<string, number>;
   recentBookings: BookingRow[];
   recentFeedback: FeedbackRow[];
@@ -49,6 +50,15 @@ export type BookingRow = {
   seats: { number: number; zoneName?: string }[];
 };
 
+export type UserVerification = {
+  id: string;
+  status: string;
+  submittedAt: string;
+  resolvedAt: string | null;
+  rejectReason: string | null;
+  photoUrl: string;
+};
+
 export type UserRow = {
   id: string;
   phone: string;
@@ -56,6 +66,26 @@ export type UserRow = {
   balanceRub: number;
   bookingsCount: number;
   createdAt: string;
+  identityStatus: string;
+  identityVerified: boolean;
+};
+
+export type UserDetail = {
+  id: string;
+  phone: string;
+  name: string;
+  balanceRub: number;
+  identityStatus: string;
+  identityVerified: boolean;
+  verification: UserVerification | null;
+  bookings: BookingRow[];
+  transactions: {
+    id: string;
+    type: string;
+    amountRub: number;
+    description: string | null;
+    createdAt: string;
+  }[];
 };
 
 export type TransactionRow = {
@@ -204,14 +234,7 @@ export function fetchUsers(search?: string) {
 }
 
 export function fetchUser(id: string) {
-  return api<{
-    id: string;
-    phone: string;
-    name: string;
-    balanceRub: number;
-    bookings: BookingRow[];
-    transactions: { id: string; type: string; amountRub: number; description: string | null; createdAt: string }[];
-  }>(`/admin/users/${id}`);
+  return api<UserDetail>(`/admin/users/${id}`);
 }
 
 export function adjustWallet(userId: string, amountKopecks: number, description?: string) {
@@ -227,4 +250,31 @@ export function fetchTransactions() {
 
 export function fetchFeedback() {
   return api<FeedbackRow[]>('/admin/feedback');
+}
+
+export type VerificationRow = {
+  id: string;
+  userId: string;
+  userPhone: string;
+  userName: string;
+  status: string;
+  submittedAt: string;
+  autoApproveAt: string;
+  secondsUntilAutoApprove: number;
+  photoUrl: string;
+};
+
+export function fetchVerifications() {
+  return api<VerificationRow[]>('/admin/verifications');
+}
+
+export function approveVerification(id: string) {
+  return api(`/admin/verifications/${id}/approve`, { method: 'POST' });
+}
+
+export function rejectVerification(id: string, reason: string) {
+  return api(`/admin/verifications/${id}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
 }

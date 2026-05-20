@@ -15,6 +15,14 @@ export const BOOKING_STATUS: Record<string, string> = {
   no_show: 'Не пришёл',
 };
 
+export const IDENTITY_STATUS: Record<string, string> = {
+  none: 'Не пройдена',
+  pending: 'На проверке',
+  approved: 'Верифицирован',
+  auto_approved: 'Верифицирован (авто)',
+  rejected: 'Отклонена',
+};
+
 export const TX_TYPE: Record<string, string> = {
   topup: 'Пополнение',
   booking_payment: 'Оплата брони',

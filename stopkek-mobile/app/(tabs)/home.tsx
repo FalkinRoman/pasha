@@ -1,21 +1,61 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ApiError } from '../../src/api/client';
+import { fetchIdentityStatus } from '../../src/api/identity';
+import { clearSessionAndRedirect } from '../../src/api/session';
+import { fetchMe } from '../../src/api/users';
+import { VerificationStatusBanner } from '../../src/components/verification/VerificationStatusBanner';
 import { SessionCard } from '../../src/components/booking/SessionCard';
 import { Card } from '../../src/components/ui/Card';
 import { Screen } from '../../src/components/ui/Screen';
 import { StopButton } from '../../src/components/ui/StopButton';
 import { StopLogo } from '../../src/components/ui/StopLogo';
-import { useAppSelector } from '../../src/store/hooks';
+import { useAppDispatch, useAppSelector } from '../../src/store/hooks';
+import { updateUser } from '../../src/store/authSlice';
 import { colors } from '../../src/theme/colors';
 import { spacing } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
 import { formatMoney } from '../../src/utils/format';
 
 export default function HomeScreen() {
+  const dispatch = useAppDispatch();
   const user = useAppSelector((s) => s.auth.user);
+  const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
   const activeBooking = useAppSelector((s) => s.booking.activeBooking);
   const club = useAppSelector((s) => s.booking.club);
+  const [verifySeconds, setVerifySeconds] = useState<number | null>(null);
+  const identityPending = user?.identityStatus === 'pending';
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!isAuthenticated) return;
+
+      const poll = async () => {
+        try {
+          const me = await fetchMe();
+          dispatch(updateUser(me));
+
+          if (me.identityStatus !== 'pending') {
+            setVerifySeconds(null);
+            return;
+          }
+
+          const s = await fetchIdentityStatus();
+          setVerifySeconds(s.secondsUntilAutoApprove);
+        } catch (e) {
+          if (e instanceof ApiError && e.status === 401) {
+            await clearSessionAndRedirect(dispatch);
+          }
+        }
+      };
+
+      poll();
+      const id = setInterval(poll, 4000);
+      return () => clearInterval(id);
+    }, [isAuthenticated, dispatch])
+  );
 
   return (
     <Screen scroll>
@@ -26,6 +66,10 @@ export default function HomeScreen() {
         </View>
         <StopLogo size={44} />
       </View>
+
+      {identityPending ? (
+        <VerificationStatusBanner secondsLeft={verifySeconds} />
+      ) : null}
 
       <Pressable onPress={() => router.push('/wallet/topup')}>
         <Card style={styles.balance}>

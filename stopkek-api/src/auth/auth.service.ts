@@ -169,6 +169,10 @@ export class AuthService {
         balance: wallet?.balance ?? 0,
         balanceRub: Math.round((wallet?.balance ?? 0) / 100),
         profileCompleted: user.profileCompleted,
+        identityStatus: user.identityStatus,
+        identityVerified: ['approved', 'auto_approved'].includes(
+          user.identityStatus
+        ),
       },
       ...tokens,
     };

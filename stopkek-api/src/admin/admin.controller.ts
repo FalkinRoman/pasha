@@ -7,8 +7,10 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { BookingStatus } from '@prisma/client';
 import { AdminAuthService } from './admin-auth.service';
 import { AdminService } from './admin.service';
@@ -20,6 +22,7 @@ import { CreateSeatDto } from './dto/create-seat.dto';
 import { CreateZoneDto } from './dto/create-zone.dto';
 import { UpdateSeatDto } from './dto/update-seat.dto';
 import { UpdateZoneDto } from './dto/update-zone.dto';
+import { RejectVerificationDto } from './dto/reject-verification.dto';
 import { WalletAdjustDto } from './dto/wallet-adjust.dto';
 import { AdminJwtGuard } from './guards/admin-jwt.guard';
 
@@ -145,5 +148,36 @@ export class AdminController {
   @UseGuards(AdminJwtGuard)
   feedback() {
     return this.admin.listFeedback();
+  }
+
+  @Get('verifications')
+  @UseGuards(AdminJwtGuard)
+  verifications() {
+    return this.admin.listVerifications();
+  }
+
+  @Get('verifications/:id/photo')
+  @UseGuards(AdminJwtGuard)
+  verificationPhoto(@Param('id') id: string, @Res() res: Response) {
+    return this.admin.streamVerificationPhoto(id, res);
+  }
+
+  @Post('verifications/:id/approve')
+  @UseGuards(AdminJwtGuard)
+  approveVerification(
+    @Param('id') id: string,
+    @CurrentAdmin() a: { adminId: string }
+  ) {
+    return this.admin.approveVerification(id, a.adminId);
+  }
+
+  @Post('verifications/:id/reject')
+  @UseGuards(AdminJwtGuard)
+  rejectVerification(
+    @Param('id') id: string,
+    @CurrentAdmin() a: { adminId: string },
+    @Body() dto: RejectVerificationDto
+  ) {
+    return this.admin.rejectVerification(id, a.adminId, dto.reason);
   }
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { FloorMapPreview } from '../components/FloorMapPreview';
 import { Dashboard, fetchDashboard, fetchFloorMap, FloorMapData } from '../api/admin';
 import { BOOKING_STATUS, SEAT_STATUS } from '../lib/statusLabels';
@@ -38,6 +39,22 @@ export function DashboardPage() {
   return (
     <>
       <h1 className="page-title">Дашборд</h1>
+
+      {(data.pendingVerifications ?? 0) > 0 ? (
+        <Link to="/verifications" className="card dashboard-task-card">
+          <div className="dashboard-task-head">
+            <span className="dashboard-task-badge">{data.pendingVerifications}</span>
+            <strong>Верификация — нужно закрыть</strong>
+          </div>
+          <p className="muted dashboard-task-desc">
+            {data.pendingVerifications === 1
+              ? '1 заявка на проверке паспорта. Откройте раздел и примите или отклоните.'
+              : `${data.pendingVerifications} заявок на проверке. Без ответа за 5 минут клиент пройдёт автоматически.`}
+          </p>
+          <span className="dashboard-task-cta">Перейти к верификации →</span>
+        </Link>
+      ) : null}
+
       <div className="grid-stats">
         <div className="card">
           <div className="stat-value">{data.usersCount}</div>
@@ -98,7 +115,13 @@ export function DashboardPage() {
         <div className="card">
           <h3>Быстро</h3>
           <p className="muted">
-            Управление: разделы «Места и зоны», «Брони» в меню слева.
+            Управление: «Места и зоны», «Брони»,{' '}
+            {(data.pendingVerifications ?? 0) > 0 ? (
+              <Link to="/verifications">верификация ({data.pendingVerifications})</Link>
+            ) : (
+              'верификация'
+            )}{' '}
+            в меню слева.
           </p>
         </div>
       </div>

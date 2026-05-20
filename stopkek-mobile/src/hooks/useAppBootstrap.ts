@@ -1,11 +1,12 @@
 import { useEffect } from 'react';
 import { fetchActiveBooking } from '../api/bookings';
 import { fetchClub, fetchFloorMap } from '../api/club';
-import { setAccessToken } from '../api/client';
+import { ApiError, setAccessToken } from '../api/client';
 import { fetchMe } from '../api/users';
 import { loadStoredToken, saveToken } from '../storage/authStorage';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { loginSuccess, setHydrated, setNeedsProfileSetup } from '../store/authSlice';
+import { clearSessionAndRedirect } from '../api/session';
+import { loginSuccess, logout, setHydrated, setNeedsProfileSetup } from '../store/authSlice';
 import {
   setActiveBooking,
   setClub,
@@ -40,6 +41,7 @@ export function useAppBootstrap() {
       } catch {
         setAccessToken(null);
         await saveToken(null);
+        dispatch(logout());
       } finally {
         dispatch(setHydrated());
       }
@@ -53,8 +55,17 @@ export function useAppBootstrap() {
 }
 
 export async function refreshAppData(dispatch: AppDispatch) {
-  const [user, active, club, floor] = await Promise.all([
-    fetchMe(),
+  let user;
+  try {
+    user = await fetchMe();
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 401) {
+      await clearSessionAndRedirect(dispatch);
+      return;
+    }
+    throw e;
+  }
+  const [active, club, floor] = await Promise.all([
     fetchActiveBooking(),
     fetchClub(),
     fetchFloorMap(),

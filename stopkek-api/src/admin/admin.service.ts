@@ -3,8 +3,16 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { BookingStatus, SeatStatus, TransactionType } from '@prisma/client';
+import {
+  BookingStatus,
+  IdentityStatus,
+  SeatStatus,
+  TransactionType,
+} from '@prisma/client';
+import { createReadStream, existsSync } from 'fs';
+import type { Response } from 'express';
 import { BookingsService } from '../bookings/bookings.service';
+import { IdentityService } from '../identity/identity.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSeatDto } from './dto/create-seat.dto';
 import { CreateZoneDto } from './dto/create-zone.dto';
@@ -12,15 +20,19 @@ import { UpdateSeatDto } from './dto/update-seat.dto';
 import { UpdateZoneDto } from './dto/update-zone.dto';
 import { WalletAdjustDto } from './dto/wallet-adjust.dto';
 
+const IDENTITY_VERIFIED: IdentityStatus[] = ['approved', 'auto_approved'];
+
 @Injectable()
 export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly bookings: BookingsService
+    private readonly bookings: BookingsService,
+    private readonly identity: IdentityService
   ) {}
 
   async getDashboard() {
     await this.bookings.syncSeatStates();
+    const pendingVerifications = await this.identity.processAutoApprovals();
 
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
@@ -66,6 +78,10 @@ export class AdminService {
       ['occupied', 'reserved'].includes(s.status)
     ).length;
 
+    const pendingCount = await this.prisma.identityVerification.count({
+      where: { status: 'pending' },
+    });
+
     return {
       usersCount,
       bookingsToday,
@@ -73,6 +89,8 @@ export class AdminService {
       occupancyPercent: totalSeats
         ? Math.round((busy / totalSeats) * 100)
         : 0,
+      pendingVerifications: pendingCount,
+      autoApprovedNow: pendingVerifications,
       seatsByStatus: {
         free: seats.filter((s) => s.status === 'free').length,
         occupied: seats.filter((s) => s.status === 'occupied').length,
@@ -365,6 +383,8 @@ export class AdminService {
       name: u.name || 'Игрок',
       email: u.email,
       profileCompleted: u.profileCompleted,
+      identityStatus: u.identityStatus,
+      identityVerified: IDENTITY_VERIFIED.includes(u.identityStatus),
       balanceRub: Math.round((u.wallet?.balance ?? 0) / 100),
       bookingsCount: u._count.bookings,
       createdAt: u.createdAt,
@@ -381,9 +401,15 @@ export class AdminService {
           take: 15,
           include: { seats: true },
         },
+        identityVerifications: {
+          orderBy: { submittedAt: 'desc' },
+          take: 1,
+        },
       },
     });
     if (!u) throw new NotFoundException('Пользователь не найден');
+
+    const latest = u.identityVerifications[0] ?? null;
 
     return {
       id: u.id,
@@ -391,8 +417,20 @@ export class AdminService {
       name: u.name || 'Игрок',
       email: u.email,
       profileCompleted: u.profileCompleted,
+      identityStatus: u.identityStatus,
+      identityVerified: IDENTITY_VERIFIED.includes(u.identityStatus),
       balanceRub: Math.round((u.wallet?.balance ?? 0) / 100),
       createdAt: u.createdAt,
+      verification: latest
+        ? {
+            id: latest.id,
+            status: latest.status,
+            submittedAt: latest.submittedAt,
+            resolvedAt: latest.resolvedAt,
+            rejectReason: latest.rejectReason,
+            photoUrl: `/admin/verifications/${latest.id}/photo`,
+          }
+        : null,
       bookings: u.bookings.map((b) => this.formatBooking(b)),
       transactions: (u.wallet?.transactions ?? []).map((t) => ({
         id: t.id,
@@ -495,5 +533,28 @@ export class AdminService {
         zoneSlug: s.seat?.zone?.slug,
       })),
     };
+  }
+
+  listVerifications() {
+    return this.identity.listPendingForAdmin();
+  }
+
+  approveVerification(id: string, adminId: string) {
+    return this.identity.approve(id, adminId);
+  }
+
+  rejectVerification(id: string, adminId: string, reason: string) {
+    return this.identity.reject(id, adminId, reason);
+  }
+
+  async streamVerificationPhoto(id: string, res: Response) {
+    const v = await this.prisma.identityVerification.findUnique({
+      where: { id },
+    });
+    if (!v) throw new NotFoundException('Заявка не найдена');
+    const path = this.identity.getPhotoAbsolutePath(v.photoPath);
+    if (!existsSync(path)) throw new NotFoundException('Фото не найдено');
+    res.setHeader('Content-Type', 'image/jpeg');
+    createReadStream(path).pipe(res);
   }
 }

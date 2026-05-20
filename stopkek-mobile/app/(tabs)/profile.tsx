@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { setAccessToken } from '../../src/api/client';
+import { IdentityBadge } from '../../src/components/verification/IdentityBadge';
 import { Card } from '../../src/components/ui/Card';
 import { Screen } from '../../src/components/ui/Screen';
 import { useAppDispatch, useAppSelector } from '../../src/store/hooks';
@@ -57,6 +58,10 @@ export default function ProfileScreen() {
           <Text style={[typography.caption, { marginTop: 4 }]}>
             Баланс: {formatMoney(user?.balance ?? 0)}
           </Text>
+          <IdentityBadge
+            status={user?.identityStatus}
+            verified={user?.identityVerified}
+          />
         </View>
       </Card>
 

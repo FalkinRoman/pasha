@@ -5,6 +5,7 @@ import { BookingsModule } from './bookings/bookings.module';
 import { ClubModule } from './club/club.module';
 import { AdminModule } from './admin/admin.module';
 import { MailModule } from './mail/mail.module';
+import { IdentityModule } from './identity/identity.module';
 import { FeedbackModule } from './feedback/feedback.module';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -20,6 +21,7 @@ import { WalletModule } from './wallet/wallet.module';
     AuthModule,
     ClubModule,
     UsersModule,
+    IdentityModule,
     BookingsModule,
     WalletModule,
     FeedbackModule,

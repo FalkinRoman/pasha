@@ -62,6 +62,8 @@ export default function RootLayout() {
         <Stack.Screen name="profile" />
         <Stack.Screen name="support" />
         <Stack.Screen name="club" />
+        <Stack.Screen name="verification" />
+        <Stack.Screen name="legal" />
       </Stack>
       </Bootstrapper>
     </Provider>

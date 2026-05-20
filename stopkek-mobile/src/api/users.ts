@@ -8,6 +8,8 @@ type MeResponse = {
   balance: number;
   balanceRub?: number;
   profileCompleted: boolean;
+  identityStatus: string;
+  identityVerified: boolean;
 };
 
 function mapUser(d: MeResponse): User {
@@ -17,6 +19,8 @@ function mapUser(d: MeResponse): User {
     name: d.name,
     balance: d.balanceRub ?? Math.round(d.balance / 100),
     profileCompleted: d.profileCompleted,
+    identityStatus: d.identityStatus as User['identityStatus'],
+    identityVerified: d.identityVerified,
   };
 }
 

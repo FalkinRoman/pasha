@@ -29,6 +29,16 @@
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
     },
-    "plugins": ["expo-router", "expo-font"]
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Камера нужна для фото с паспортом при верификации",
+          "recordAudioAndroid": false
+        }
+      ]
+    ]
   }
 }

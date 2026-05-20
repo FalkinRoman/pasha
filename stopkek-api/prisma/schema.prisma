@@ -49,19 +49,48 @@ enum AdminRole {
   superadmin
 }
 
-model User {
-  id                String   @id @default(cuid())
-  phone             String   @unique
-  name              String   @default("")
-  profileCompleted  Boolean  @default(false)
-  email             String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+enum IdentityStatus {
+  none
+  pending
+  approved
+  rejected
+  auto_approved
+}
 
-  wallet    Wallet?
-  bookings  Booking[]
-  feedbacks Feedback[]
-  payments  Payment[]
+model User {
+  id                String         @id @default(cuid())
+  phone             String         @unique
+  name              String         @default("")
+  profileCompleted  Boolean        @default(false)
+  identityStatus    IdentityStatus @default(none)
+  pdConsentAt       DateTime?
+  email             String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  wallet                  Wallet?
+  bookings                Booking[]
+  feedbacks               Feedback[]
+  payments                Payment[]
+  identityVerifications   IdentityVerification[]
+}
+
+model IdentityVerification {
+  id                String         @id @default(cuid())
+  userId            String
+  status            IdentityStatus @default(pending)
+  photoPath         String
+  rejectReason      String?
+  pdConsentAt       DateTime
+  submittedAt       DateTime       @default(now())
+  autoApproveAt     DateTime
+  resolvedAt        DateTime?
+  resolvedByAdminId String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, submittedAt])
+  @@index([userId, submittedAt])
 }
 
 model Wallet {

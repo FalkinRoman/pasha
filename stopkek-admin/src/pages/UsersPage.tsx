@@ -1,14 +1,28 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { UserRow, adjustWallet, fetchUser, fetchUsers } from '../api/admin';
-import { TX_TYPE } from '../lib/statusLabels';
+import { ApiError, API_URL, getToken } from '../api/client';
+import { UserDetail, UserRow, adjustWallet, fetchUser, fetchUsers } from '../api/admin';
+import { IDENTITY_STATUS, TX_TYPE } from '../lib/statusLabels';
+
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleString('ru-RU');
+}
+
+function identityBadgeClass(status: string, verified: boolean) {
+  if (verified) return 'badge badge-verified';
+  if (status === 'pending') return 'badge badge-pending';
+  if (status === 'rejected') return 'badge badge-rejected';
+  return 'badge badge-none';
+}
 
 export function UsersPage() {
   const [search, setSearch] = useState('');
   const [rows, setRows] = useState<UserRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [detail, setDetail] = useState<Awaited<ReturnType<typeof fetchUser>> | null>(null);
+  const [detail, setDetail] = useState<UserDetail | null>(null);
   const [adjustRub, setAdjustRub] = useState('');
   const [adjustNote, setAdjustNote] = useState('');
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState('');
 
   const load = () => fetchUsers(search || undefined).then(setRows);
 
@@ -18,8 +32,47 @@ export function UsersPage() {
 
   const openUser = async (id: string) => {
     setSelectedId(id);
+    setPhotoUrl(null);
+    setPhotoError('');
     setDetail(await fetchUser(id));
   };
+
+  useEffect(() => {
+    const v = detail?.verification;
+    if (!v?.photoUrl) {
+      setPhotoUrl(null);
+      return;
+    }
+    const token = getToken();
+    if (!token) return;
+
+    let revoked = false;
+    fetch(`${API_URL}${v.photoUrl}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error('Фото не найдено');
+        return r.blob();
+      })
+      .then((b) => {
+        if (revoked) return;
+        setPhotoUrl(URL.createObjectURL(b));
+        setPhotoError('');
+      })
+      .catch(() => {
+        if (!revoked) setPhotoError('Не удалось загрузить фото');
+      });
+
+    return () => {
+      revoked = true;
+    };
+  }, [detail?.verification?.id, detail?.verification?.photoUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (photoUrl) URL.revokeObjectURL(photoUrl);
+    };
+  }, [photoUrl]);
 
   const onSearch = (e: FormEvent) => {
     e.preventDefault();
@@ -31,10 +84,14 @@ export function UsersPage() {
     if (!selectedId) return;
     const rub = Number(adjustRub);
     if (!Number.isFinite(rub) || rub === 0) return;
-    await adjustWallet(selectedId, Math.round(rub * 100), adjustNote || undefined);
-    setAdjustRub('');
-    openUser(selectedId);
-    load();
+    try {
+      await adjustWallet(selectedId, Math.round(rub * 100), adjustNote || undefined);
+      setAdjustRub('');
+      openUser(selectedId);
+      load();
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : 'Ошибка');
+    }
   };
 
   return (
@@ -61,6 +118,7 @@ export function UsersPage() {
                 <tr>
                   <th>Телефон</th>
                   <th>Имя</th>
+                  <th>Верификация</th>
                   <th>Баланс</th>
                   <th className="hide-mobile">Броней</th>
                   <th></th>
@@ -71,6 +129,16 @@ export function UsersPage() {
                   <tr key={u.id} className={selectedId === u.id ? 'row-selected' : ''}>
                     <td>{u.phone}</td>
                     <td>{u.name}</td>
+                    <td>
+                      <span
+                        className={identityBadgeClass(
+                          u.identityStatus,
+                          u.identityVerified
+                        )}
+                      >
+                        {IDENTITY_STATUS[u.identityStatus] ?? u.identityStatus}
+                      </span>
+                    </td>
                     <td>{u.balanceRub.toLocaleString('ru-RU')} ₽</td>
                     <td className="hide-mobile">{u.bookingsCount}</td>
                     <td>
@@ -94,8 +162,57 @@ export function UsersPage() {
             <h3>{detail.name}</h3>
             <p className="muted">{detail.phone}</p>
             <p>
+              <span
+                className={identityBadgeClass(
+                  detail.identityStatus,
+                  detail.identityVerified
+                )}
+              >
+                {IDENTITY_STATUS[detail.identityStatus] ?? detail.identityStatus}
+              </span>
+            </p>
+            <p>
               Баланс: <strong>{detail.balanceRub.toLocaleString('ru-RU')} ₽</strong>
             </p>
+
+            {detail.verification ? (
+              <div className="user-verification-block">
+                <h4>Верификация</h4>
+                <p className="muted" style={{ fontSize: 13 }}>
+                  Отправлено: {fmtDate(detail.verification.submittedAt)}
+                  {detail.verification.resolvedAt
+                    ? ` · Решение: ${fmtDate(detail.verification.resolvedAt)}`
+                    : null}
+                </p>
+                {detail.verification.rejectReason ? (
+                  <p className="error" style={{ fontSize: 13 }}>
+                    Причина отклонения: {detail.verification.rejectReason}
+                  </p>
+                ) : null}
+                {detail.identityVerified || detail.verification.status !== 'pending' ? (
+                  photoUrl ? (
+                    <img
+                      src={photoUrl}
+                      alt="Фото с паспортом"
+                      className="verification-photo"
+                    />
+                  ) : photoError ? (
+                    <p className="muted">{photoError}</p>
+                  ) : (
+                    <div className="verification-photo placeholder">Загрузка фото…</div>
+                  )
+                ) : (
+                  <p className="muted" style={{ fontSize: 13 }}>
+                    Активная заявка — фото в разделе «Верификация».
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="muted user-verification-block">
+                Верификация не отправлялась
+              </p>
+            )}
+
             <form onSubmit={onAdjust} className="adjust-form">
               <h4>Корректировка баланса</h4>
               <input
