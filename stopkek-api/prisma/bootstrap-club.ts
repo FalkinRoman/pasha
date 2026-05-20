@@ -38,6 +38,7 @@ async function main() {
       address: '',
       rating: 5,
       hours: '24/7',
+      supportEmail: 'stopkeksprt@mail.ru',
       zones: {
         create: [
           {

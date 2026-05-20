@@ -282,6 +282,50 @@ select {
   margin-top: 16px;
 }
 
+.dashboard-map-card {
+  margin-top: 20px;
+}
+
+.dashboard-map-meta {
+  font-size: 13px;
+}
+
+.dashboard-status-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.status-chip {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+
+.status-chip-free {
+  background: rgba(46, 125, 50, 0.25);
+  color: #81c784;
+}
+
+.status-chip-occupied {
+  background: rgba(198, 40, 40, 0.2);
+  color: #ef9a9a;
+}
+
+.status-chip-reserved {
+  background: rgba(249, 168, 37, 0.2);
+  color: #ffcc80;
+}
+
+.status-chip-repair {
+  background: rgba(66, 66, 66, 0.5);
+  color: #9e9e9e;
+}
+
 @media (max-width: 900px) {
   .hide-mobile {
     display: none;

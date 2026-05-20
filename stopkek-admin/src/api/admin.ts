@@ -105,6 +105,31 @@ export function fetchDashboard() {
   return api<Dashboard>('/admin/dashboard');
 }
 
+export type FloorMapData = {
+  club: { id: string; name: string; address: string; rating: number };
+  zones: {
+    id: string;
+    name: string;
+    specs: string;
+    labelX: number;
+    labelY: number;
+  }[];
+  seats: {
+    id: string;
+    number: number;
+    zoneId: string;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    status: string;
+  }[];
+};
+
+export function fetchFloorMap() {
+  return api<FloorMapData>('/club/floor-map');
+}
+
 export function fetchSeats() {
   return api<SeatRow[]>('/admin/seats');
 }

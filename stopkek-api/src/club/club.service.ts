@@ -20,6 +20,7 @@ export class ClubService {
       address: club.address,
       rating: club.rating,
       hours: club.hours,
+      supportEmail: club.supportEmail,
       zones: club.zones.map((z) => ({
         id: z.slug,
         name: z.name,

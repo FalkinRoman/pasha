@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Dashboard, fetchDashboard } from '../api/admin';
-import { BOOKING_STATUS } from '../lib/statusLabels';
+import { FloorMapPreview } from '../components/FloorMapPreview';
+import { Dashboard, fetchDashboard, fetchFloorMap, FloorMapData } from '../api/admin';
+import { BOOKING_STATUS, SEAT_STATUS } from '../lib/statusLabels';
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleString('ru-RU', {
@@ -13,16 +14,26 @@ function fmtDate(iso: string) {
 
 export function DashboardPage() {
   const [data, setData] = useState<Dashboard | null>(null);
+  const [floor, setFloor] = useState<FloorMapData | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetchDashboard()
-      .then(setData)
+    Promise.all([fetchDashboard(), fetchFloorMap()])
+      .then(([d, f]) => {
+        setData(d);
+        setFloor(f);
+      })
       .catch(() => setError('Не удалось загрузить дашборд'));
   }, []);
 
   if (error) return <p className="error">{error}</p>;
   if (!data) return <p className="muted">Загрузка…</p>;
+
+  const totalSeats =
+    data.seatsByStatus.free +
+    data.seatsByStatus.occupied +
+    data.seatsByStatus.reserved +
+    data.seatsByStatus.repair;
 
   return (
     <>
@@ -46,14 +57,35 @@ export function DashboardPage() {
         </div>
       </div>
 
-      <div className="dashboard-split">
-        <div className="card">
-          <h3>Места</h3>
-          <p className="muted">Свободно: {data.seatsByStatus.free}</p>
-          <p className="muted">Занято: {data.seatsByStatus.occupied}</p>
-          <p className="muted">Забронировано: {data.seatsByStatus.reserved}</p>
-          <p className="muted">Ремонт: {data.seatsByStatus.repair}</p>
+      <div className="card dashboard-map-card">
+        <div className="section-head">
+          <h2 className="section-title">Зал сейчас</h2>
+          <span className="muted dashboard-map-meta">
+            {totalSeats} мест · занято {data.seatsByStatus.occupied + data.seatsByStatus.reserved}
+          </span>
         </div>
+        {floor ? (
+          <FloorMapPreview seats={floor.seats} zones={floor.zones} />
+        ) : (
+          <p className="muted">Карта загружается…</p>
+        )}
+        <div className="dashboard-status-chips">
+          {(
+            [
+              ['free', data.seatsByStatus.free],
+              ['occupied', data.seatsByStatus.occupied],
+              ['reserved', data.seatsByStatus.reserved],
+              ['repair', data.seatsByStatus.repair],
+            ] as const
+          ).map(([status, count]) => (
+            <span key={status} className={`status-chip status-chip-${status}`}>
+              {SEAT_STATUS[status]}: {count}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="dashboard-split">
         <div className="card">
           <h3>Последние отзывы</h3>
           {data.recentFeedback.length === 0 && <p className="muted">Пока нет</p>}
@@ -62,6 +94,12 @@ export function DashboardPage() {
               ★{f.rating} <strong>{f.userName}</strong>: {f.message.slice(0, 100)}
             </p>
           ))}
+        </div>
+        <div className="card">
+          <h3>Быстро</h3>
+          <p className="muted">
+            Управление: разделы «Места и зоны», «Брони» в меню слева.
+          </p>
         </div>
       </div>
 
