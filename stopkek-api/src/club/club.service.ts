@@ -67,7 +67,14 @@ export class ClubService {
       include: { zones: { orderBy: { sortOrder: 'asc' } } },
     });
     if (!club) throw new NotFoundException('Клуб не найден');
-    return this.mapClub(club);
+    return {
+      ...this.mapClub(club),
+      lockProvider: club.lockProvider,
+      mainDoorLockId: club.mainDoorLockId,
+      lockHttpBaseUrl: club.lockHttpBaseUrl,
+      lockHttpToken: club.lockHttpToken ? '••••••••' : null,
+      lockMqttTopic: club.lockMqttTopic,
+    };
   }
 
   async updateClubSettings(dto: UpdateClubDto) {

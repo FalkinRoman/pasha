@@ -11,7 +11,7 @@ cp .env.example .env
 npm install
 npm run db:up
 npm run prisma:migrate
-npm run admin:seed        # stopkeksprt@mail.ru + ADMIN_PASSWORD в .env
+npm run admin:seed        # stopkeksprt@yandex.ru + ADMIN_PASSWORD в .env
 npm run bootstrap:club    # зоны и 25 мест (один раз)
 npm run start:dev
 ```

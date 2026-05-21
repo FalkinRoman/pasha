@@ -27,6 +27,8 @@ export type SeatRow = {
   zoneName: string;
   pricePerHour: number;
   specs: string;
+  lockId?: string | null;
+  cellLock?: string | null;
 };
 
 export type ZoneRow = {
@@ -177,7 +179,13 @@ export function createSeat(data: {
 
 export function updateSeat(
   id: string,
-  data: { status?: string; zoneId?: string; number?: number }
+  data: {
+    status?: string;
+    zoneId?: string;
+    number?: number;
+    lockId?: string;
+    cellLock?: string;
+  }
 ) {
   return api(`/admin/seats/${id}`, {
     method: 'PATCH',
@@ -344,4 +352,92 @@ export type AdminLoginCode = {
 
 export function generateUserLoginCode(userId: string) {
   return api<AdminLoginCode>(`/admin/users/${userId}/login-code`, { method: 'POST' });
+}
+
+export type AcceptanceReportRow = {
+  id: string;
+  bookingId: string;
+  comment: string;
+  items: Record<string, boolean>;
+  hasIssue: boolean;
+  resolved: boolean;
+  createdAt: string;
+  seatNumber: number;
+  userPhone: string;
+  userName: string;
+};
+
+export function fetchAcceptanceReports(resolved = false) {
+  return api<AcceptanceReportRow[]>(
+    `/admin/acceptance-reports?resolved=${resolved ? 'true' : 'false'}`
+  );
+}
+
+export function resolveAcceptanceReport(id: string) {
+  return api(`/admin/acceptance-reports/${id}/resolve`, { method: 'POST' });
+}
+
+export type ClubLocks = {
+  lockProvider: 'mock' | 'http' | 'mqtt';
+  mainDoorLockId: string | null;
+  lockHttpBaseUrl: string | null;
+  lockHttpToken: string | null;
+  lockMqttTopic: string | null;
+};
+
+export function fetchClubLocks() {
+  return api<ClubLocks>('/admin/club/locks');
+}
+
+export function updateClubLocks(data: Partial<ClubLocks>) {
+  return api<ClubLocks>('/admin/club/locks', {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export type LockEventRow = {
+  id: string;
+  lockType: string;
+  lockTarget: string;
+  provider: string;
+  success: boolean;
+  error: string | null;
+  createdAt: string;
+};
+
+export function fetchLockEvents() {
+  return api<LockEventRow[]>('/admin/locks/events');
+}
+
+export type LockerLogRow = {
+  id: string;
+  type: string;
+  bookingId: string | null;
+  seatNumber: number;
+  cellLock: string;
+  hasPhoto: boolean;
+  createdAt: string;
+  userId: string;
+  userPhone: string;
+  userName: string;
+  bookingStatus: string | null;
+  bookingTotalRub: number | null;
+};
+
+export function fetchCellControl(params?: {
+  seatNumber?: number;
+  cellLock?: string;
+  limit?: number;
+}) {
+  const q = new URLSearchParams();
+  if (params?.seatNumber != null) q.set('seatNumber', String(params.seatNumber));
+  if (params?.cellLock) q.set('cellLock', params.cellLock);
+  if (params?.limit != null) q.set('limit', String(params.limit));
+  const suffix = q.toString() ? `?${q}` : '';
+  return api<LockerLogRow[]>(`/admin/cell-control${suffix}`);
+}
+
+export function lockerLogPhotoPath(logId: string) {
+  return `/admin/cell-control/${logId}/photo`;
 }

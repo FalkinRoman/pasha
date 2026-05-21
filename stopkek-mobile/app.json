@@ -38,6 +38,13 @@
           "cameraPermission": "Камера нужна для фото с паспортом при верификации",
           "recordAudioAndroid": false
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#C41E24"
+        }
       ]
     ]
   }

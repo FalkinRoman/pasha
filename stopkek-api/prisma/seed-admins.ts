@@ -1,11 +1,15 @@
 /**
- * Сид админов и email поддержки клуба.
+ * Сид единственного админа и email поддержки клуба.
  * npm run admin:seed
  */
 import { AdminRole, PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
+
+const DEFAULT_ADMIN_EMAIL = 'stopkeksprt@yandex.ru';
+const DEFAULT_ADMIN_NAME = 'Админ и поддержка';
+const ADMIN_ROLE: AdminRole = 'superadmin';
 
 function loadEnvFile() {
   const path = resolve(__dirname, '../.env');
@@ -27,18 +31,6 @@ function loadEnvFile() {
   }
 }
 
-const DEFAULT_ADMINS: {
-  email: string;
-  name: string;
-  role: AdminRole;
-}[] = [
-  {
-    email: 'stopkeksprt@mail.ru',
-    name: 'Админ и поддержка',
-    role: 'superadmin',
-  },
-];
-
 const prisma = new PrismaClient();
 
 async function main() {
@@ -50,33 +42,31 @@ async function main() {
     process.exit(1);
   }
 
+  const adminEmail =
+    process.env.ADMIN_EMAIL?.trim().toLowerCase() || DEFAULT_ADMIN_EMAIL;
+  const adminName = process.env.ADMIN_NAME?.trim() || DEFAULT_ADMIN_NAME;
   const supportEmail =
-    process.env.SUPPORT_EMAIL?.trim().toLowerCase() ||
-    'stopkeksprt@mail.ru';
+    process.env.SUPPORT_EMAIL?.trim().toLowerCase() || adminEmail;
 
-  const extraEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
-  const extraName = process.env.ADMIN_NAME?.trim() || 'Администратор';
-
-  const toSeed = [...DEFAULT_ADMINS];
-  if (extraEmail && !toSeed.some((a) => a.email === extraEmail)) {
-    toSeed.push({ email: extraEmail, name: extraName, role: 'superadmin' });
+  const removed = await prisma.admin.deleteMany({
+    where: { email: { not: adminEmail } },
+  });
+  if (removed.count > 0) {
+    console.log('Удалены лишние админы:', removed.count);
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
-
-  for (const a of toSeed) {
-    const admin = await prisma.admin.upsert({
-      where: { email: a.email },
-      update: { passwordHash, name: a.name, role: a.role },
-      create: {
-        email: a.email,
-        passwordHash,
-        name: a.name,
-        role: a.role,
-      },
-    });
-    console.log('Админ:', admin.email, `(${admin.role})`);
-  }
+  const admin = await prisma.admin.upsert({
+    where: { email: adminEmail },
+    update: { passwordHash, name: adminName, role: ADMIN_ROLE },
+    create: {
+      email: adminEmail,
+      passwordHash,
+      name: adminName,
+      role: ADMIN_ROLE,
+    },
+  });
+  console.log('Админ:', admin.email, `(${admin.role})`);
 
   const club = await prisma.club.findFirst();
   if (club) {

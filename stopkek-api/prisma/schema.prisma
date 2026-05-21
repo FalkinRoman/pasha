@@ -24,6 +24,16 @@ enum BookingStatus {
   no_show
 }
 
+enum SessionPhase {
+  awaiting_arrival
+  arrival
+  cell_pending
+  acceptance
+  issue
+  playing
+  checkout
+}
+
 enum TransactionType {
   topup
   booking_payment
@@ -57,6 +67,26 @@ enum IdentityStatus {
   auto_approved
 }
 
+enum LockProvider {
+  mock
+  http
+  mqtt
+}
+
+enum NotificationType {
+  session_start
+  session_remind_15
+  session_end
+  promo
+}
+
+enum LockerLogType {
+  lock_open_main
+  lock_open_cell
+  acceptance
+  checkout
+}
+
 model User {
   id                String         @id @default(cuid())
   phone             String         @unique
@@ -65,6 +95,9 @@ model User {
   identityStatus    IdentityStatus @default(none)
   pdConsentAt       DateTime?
   email             String?
+  notifySession     Boolean        @default(true)
+  notifyRemind15    Boolean        @default(true)
+  notifyPromo       Boolean        @default(false)
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
@@ -73,6 +106,9 @@ model User {
   feedbacks               Feedback[]
   payments                Payment[]
   identityVerifications   IdentityVerification[]
+  pushTokens              PushToken[]
+  notificationLogs        NotificationLog[]
+  lockerLogs              LockerLog[]
 }
 
 model IdentityVerification {
@@ -145,6 +181,11 @@ model Club {
   supportPhone     String?
   supportTelegram  String?
   supportEmail     String?
+  lockProvider     LockProvider @default(mock)
+  mainDoorLockId   String?
+  lockHttpBaseUrl  String?
+  lockHttpToken    String?
+  lockMqttTopic    String?
   createdAt        DateTime @default(now())
 
   zones Zone[]
@@ -181,22 +222,68 @@ model Seat {
 
   zone         Zone          @relation(fields: [zoneId], references: [id], onDelete: Cascade)
   bookingSeats BookingSeat[]
+  lockerLogs   LockerLog[]
 
   @@unique([zoneId, number])
 }
 
 model Booking {
-  id         String        @id @default(cuid())
-  userId     String
-  status     BookingStatus @default(draft)
-  startAt    DateTime
-  endAt      DateTime
-  totalPrice Int           @default(0)
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
+  id              String        @id @default(cuid())
+  userId          String
+  status          BookingStatus @default(draft)
+  sessionPhase    SessionPhase  @default(awaiting_arrival)
+  startAt         DateTime
+  endAt           DateTime
+  startedAt       DateTime?
+  durationMinutes Int           @default(60)
+  totalPrice         Int           @default(0)
+  checkoutPhotoPath  String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
-  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  seats BookingSeat[]
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seats             BookingSeat[]
+  acceptanceReports AcceptanceReport[]
+  lockerLogs        LockerLog[]
+}
+
+model LockerLog {
+  id         String        @id @default(cuid())
+  bookingId  String?
+  userId     String
+  seatId     String?
+  seatNumber Int
+  cellLock   String
+  type       LockerLogType
+  photoPath  String?
+  payload    Json?
+  createdAt  DateTime      @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  booking Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  seat    Seat?    @relation(fields: [seatId], references: [id], onDelete: SetNull)
+
+  @@index([seatNumber, createdAt])
+  @@index([cellLock, createdAt])
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
+model AcceptanceReport {
+  id         String   @id @default(cuid())
+  bookingId  String
+  userId     String
+  items      Json
+  comment    String   @default("")
+  hasIssue   Boolean  @default(false)
+  resolved   Boolean  @default(false)
+  photoPath  String?
+  createdAt  DateTime @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([resolved, createdAt])
+  @@index([bookingId])
 }
 
 model BookingSeat {
@@ -230,6 +317,48 @@ model Admin {
   updatedAt    DateTime  @updatedAt
 
   passwordResets AdminPasswordReset[]
+}
+
+model PushToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String
+  platform  String   @default("unknown")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, token])
+  @@index([userId])
+}
+
+model NotificationLog {
+  id        String           @id @default(cuid())
+  userId    String
+  bookingId String?
+  type      NotificationType
+  sentAt    DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingId, type])
+  @@index([userId, sentAt])
+}
+
+model LockEvent {
+  id         String   @id @default(cuid())
+  userId     String?
+  bookingId  String?
+  lockType   String
+  lockTarget String
+  provider   LockProvider
+  success    Boolean
+  error      String?
+  createdAt  DateTime @default(now())
+
+  @@index([bookingId, createdAt])
+  @@index([createdAt])
 }
 
 model AdminPasswordReset {

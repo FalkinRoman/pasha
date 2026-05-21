@@ -9,6 +9,7 @@ const nav = [
   { to: '/', label: 'Дашборд', end: true },
   { to: '/seats', label: 'Места и зоны' },
   { to: '/verifications', label: 'Верификация' },
+  { to: '/cell-control', label: 'Ячейки' },
   { to: '/bookings', label: 'Брони' },
   { to: '/users', label: 'Клиенты' },
   { to: '/transactions', label: 'Транзакции' },

@@ -38,7 +38,9 @@ async function main() {
       address: '',
       rating: 5,
       hours: '24/7',
-      supportEmail: 'stopkeksprt@mail.ru',
+      supportEmail: 'stopkeksprt@yandex.ru',
+      mainDoorLockId: 'main-door',
+      lockProvider: 'mock',
       zones: {
         create: [
           {
@@ -99,6 +101,8 @@ async function main() {
         w: SEAT_W,
         h: SEAT_H,
         status: 'free',
+        cellLock: `cell-${n}`,
+        lockId: `cell-${n}`,
       },
     });
   }

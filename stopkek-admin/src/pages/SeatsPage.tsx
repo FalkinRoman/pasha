@@ -42,6 +42,8 @@ export function SeatsPage() {
   const [seatNumber, setSeatNumber] = useState('');
   const [seatZoneId, setSeatZoneId] = useState('');
   const [seatStatus, setSeatStatus] = useState<string>('free');
+  const [seatLockId, setSeatLockId] = useState('');
+  const [seatCellLock, setSeatCellLock] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -130,6 +132,8 @@ export function SeatsPage() {
     setSeatNumber(String(nextNum));
     setSeatZoneId(zones[0]?.id ?? '');
     setSeatStatus('free');
+    setSeatLockId('');
+    setSeatCellLock('');
   };
 
   const openEditSeat = (s: SeatRow) => {
@@ -137,6 +141,8 @@ export function SeatsPage() {
     setSeatNumber(String(s.number));
     setSeatZoneId(s.zoneId);
     setSeatStatus(s.status);
+    setSeatLockId(s.lockId ?? '');
+    setSeatCellLock(s.cellLock ?? '');
   };
 
   const onSaveSeat = async (e: FormEvent) => {
@@ -155,6 +161,8 @@ export function SeatsPage() {
           zoneId: seatZoneId,
           number: num,
           status: seatStatus,
+          lockId: seatLockId,
+          cellLock: seatCellLock,
         });
       }
       setSeatForm(null);
@@ -453,6 +461,23 @@ export function SeatsPage() {
                 </option>
               ))}
             </select>
+          </label>
+          <label>
+            Замок ячейки (cellLock)
+            <input
+              className="input"
+              value={seatCellLock}
+              onChange={(e) => setSeatCellLock(e.target.value)}
+              placeholder="cell-12"
+            />
+          </label>
+          <label>
+            lockId (запасной)
+            <input
+              className="input"
+              value={seatLockId}
+              onChange={(e) => setSeatLockId(e.target.value)}
+            />
           </label>
           <div className="modal-actions">
             <button type="submit" className="btn">

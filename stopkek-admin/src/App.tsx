@@ -10,6 +10,7 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { SeatsPage } from './pages/SeatsPage';
 import { TransactionsPage } from './pages/TransactionsPage';
 import { UsersPage } from './pages/UsersPage';
+import { CellControlPage } from './pages/CellControlPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { VerificationsPage } from './pages/VerificationsPage';
 
@@ -42,9 +43,15 @@ export default function App() {
             <Route path="bookings" element={<BookingsPage />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="verifications" element={<VerificationsPage />} />
+            <Route
+              path="acceptance"
+              element={<Navigate to="/cell-control?tab=issues" replace />}
+            />
+            <Route path="cell-control" element={<CellControlPage />} />
             <Route path="transactions" element={<TransactionsPage />} />
             <Route path="feedback" element={<FeedbackPage />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="locks" element={<Navigate to="/settings" replace />} />
           </Route>
         </Routes>
       </BrowserRouter>

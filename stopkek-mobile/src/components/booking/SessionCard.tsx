@@ -15,24 +15,36 @@ interface Props {
 }
 
 export function SessionCard({ booking }: Props) {
-  const [remaining, setRemaining] = useState(
-    new Date(booking.endAt).getTime() - Date.now()
-  );
+  const isPlaying = booking.gameRunning ?? booking.timerMode === 'playing';
+  const base =
+    booking.displayRemainingMs ??
+    (booking.durationMinutes ?? 60) * 60_000;
+  const [remaining, setRemaining] = useState(base);
 
   useEffect(() => {
-    const t = setInterval(() => {
-      setRemaining(new Date(booking.endAt).getTime() - Date.now());
-    }, 1000);
+    if (booking.timerMode === 'pre_play') {
+      setRemaining(base);
+      return;
+    }
+    const loadedAt = Date.now();
+    const tick = () => setRemaining(Math.max(0, base - (Date.now() - loadedAt)));
+    tick();
+    const t = setInterval(tick, 1000);
     return () => clearInterval(t);
-  }, [booking.endAt]);
+  }, [booking.id, booking.timerMode, base]);
 
-  const urgent = remaining < 15 * 60 * 1000;
+  const urgent = isPlaying && remaining < 15 * 60 * 1000;
+  const timerCaption =
+    booking.timerLabel ??
+    (isPlaying ? 'осталось' : booking.status === 'paid' ? 'до приёмки' : 'осталось');
 
   return (
     <Card accent style={styles.card}>
       <View style={styles.top}>
         <View>
-          <Text style={typography.caption}>Активный сеанс</Text>
+          <Text style={typography.caption}>
+            {booking.status === 'paid' ? 'Бронь оплачена' : 'Активный сеанс'}
+          </Text>
           <Text style={typography.h2}>
             Место #{booking.seatNumbers.join(', ')}
           </Text>
@@ -43,18 +55,21 @@ export function SessionCard({ booking }: Props) {
       <Text style={[typography.timer, urgent && { color: colors.warning }]}>
         {formatDuration(remaining)}
       </Text>
+      <Text style={typography.caption}>{timerCaption}</Text>
       <View style={styles.actions}>
         <StopButton
           title="Управление"
           onPress={() => router.push('/session/active')}
           style={styles.btn}
         />
-        <StopButton
-          title="Продлить"
-          variant="ghost"
-          onPress={() => router.push('/session/extend')}
-          style={styles.btn}
-        />
+        {isPlaying ? (
+          <StopButton
+            title="Продлить"
+            variant="ghost"
+            onPress={() => router.push('/session/extend')}
+            style={styles.btn}
+          />
+        ) : null}
       </View>
     </Card>
   );

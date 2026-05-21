@@ -1,5 +1,9 @@
-import { useState } from 'react';
-import { StyleSheet, Switch, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Switch, Text, View } from 'react-native';
+import {
+  fetchNotificationPrefs,
+  updateNotificationPrefs,
+} from '../../src/api/notifications';
 import { Header } from '../../src/components/ui/Header';
 import { Screen } from '../../src/components/ui/Screen';
 import { colors } from '../../src/theme/colors';
@@ -7,28 +11,61 @@ import { spacing } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
 
 const ROWS = [
-  { key: 'session', label: 'Начало и конец сеанса' },
-  { key: 'remind', label: 'Напоминание за 15 мин' },
-  { key: 'promo', label: 'Акции клуба' },
+  { key: 'session' as const, label: 'Начало и конец сеанса' },
+  { key: 'remind' as const, label: 'Напоминание за 15 мин' },
+  { key: 'promo' as const, label: 'Акции клуба' },
 ];
 
 export default function NotificationsScreen() {
   const [state, setState] = useState({ session: true, remind: true, promo: false });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetchNotificationPrefs()
+      .then(setState)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const toggle = async (key: keyof typeof state, value: boolean) => {
+    const next = { ...state, [key]: value };
+    setState(next);
+    setSaving(true);
+    try {
+      const saved = await updateNotificationPrefs({ [key]: value });
+      setState(saved);
+    } catch {
+      setState(state);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <Screen scroll>
       <Header title="Уведомления" back />
-      {ROWS.map((r) => (
-        <View key={r.key} style={styles.row}>
-          <Text style={typography.body}>{r.label}</Text>
-          <Switch
-            value={state[r.key as keyof typeof state]}
-            onValueChange={(v) => setState((s) => ({ ...s, [r.key]: v }))}
-            trackColor={{ false: colors.bgMuted, true: colors.accentMuted }}
-            thumbColor={state[r.key as keyof typeof state] ? colors.accent : colors.textDisabled}
-          />
-        </View>
-      ))}
+      {loading ? (
+        <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.xl }} />
+      ) : (
+        <>
+          <Text style={[typography.bodySecondary, { marginBottom: spacing.md }]}>
+            Настройки сохраняются на сервере. Push работает на физическом устройстве.
+          </Text>
+          {ROWS.map((r) => (
+            <View key={r.key} style={styles.row}>
+              <Text style={typography.body}>{r.label}</Text>
+              <Switch
+                value={state[r.key]}
+                onValueChange={(v) => toggle(r.key, v)}
+                disabled={saving}
+                trackColor={{ false: colors.bgMuted, true: colors.accentMuted }}
+                thumbColor={state[r.key] ? colors.accent : colors.textDisabled}
+              />
+            </View>
+          ))}
+        </>
+      )}
     </Screen>
   );
 }

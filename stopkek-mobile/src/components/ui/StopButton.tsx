@@ -8,7 +8,7 @@ interface Props {
   onPress: () => void;
   disabled?: boolean;
   loading?: boolean;
-  variant?: 'primary' | 'ghost' | 'danger';
+  variant?: 'primary' | 'ghost' | 'danger' | 'success';
   style?: ViewStyle;
 }
 
@@ -22,6 +22,7 @@ export function StopButton({
 }: Props) {
   const isPrimary = variant === 'primary';
   const isGhost = variant === 'ghost';
+  const isSuccess = variant === 'success';
 
   return (
     <Pressable
@@ -31,6 +32,7 @@ export function StopButton({
         styles.base,
         isPrimary && styles.primary,
         isGhost && styles.ghost,
+        isSuccess && styles.success,
         variant === 'danger' && styles.danger,
         (disabled || loading) && styles.disabled,
         pressed && !disabled && styles.pressed,
@@ -38,7 +40,9 @@ export function StopButton({
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={isGhost ? colors.accent : '#fff'} />
+        <ActivityIndicator
+          color={isGhost ? colors.accent : '#fff'}
+        />
       ) : (
         <Text
           style={[
@@ -80,6 +84,14 @@ const styles = StyleSheet.create({
   },
   danger: {
     backgroundColor: colors.danger,
+  },
+  success: {
+    backgroundColor: colors.success,
+    shadowColor: colors.success,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 6,
   },
   disabled: {
     backgroundColor: colors.bgMuted,

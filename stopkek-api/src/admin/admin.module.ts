@@ -4,6 +4,7 @@ import { PassportModule } from '@nestjs/passport';
 import { AuthModule } from '../auth/auth.module';
 import { BookingsModule } from '../bookings/bookings.module';
 import { ClubModule } from '../club/club.module';
+import { LocksModule } from '../locks/locks.module';
 import { IdentityModule } from '../identity/identity.module';
 import { AdminAuthService } from './admin-auth.service';
 import { AdminJwtStrategy } from './admin-jwt.strategy';
@@ -17,6 +18,7 @@ import { AdminService } from './admin.service';
     BookingsModule,
     IdentityModule,
     ClubModule,
+    LocksModule,
     AuthModule,
   ],
   controllers: [AdminController],

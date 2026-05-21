@@ -117,6 +117,10 @@
   max-width: 1400px;
 }
 
+.main:has(.cell-page-full) {
+  max-width: none;
+}
+
 .mobile-header {
   display: none;
 }

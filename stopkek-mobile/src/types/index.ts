@@ -50,7 +50,25 @@ export type BookingStatus =
   | 'paid'
   | 'active'
   | 'completed'
-  | 'cancelled';
+  | 'cancelled'
+  | 'no_show';
+
+export type SessionTimerMode =
+  | 'until_door'
+  | 'until_start'
+  | 'pre_play'
+  | 'playing'
+  | 'paused'
+  | 'until_end';
+
+export type SessionPhase =
+  | 'awaiting_arrival'
+  | 'arrival'
+  | 'cell_pending'
+  | 'acceptance'
+  | 'issue'
+  | 'playing'
+  | 'checkout';
 
 export interface Booking {
   id: string;
@@ -58,6 +76,19 @@ export interface Booking {
   zoneName: string;
   startAt: string;
   endAt: string;
+  startedAt?: string | null;
+  durationMinutes?: number;
   totalPrice: number;
   status: BookingStatus;
+  sessionPhase?: SessionPhase;
+  doorWindowOpen?: boolean;
+  untilStartMs?: number;
+  untilEndMs?: number;
+  gameRunning?: boolean;
+  timerMode?: SessionTimerMode;
+  timerLabel?: string;
+  displayRemainingMs?: number;
+  canOpenMainDoor?: boolean;
+  canOpenCell?: boolean;
+  needsAcceptance?: boolean;
 }

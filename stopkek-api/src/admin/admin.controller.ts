@@ -31,13 +31,16 @@ import { WalletAdjustDto } from './dto/wallet-adjust.dto';
 import { UpdateClubDto } from './dto/update-club.dto';
 import { AdminJwtGuard } from './guards/admin-jwt.guard';
 import { ClubService } from '../club/club.service';
+import { LocksService } from '../locks/locks.service';
+import { UpdateClubLocksDto } from './dto/update-club-locks.dto';
 
 @Controller('admin')
 export class AdminController {
   constructor(
     private readonly auth: AdminAuthService,
     private readonly admin: AdminService,
-    private readonly club: ClubService
+    private readonly club: ClubService,
+    private readonly locks: LocksService
   ) {}
 
   @Post('auth/login')
@@ -175,6 +178,24 @@ export class AdminController {
     return this.club.uploadClubImage(file);
   }
 
+  @Get('club/locks')
+  @UseGuards(AdminJwtGuard)
+  getClubLocks() {
+    return this.locks.getClubLockConfig();
+  }
+
+  @Patch('club/locks')
+  @UseGuards(AdminJwtGuard)
+  updateClubLocks(@Body() dto: UpdateClubLocksDto) {
+    return this.locks.updateClubLockConfig(dto);
+  }
+
+  @Get('locks/events')
+  @UseGuards(AdminJwtGuard)
+  lockEvents() {
+    return this.locks.listEvents(80);
+  }
+
   @Get('transactions')
   @UseGuards(AdminJwtGuard)
   transactions() {
@@ -206,6 +227,40 @@ export class AdminController {
     @CurrentAdmin() a: { adminId: string }
   ) {
     return this.admin.approveVerification(id, a.adminId);
+  }
+
+  @Get('cell-control')
+  @UseGuards(AdminJwtGuard)
+  cellControl(
+    @Query('seatNumber') seatNumber?: string,
+    @Query('cellLock') cellLock?: string,
+    @Query('limit') limit?: string
+  ) {
+    return this.admin.listLockerLogs({
+      seatNumber: seatNumber ? Number(seatNumber) : undefined,
+      cellLock,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Get('cell-control/:id/photo')
+  @UseGuards(AdminJwtGuard)
+  cellControlPhoto(@Param('id') id: string, @Res() res: Response) {
+    return this.admin.streamLockerPhoto(id, res);
+  }
+
+  @Get('acceptance-reports')
+  @UseGuards(AdminJwtGuard)
+  acceptanceReports(@Query('resolved') resolved?: string) {
+    const flag =
+      resolved === 'true' ? true : resolved === 'false' ? false : undefined;
+    return this.admin.listAcceptanceReports(flag);
+  }
+
+  @Post('acceptance-reports/:id/resolve')
+  @UseGuards(AdminJwtGuard)
+  resolveAcceptance(@Param('id') id: string) {
+    return this.admin.resolveAcceptanceReport(id);
   }
 
   @Post('verifications/:id/reject')

@@ -14,4 +14,12 @@ export class UpdateSeatDto {
   @IsInt()
   @Min(1)
   number?: number;
+
+  @IsOptional()
+  @IsString()
+  lockId?: string;
+
+  @IsOptional()
+  @IsString()
+  cellLock?: string;
 }

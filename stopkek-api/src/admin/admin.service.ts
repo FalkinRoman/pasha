@@ -10,7 +10,9 @@ import {
   TransactionType,
 } from '@prisma/client';
 import { createReadStream, existsSync } from 'fs';
+import { join } from 'path';
 import type { Response } from 'express';
+import { defaultCellLock } from '../locks/lock-ids';
 import { AuthService } from '../auth/auth.service';
 import { BookingsService } from '../bookings/bookings.service';
 import { IdentityService } from '../identity/identity.service';
@@ -135,6 +137,8 @@ export class AdminService {
       zoneName: s.zone.name,
       pricePerHour: s.zone.pricePerHour,
       specs: s.zone.specs,
+      lockId: s.lockId,
+      cellLock: s.cellLock,
     }));
   }
 
@@ -156,6 +160,7 @@ export class AdminService {
         ? { x: dto.x, y: dto.y }
         : await this.nextSeatPosition(dto.zoneId);
 
+    const cellLock = defaultCellLock(dto.number);
     return this.prisma.seat.create({
       data: {
         zoneId: dto.zoneId,
@@ -163,6 +168,8 @@ export class AdminService {
         status: dto.status ?? 'free',
         x,
         y,
+        cellLock,
+        lockId: cellLock,
       },
     });
   }
@@ -202,6 +209,10 @@ export class AdminService {
       data: {
         ...(dto.status !== undefined ? { status: dto.status } : {}),
         ...(dto.zoneId !== undefined ? { zoneId: dto.zoneId } : {}),
+        ...(dto.lockId !== undefined ? { lockId: dto.lockId.trim() || null } : {}),
+        ...(dto.cellLock !== undefined
+          ? { cellLock: dto.cellLock.trim() || null }
+          : {}),
         ...(dto.number !== undefined ? { number: dto.number } : {}),
       },
     });
@@ -556,6 +567,151 @@ export class AdminService {
 
   rejectVerification(id: string, adminId: string, reason: string) {
     return this.identity.reject(id, adminId, reason);
+  }
+
+  async listAcceptanceReports(resolved?: boolean) {
+    const list = await this.prisma.acceptanceReport.findMany({
+      where: {
+        hasIssue: true,
+        ...(resolved === undefined ? {} : { resolved }),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      include: {
+        booking: {
+          include: {
+            seats: true,
+            user: { select: { id: true, phone: true, name: true } },
+          },
+        },
+      },
+    });
+    return list.map((r) => ({
+      id: r.id,
+      bookingId: r.bookingId,
+      comment: r.comment,
+      items: r.items as Record<string, boolean>,
+      hasIssue: r.hasIssue,
+      resolved: r.resolved,
+      createdAt: r.createdAt.toISOString(),
+      seatNumber: r.booking.seats[0]?.seatNumber ?? 0,
+      userPhone: r.booking.user.phone,
+      userName: r.booking.user.name || 'Игрок',
+    }));
+  }
+
+  async resolveAcceptanceReport(reportId: string) {
+    const report = await this.prisma.acceptanceReport.findUnique({
+      where: { id: reportId },
+      include: { booking: { include: { seats: true } } },
+    });
+    if (!report) throw new NotFoundException('Заявка не найдена');
+
+    await this.prisma.acceptanceReport.update({
+      where: { id: reportId },
+      data: { resolved: true },
+    });
+
+    if (report.booking.sessionPhase === 'issue') {
+      const now = new Date();
+      const walkIn =
+        report.booking.startAt.getTime() <= now.getTime() + 10 * 60 * 1000;
+      const startedAt = walkIn
+        ? now
+        : report.booking.startAt > now
+          ? report.booking.startAt
+          : now;
+      const endAt = walkIn
+        ? new Date(now.getTime() + report.booking.durationMinutes * 60_000)
+        : report.booking.endAt;
+      const seatId = report.booking.seats[0]?.seatId;
+      if (seatId) {
+        await this.prisma.$transaction(async (tx) => {
+          await tx.seat.update({
+            where: { id: seatId },
+            data: { status: 'occupied' },
+          });
+          await tx.booking.update({
+            where: { id: report.bookingId },
+            data: {
+              status: 'active',
+              sessionPhase: 'playing',
+              startedAt,
+              endAt,
+            },
+          });
+        });
+      }
+    }
+    return { ok: true };
+  }
+
+  async listLockerLogs(params: {
+    seatNumber?: number;
+    cellLock?: string;
+    limit?: number;
+  }) {
+    const limit = Math.min(params.limit ?? 80, 200);
+    const list = await this.prisma.lockerLog.findMany({
+      where: {
+        ...(params.seatNumber != null
+          ? { seatNumber: params.seatNumber }
+          : {}),
+        ...(params.cellLock?.trim()
+          ? { cellLock: params.cellLock.trim() }
+          : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: {
+        user: { select: { id: true, phone: true, name: true } },
+        booking: {
+          select: {
+            id: true,
+            status: true,
+            totalPrice: true,
+            startAt: true,
+            endAt: true,
+          },
+        },
+      },
+    });
+    return list.map((r) => ({
+      id: r.id,
+      type: r.type,
+      bookingId: r.bookingId,
+      seatNumber: r.seatNumber,
+      cellLock: r.cellLock,
+      photoPath: r.photoPath,
+      hasPhoto: Boolean(r.photoPath),
+      payload: r.payload,
+      createdAt: r.createdAt.toISOString(),
+      userId: r.userId,
+      userPhone: r.user.phone,
+      userName: r.user.name || 'Игрок',
+      bookingStatus: r.booking?.status ?? null,
+      bookingTotalRub: r.booking
+        ? Math.round(r.booking.totalPrice / 100)
+        : null,
+    }));
+  }
+
+  async streamLockerPhoto(logId: string, res: Response) {
+    const log = await this.prisma.lockerLog.findUnique({
+      where: { id: logId },
+    });
+    if (!log?.photoPath) throw new NotFoundException('Фото не найдено');
+    const abs = join(process.cwd(), 'uploads', log.photoPath);
+    if (!existsSync(abs)) throw new NotFoundException('Файл не найден');
+    const ext = log.photoPath.split('.').pop()?.toLowerCase();
+    const mime =
+      ext === 'png'
+        ? 'image/png'
+        : ext === 'webp'
+          ? 'image/webp'
+          : 'image/jpeg';
+    res.setHeader('Content-Type', mime);
+    createReadStream(abs).pipe(res);
   }
 
   async streamVerificationPhoto(id: string, res: Response) {

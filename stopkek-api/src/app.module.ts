@@ -7,6 +7,7 @@ import { AdminModule } from './admin/admin.module';
 import { MailModule } from './mail/mail.module';
 import { IdentityModule } from './identity/identity.module';
 import { FeedbackModule } from './feedback/feedback.module';
+import { SchedulerModule } from './scheduler/scheduler.module';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './users/users.module';
@@ -26,6 +27,7 @@ import { WalletModule } from './wallet/wallet.module';
     WalletModule,
     FeedbackModule,
     AdminModule,
+    SchedulerModule,
   ],
 })
 export class AppModule {}

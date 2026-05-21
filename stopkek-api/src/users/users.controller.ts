@@ -1,6 +1,8 @@
-import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { NotificationPrefsDto } from './dto/notification-prefs.dto';
+import { PushTokenDto } from './dto/push-token.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UsersService } from './users.service';
 
@@ -17,5 +19,23 @@ export class UsersController {
   @Patch('me')
   update(@CurrentUser() u: { userId: string }, @Body() dto: UpdateProfileDto) {
     return this.users.updateProfile(u.userId, dto.name);
+  }
+
+  @Post('me/push-token')
+  pushToken(@CurrentUser() u: { userId: string }, @Body() dto: PushTokenDto) {
+    return this.users.registerPushToken(u.userId, dto.token, dto.platform);
+  }
+
+  @Get('me/notifications')
+  notificationPrefs(@CurrentUser() u: { userId: string }) {
+    return this.users.getNotificationPrefs(u.userId);
+  }
+
+  @Patch('me/notifications')
+  updateNotificationPrefs(
+    @CurrentUser() u: { userId: string },
+    @Body() dto: NotificationPrefsDto
+  ) {
+    return this.users.updateNotificationPrefs(u.userId, dto);
   }
 }

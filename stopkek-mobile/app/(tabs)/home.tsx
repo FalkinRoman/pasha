@@ -82,7 +82,7 @@ export default function HomeScreen() {
         </Card>
       </Pressable>
 
-      {activeBooking?.status === 'active' ? (
+      {activeBooking && ['paid', 'active'].includes(activeBooking.status) ? (
         <SessionCard booking={activeBooking} />
       ) : (
         <Card style={styles.empty}>

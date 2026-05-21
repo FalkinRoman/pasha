@@ -1,9 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService
+  ) {}
 
   async getMe(userId: string) {
     const user = await this.prisma.user.findUnique({
@@ -23,12 +27,30 @@ export class UsersService {
     return this.toPublic(user);
   }
 
+  registerPushToken(userId: string, token: string, platform: string) {
+    return this.notifications.registerToken(userId, token, platform);
+  }
+
+  getNotificationPrefs(userId: string) {
+    return this.notifications.getPrefs(userId);
+  }
+
+  updateNotificationPrefs(
+    userId: string,
+    prefs: { session?: boolean; remind?: boolean; promo?: boolean }
+  ) {
+    return this.notifications.updatePrefs(userId, prefs);
+  }
+
   private toPublic(user: {
     id: string;
     phone: string;
     name: string;
     profileCompleted: boolean;
     identityStatus: string;
+    notifySession: boolean;
+    notifyRemind15: boolean;
+    notifyPromo: boolean;
     wallet: { balance: number } | null;
   }) {
     const verified = ['approved', 'auto_approved'].includes(user.identityStatus);
@@ -41,6 +63,11 @@ export class UsersService {
       profileCompleted: user.profileCompleted,
       identityStatus: user.identityStatus,
       identityVerified: verified,
+      notifications: {
+        session: user.notifySession,
+        remind: user.notifyRemind15,
+        promo: user.notifyPromo,
+      },
     };
   }
 }

@@ -12,6 +12,7 @@ import {
   setClub,
   setFloorMap,
 } from '../store/bookingSlice';
+import { setupPushNotifications } from '../services/push';
 import type { AppDispatch } from '../store';
 
 export function useAppBootstrap() {
@@ -51,6 +52,7 @@ export function useAppBootstrap() {
   useEffect(() => {
     if (!isAuthenticated || !hydrated) return;
     refreshAppData(dispatch).catch(() => {});
+    setupPushNotifications().catch(() => {});
   }, [isAuthenticated, hydrated, dispatch]);
 }
 
