@@ -8,6 +8,7 @@ import { fetchIdentityStatus } from '../../src/api/identity';
 import { useAppDispatch, useAppSelector } from '../../src/store/hooks';
 import { setFloorMap, setPendingBookingId } from '../../src/store/bookingSlice';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BRAND_NAME } from '../../src/constants/brand';
 import { FloorMap } from '../../src/components/map/FloorMap';
 import { StopkekLoader } from '../../src/components/ui/StopkekLoader';
 import { Header } from '../../src/components/ui/Header';
@@ -92,7 +93,7 @@ export default function MapScreen() {
           </View>
           <View style={styles.clubInfo}>
             <Text style={typography.h3} numberOfLines={1}>
-              {club?.name ?? 'stopkek'}
+              {club?.name ?? BRAND_NAME}
             </Text>
             <Text style={typography.caption} numberOfLines={2}>
               {club?.address ?? ''}

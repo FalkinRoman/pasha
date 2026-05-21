@@ -1,4 +1,4 @@
-import { api } from './client';
+import { API_URL, api, getToken } from './client';
 
 export type AdminUser = {
   id: string;
@@ -277,4 +277,71 @@ export function rejectVerification(id: string, reason: string) {
     method: 'POST',
     body: JSON.stringify({ reason }),
   });
+}
+
+export type ClubSettings = {
+  id: string;
+  name: string;
+  address: string;
+  rating: number;
+  hours: string;
+  imageUrl: string | null;
+  supportPhone: string | null;
+  supportTelegram: string | null;
+  supportEmail: string | null;
+};
+
+export function fetchClubSettings() {
+  return api<ClubSettings>('/admin/club');
+}
+
+export function updateClubSettings(data: Partial<ClubSettings>) {
+  return api<ClubSettings>('/admin/club', {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export function uploadClubImage(file: File) {
+  const form = new FormData();
+  form.append('image', file);
+  const token = getToken();
+  return fetch(`${API_URL}/admin/club/image`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  }).then(async (res) => {
+    const text = await res.text();
+    let data: unknown = null;
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = text;
+      }
+    }
+    if (!res.ok) {
+      const msg =
+        typeof data === 'object' && data && 'message' in data
+          ? String((data as { message: string | string[] }).message)
+          : res.statusText;
+      throw new Error(Array.isArray(msg) ? msg[0] : msg);
+    }
+    return data as ClubSettings;
+  });
+}
+
+export function clubImageSrc(imageUrl: string | null) {
+  if (!imageUrl) return null;
+  return `${API_URL}${imageUrl}`;
+}
+
+export type AdminLoginCode = {
+  phone: string;
+  code: string;
+  expiresInSec: number;
+};
+
+export function generateUserLoginCode(userId: string) {
+  return api<AdminLoginCode>(`/admin/users/${userId}/login-code`, { method: 'POST' });
 }

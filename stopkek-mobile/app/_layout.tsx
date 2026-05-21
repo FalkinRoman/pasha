@@ -6,7 +6,12 @@ import {
   Manrope_700Bold,
   useFonts as useManrope,
 } from '@expo-google-fonts/manrope';
-import { PermanentMarker_400Regular, useFonts as useMarker } from '@expo-google-fonts/permanent-marker';
+import {
+  Oswald_500Medium,
+  Oswald_600SemiBold,
+  Oswald_700Bold,
+  useFonts as useOswald,
+} from '@expo-google-fonts/oswald';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -31,15 +36,19 @@ export default function RootLayout() {
     Manrope_600SemiBold,
     Manrope_700Bold,
   });
-  const [markerLoaded] = useMarker({ PermanentMarker_400Regular });
-  const loaded = manropeLoaded && markerLoaded;
+  const [oswaldLoaded] = useOswald({
+    Oswald_500Medium,
+    Oswald_600SemiBold,
+    Oswald_700Bold,
+  });
+  const loaded = manropeLoaded && oswaldLoaded;
 
   useEffect(() => {
     if (loaded) SplashScreen.hideAsync();
   }, [loaded]);
 
   if (!loaded) {
-    return <StopkekLoader fullScreen size="lg" message="stopkek" />;
+    return <StopkekLoader fullScreen size="lg" message="стопкек" />;
   }
 
   return (

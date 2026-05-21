@@ -5,6 +5,7 @@ import { Animated, StyleSheet, Text, View } from 'react-native';
 import { requestCall, verifyCall } from '../../src/api/auth';
 import { ApiError } from '../../src/api/client';
 import { setAccessToken } from '../../src/api/client';
+import { AuthSupportHint } from '../../src/components/support/AuthSupportHint';
 import { CodeInput } from '../../src/components/auth/CodeInput';
 import { Screen } from '../../src/components/ui/Screen';
 import { StopButton } from '../../src/components/ui/StopButton';
@@ -141,7 +142,7 @@ export default function VerifyCallScreen() {
       <Text style={[typography.bodySecondary, styles.center, styles.mb]}>
         {calling
           ? `Звоним на ${phone || 'ваш номер'}… Не сбрасывайте`
-          : 'Введите последние 4 цифры номера, с которого поступил звонок'}
+          : 'Введите последние 4 цифры звонка'}
       </Text>
 
       {!calling && (
@@ -174,6 +175,7 @@ export default function VerifyCallScreen() {
           <StopButton title="Позвонить снова" variant="ghost" onPress={resend} disabled={calling} />
         )}
         <StopButton title="Изменить номер" variant="ghost" onPress={() => router.back()} />
+        <AuthSupportHint />
       </View>
     </Screen>
   );

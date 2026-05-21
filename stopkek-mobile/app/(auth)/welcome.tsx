@@ -7,6 +7,7 @@ import { useAppDispatch } from '../../src/store/hooks';
 import { setWelcomeSeen } from '../../src/store/authSlice';
 import { colors } from '../../src/theme/colors';
 import { spacing } from '../../src/theme/spacing';
+import { BrandTitle } from '../../src/components/ui/BrandTitle';
 import { typography } from '../../src/theme/typography';
 
 const SLIDES = [
@@ -27,7 +28,7 @@ export default function WelcomeScreen() {
     <Screen>
       <View style={styles.hero}>
         <StopLogo size={100} />
-        <Text style={styles.brand}>stopkek</Text>
+        <BrandTitle size="lg" style={styles.brandTitle} />
         <Text style={typography.bodySecondary}>компьютерный клуб</Text>
       </View>
       <View style={styles.slides}>
@@ -48,11 +49,8 @@ export default function WelcomeScreen() {
 
 const styles = StyleSheet.create({
   hero: { alignItems: 'center', marginTop: spacing.xl, marginBottom: spacing.xl },
-  brand: {
-    ...typography.brand,
-    fontSize: 42,
+  brandTitle: {
     marginTop: spacing.md,
-    color: colors.accent,
   },
   slides: { gap: spacing.lg, flex: 1 },
   slide: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },

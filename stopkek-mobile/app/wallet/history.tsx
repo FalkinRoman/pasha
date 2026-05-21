@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { fetchTransactions, Transaction } from '../../src/api/wallet';
+import { EmptyHint } from '../../src/components/ui/EmptyHint';
 import { Header } from '../../src/components/ui/Header';
 import { Screen } from '../../src/components/ui/Screen';
 import { StopkekLoader } from '../../src/components/ui/StopkekLoader';
@@ -33,6 +34,8 @@ export default function WalletHistoryScreen() {
       <Header title="Транзакции" back />
       {loading ? (
         <StopkekLoader flex size="sm" message="Загружаем" />
+      ) : list.length === 0 ? (
+        <EmptyHint />
       ) : (
         list.map((t) => (
           <View key={t.id} style={styles.row}>

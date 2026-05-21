@@ -13,6 +13,7 @@ const nav = [
   { to: '/users', label: 'Клиенты' },
   { to: '/transactions', label: 'Транзакции' },
   { to: '/feedback', label: 'Отзывы' },
+  { to: '/settings', label: 'Настройки' },
 ];
 
 export function Layout() {
@@ -73,6 +74,7 @@ export function Layout() {
       <aside className={`sidebar ${menuOpen ? 'open' : ''}`}>
         <div className="brand">
           <StopLogo size={52} />
+          <p className="brand-wordmark brand-wordmark-sm">стопкек</p>
           <small>Admin</small>
         </div>
         <nav className="sidebar-nav">

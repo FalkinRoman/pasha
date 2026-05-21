@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FloorMapPreview } from '../components/FloorMapPreview';
+import { TableEmptyRow } from '../components/TableEmptyRow';
 import { Dashboard, fetchDashboard, fetchFloorMap, FloorMapData } from '../api/admin';
 import { BOOKING_STATUS, SEAT_STATUS } from '../lib/statusLabels';
 
@@ -105,7 +106,9 @@ export function DashboardPage() {
       <div className="dashboard-split">
         <div className="card">
           <h3>Последние отзывы</h3>
-          {data.recentFeedback.length === 0 && <p className="muted">Пока нет</p>}
+          {data.recentFeedback.length === 0 && (
+            <p className="empty-state">Данных пока нет</p>
+          )}
           {data.recentFeedback.map((f) => (
             <p key={f.id} className="feedback-line">
               ★{f.rating} <strong>{f.userName}</strong>: {f.message.slice(0, 100)}
@@ -140,6 +143,7 @@ export function DashboardPage() {
               </tr>
             </thead>
             <tbody>
+              {data.recentBookings.length === 0 && <TableEmptyRow colSpan={5} />}
               {data.recentBookings.map((b) => (
                 <tr key={b.id}>
                   <td>{b.userPhone}</td>

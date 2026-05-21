@@ -10,6 +10,7 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { SeatsPage } from './pages/SeatsPage';
 import { TransactionsPage } from './pages/TransactionsPage';
 import { UsersPage } from './pages/UsersPage';
+import { SettingsPage } from './pages/SettingsPage';
 import { VerificationsPage } from './pages/VerificationsPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -43,6 +44,7 @@ export default function App() {
             <Route path="verifications" element={<VerificationsPage />} />
             <Route path="transactions" element={<TransactionsPage />} />
             <Route path="feedback" element={<FeedbackPage />} />
+            <Route path="settings" element={<SettingsPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

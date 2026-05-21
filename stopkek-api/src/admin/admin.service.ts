@@ -11,6 +11,7 @@ import {
 } from '@prisma/client';
 import { createReadStream, existsSync } from 'fs';
 import type { Response } from 'express';
+import { AuthService } from '../auth/auth.service';
 import { BookingsService } from '../bookings/bookings.service';
 import { IdentityService } from '../identity/identity.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -27,8 +28,18 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly bookings: BookingsService,
-    private readonly identity: IdentityService
+    private readonly identity: IdentityService,
+    private readonly auth: AuthService
   ) {}
+
+  generateUserLoginCode(userId: string) {
+    return this.prisma.user
+      .findUnique({ where: { id: userId }, select: { phone: true } })
+      .then((u) => {
+        if (!u) throw new NotFoundException('Пользователь не найден');
+        return this.auth.issueAdminLoginCode(u.phone);
+      });
+  }
 
   async getDashboard() {
     await this.bookings.syncSeatStates();

@@ -32,6 +32,7 @@ export function LoginPage() {
     <div className="login-page">
       <form className="login-card card" onSubmit={onSubmit}>
         <StopLogo size={72} />
+        <p className="brand-wordmark">стопкек</p>
         <p className="muted login-subtitle">Вход для управления клубом</p>
         <label>
           Email

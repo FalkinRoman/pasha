@@ -93,7 +93,7 @@ export function VerificationsPage() {
         <p className="muted">Загрузка…</p>
       ) : list.length === 0 ? (
         <div className="card">
-          <p className="muted">Нет заявок на проверке</p>
+          <p className="empty-state">Данных пока нет</p>
         </div>
       ) : (
         <div className="verification-grid">

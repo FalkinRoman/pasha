@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { fetchClub, ClubInfo } from '../../src/api/club';
+import { Image, StyleSheet, Text, View } from 'react-native';
+import { clubImageUri, fetchClub, ClubInfo } from '../../src/api/club';
+import { BRAND_NAME } from '../../src/constants/brand';
 import { Header } from '../../src/components/ui/Header';
 import { Screen } from '../../src/components/ui/Screen';
 import { colors } from '../../src/theme/colors';
@@ -19,8 +20,12 @@ export default function ClubInfoScreen() {
     <Screen scroll>
       <Header title="О клубе" back />
       <View style={styles.hero}>
-        <View style={styles.photo} />
-        <Text style={typography.h1}>{club?.name ?? 'stopkek'}</Text>
+        {clubImageUri(club?.imageUrl) ? (
+          <Image source={{ uri: clubImageUri(club?.imageUrl)! }} style={styles.photo} />
+        ) : (
+          <View style={styles.photo} />
+        )}
+        <Text style={typography.h1}>{club?.name ?? BRAND_NAME}</Text>
         <View style={styles.row}>
           <Ionicons name="star" size={16} color={colors.warning} />
           <Text style={typography.body}>{club?.rating ?? 5}</Text>

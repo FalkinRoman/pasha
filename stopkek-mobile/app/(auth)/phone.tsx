@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Input } from '../../src/components/ui/Input';
 import { Screen } from '../../src/components/ui/Screen';
 import { StopButton } from '../../src/components/ui/StopButton';
+import { AuthSupportHint } from '../../src/components/support/AuthSupportHint';
 import { StopLogo } from '../../src/components/ui/StopLogo';
 import { useAppDispatch } from '../../src/store/hooks';
 import { setPendingPhone } from '../../src/store/authSlice';
@@ -55,6 +56,7 @@ export default function PhoneScreen() {
         </Text>
       </View>
       <StopButton title="Позвонить мне" onPress={submit} style={styles.cta} />
+      <AuthSupportHint />
     </Screen>
   );
 }

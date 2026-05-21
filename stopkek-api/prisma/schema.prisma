@@ -136,13 +136,16 @@ model Payment {
 }
 
 model Club {
-  id           String   @id @default(cuid())
-  name         String
-  address      String
-  rating       Float    @default(5)
-  hours        String   @default("24/7")
-  supportEmail String?
-  createdAt    DateTime @default(now())
+  id               String   @id @default(cuid())
+  name             String
+  address          String
+  rating           Float    @default(5)
+  hours            String   @default("24/7")
+  imagePath        String?
+  supportPhone     String?
+  supportTelegram  String?
+  supportEmail     String?
+  createdAt        DateTime @default(now())
 
   zones Zone[]
 }

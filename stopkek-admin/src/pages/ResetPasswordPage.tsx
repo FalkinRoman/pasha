@@ -45,6 +45,7 @@ export function ResetPasswordPage() {
     <div className="login-page">
       <form className="login-card card" onSubmit={onSubmit}>
         <StopLogo size={72} />
+        <p className="brand-wordmark">стопкек</p>
         <h1 className="login-title">Новый пароль</h1>
         {!token && <p className="error">Ссылка повреждена — запросите сброс снова</p>}
         <label>

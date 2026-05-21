@@ -34,7 +34,7 @@ async function main() {
 
   const club = await prisma.club.create({
     data: {
-      name: 'stopkek',
+      name: 'стопкек',
       address: '',
       rating: 5,
       hours: '24/7',

@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { TableEmptyRow } from '../components/TableEmptyRow';
 import { ZoneRow, fetchZones, updateZone } from '../api/admin';
 
 export function ZonesPage() {
@@ -50,6 +51,7 @@ export function ZonesPage() {
             </tr>
           </thead>
           <tbody>
+            {zones.length === 0 && <TableEmptyRow colSpan={6} />}
             {zones.map((z) => (
               <tr key={z.id}>
                 <td>{z.slug}</td>

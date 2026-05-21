@@ -13,6 +13,7 @@ import {
   updateZone,
 } from '../api/admin';
 import { Modal } from '../components/Modal';
+import { TableEmptyRow } from '../components/TableEmptyRow';
 import { SEAT_STATUS } from '../lib/statusLabels';
 
 const STATUSES = ['free', 'occupied', 'reserved', 'repair'] as const;
@@ -234,6 +235,7 @@ export function SeatsPage() {
                 </tr>
               </thead>
               <tbody>
+                {zones.length === 0 && <TableEmptyRow colSpan={6} />}
                 {zones.map((z) => (
                   <tr key={z.id}>
                     <td>{z.slug}</td>
@@ -342,8 +344,6 @@ export function SeatsPage() {
         </div>
         {loading ? (
           <p className="muted">Загрузка…</p>
-        ) : seats.length === 0 ? (
-          <p className="muted">Нет мест — добавьте зону и место</p>
         ) : (
           <div className="table-wrap">
             <table className="table">
@@ -358,6 +358,12 @@ export function SeatsPage() {
                 </tr>
               </thead>
               <tbody>
+                {seats.length === 0 && (
+                  <TableEmptyRow
+                    colSpan={6}
+                    message="Данных пока нет — добавьте зону и место"
+                  />
+                )}
                 {seats.map((s) => (
                   <tr key={s.id}>
                     <td>{s.number}</td>

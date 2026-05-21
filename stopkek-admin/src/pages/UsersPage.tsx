@@ -1,6 +1,15 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { ApiError, API_URL, getToken } from '../api/client';
-import { UserDetail, UserRow, adjustWallet, fetchUser, fetchUsers } from '../api/admin';
+import {
+  AdminLoginCode,
+  UserDetail,
+  UserRow,
+  adjustWallet,
+  fetchUser,
+  fetchUsers,
+  generateUserLoginCode,
+} from '../api/admin';
+import { TableEmptyRow } from '../components/TableEmptyRow';
 import { IDENTITY_STATUS, TX_TYPE } from '../lib/statusLabels';
 
 function fmtDate(iso: string) {
@@ -23,6 +32,8 @@ export function UsersPage() {
   const [adjustNote, setAdjustNote] = useState('');
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [photoError, setPhotoError] = useState('');
+  const [loginCode, setLoginCode] = useState<AdminLoginCode | null>(null);
+  const [codeLoading, setCodeLoading] = useState(false);
 
   const load = () => fetchUsers(search || undefined).then(setRows);
 
@@ -34,7 +45,22 @@ export function UsersPage() {
     setSelectedId(id);
     setPhotoUrl(null);
     setPhotoError('');
+    setLoginCode(null);
     setDetail(await fetchUser(id));
+  };
+
+  const onGenerateLoginCode = async () => {
+    if (!selectedId) return;
+    setCodeLoading(true);
+    setLoginCode(null);
+    try {
+      const res = await generateUserLoginCode(selectedId);
+      setLoginCode(res);
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : 'Не удалось сгенерировать код');
+    } finally {
+      setCodeLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -125,6 +151,7 @@ export function UsersPage() {
                 </tr>
               </thead>
               <tbody>
+                {rows.length === 0 && <TableEmptyRow colSpan={6} />}
                 {rows.map((u) => (
                   <tr key={u.id} className={selectedId === u.id ? 'row-selected' : ''}>
                     <td>{u.phone}</td>
@@ -212,6 +239,33 @@ export function UsersPage() {
                 Верификация не отправлялась
               </p>
             )}
+
+            <div className="user-login-code-block">
+              <h4>Код для входа</h4>
+              <p className="muted" style={{ fontSize: 13 }}>
+                Клиент ввёл номер в приложении — сгенерируйте 4 цифры. Действует 15 минут
+                (альтернатива звонку).
+              </p>
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={codeLoading}
+                onClick={onGenerateLoginCode}
+              >
+                {codeLoading ? 'Генерация…' : 'Сгенерировать код'}
+              </button>
+              {loginCode ? (
+                <div className="login-code-box">
+                  <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+                    Назовите клиенту код для {loginCode.phone}:
+                  </p>
+                  <p className="login-code-value">{loginCode.code}</p>
+                  <p className="muted" style={{ fontSize: 12, margin: 0 }}>
+                    Действует {Math.round(loginCode.expiresInSec / 60)} мин
+                  </p>
+                </div>
+              ) : null}
+            </div>
 
             <form onSubmit={onAdjust} className="adjust-form">
               <h4>Корректировка баланса</h4>

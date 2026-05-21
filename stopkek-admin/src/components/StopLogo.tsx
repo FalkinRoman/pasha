@@ -6,7 +6,7 @@ export function StopLogo({ size = 80 }: Props) {
   return (
     <img
       src="/logo-stopkek.png"
-      alt="stopkek"
+      alt="стопкек"
       className="stop-logo-img"
       width={size}
       height={size}

@@ -7,5 +7,6 @@ import { ClubService } from './club.service';
   imports: [BookingsModule],
   controllers: [ClubController],
   providers: [ClubService],
+  exports: [ClubService],
 })
 export class ClubModule {}

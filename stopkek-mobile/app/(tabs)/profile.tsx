@@ -18,6 +18,7 @@ const MENU = [
   { icon: 'wallet-outline' as const, label: 'Транзакции', href: '/wallet/history' },
   { icon: 'notifications-outline' as const, label: 'Уведомления', href: '/profile/notifications' },
   { icon: 'chatbubble-outline' as const, label: 'Обратная связь', href: '/support/feedback' },
+  { icon: 'headset-outline' as const, label: 'Поддержка', href: '/support' },
   { icon: 'information-circle-outline' as const, label: 'О клубе', href: '/club/info' },
 ];
 

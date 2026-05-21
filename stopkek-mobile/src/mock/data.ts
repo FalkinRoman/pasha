@@ -1,7 +1,7 @@
 import { Booking, Seat, User, Zone } from '../types';
 
 export const MOCK_CLUB = {
-  name: 'stopkek',
+  name: 'стопкек',
   address: 'Москва, ул. Игровая, 1',
   rating: 5.0,
   hours: '24/7',

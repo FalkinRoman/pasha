@@ -17,6 +17,7 @@ import { updateUser } from '../../src/store/authSlice';
 import { colors } from '../../src/theme/colors';
 import { spacing } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
+import { BrandTitle } from '../../src/components/ui/BrandTitle';
 import { formatMoney } from '../../src/utils/format';
 
 export default function HomeScreen() {
@@ -61,7 +62,7 @@ export default function HomeScreen() {
     <Screen scroll>
       <View style={styles.header}>
         <View>
-          <Text style={typography.caption}>stopkek</Text>
+          <BrandTitle size="sm" color={colors.textSecondary} />
           <Text style={typography.h2}>Привет, {user?.name ?? 'Игрок'}</Text>
         </View>
         <StopLogo size={44} />

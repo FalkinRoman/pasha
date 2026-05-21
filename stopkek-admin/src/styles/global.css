@@ -20,6 +20,25 @@ body,
   min-height: 100vh;
 }
 
+.brand-wordmark {
+  font-family: Oswald, Manrope, system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 1.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  line-height: 1.1;
+  text-align: center;
+  margin: 0;
+  width: 100%;
+}
+
+.brand-wordmark-sm {
+  font-size: 0.8rem;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+
 body {
   margin: 0;
   font-family: Manrope, system-ui, sans-serif;
@@ -137,6 +156,51 @@ select {
   gap: 4px;
   font-size: 13px;
   color: var(--muted);
+}
+
+.card-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.card-form h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.card-form h3:not(:first-child) {
+  margin-top: 28px;
+}
+
+.card-form .form-hint {
+  margin: 0 0 16px;
+  font-size: 13px;
+}
+
+.card-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+
+.card-form label .input {
+  width: 100%;
+}
+
+.card-form .form-footer {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.card-form .form-footer .btn {
+  margin-top: 4px;
 }
 
 .form-actions {
@@ -384,6 +448,65 @@ select {
   font-size: 13px;
   font-weight: 600;
   color: var(--accent);
+}
+
+.table-empty {
+  text-align: center !important;
+  padding: 36px 16px !important;
+  color: var(--muted) !important;
+  font-size: 14px;
+  vertical-align: middle;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 36px 16px;
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0;
+}
+
+.page-subtitle {
+  margin: -8px 0 20px;
+}
+
+.settings-photo-card {
+  margin-bottom: 16px;
+}
+
+.settings-club-photo {
+  width: 100%;
+  max-width: 480px;
+  height: 200px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  display: block;
+}
+
+.settings-club-photo.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-elevated);
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.login-code-box {
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent);
+}
+
+.login-code-value {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--accent);
+  margin: 8px 0;
 }
 
 .verification-grid {

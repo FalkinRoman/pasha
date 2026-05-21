@@ -21,12 +21,20 @@ type CallSession = {
   smsCallId?: string;
 };
 
+type AdminLoginCode = {
+  phone: string;
+  codeHash: string;
+  exp: number;
+};
+
 const MAX_ATTEMPTS = 5;
+const ADMIN_CODE_TTL_SEC = 15 * 60;
 
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
   private readonly sessions = new Map<string, CallSession>();
+  private readonly adminCodesByPhone = new Map<string, AdminLoginCode>();
   private readonly lastRequestByPhone = new Map<string, number>();
   private readonly mockCodes: Set<string>;
   private readonly ttlSec: number;
@@ -105,28 +113,60 @@ export class AuthService {
 
   async verifyCall(dto: CallVerifyDto) {
     const phone = normalizePhone(dto.phone);
-    const session = this.sessions.get(dto.sessionId);
+    const code = normalizeCallCode(dto.code);
 
-    if (!session || session.phone !== phone) {
-      throw new UnauthorizedException('Сессия не найдена');
-    }
-    if (session.exp < Date.now()) {
-      this.sessions.delete(dto.sessionId);
-      throw new UnauthorizedException('Код истёк — запросите звонок снова');
+    if (dto.sessionId) {
+      const session = this.sessions.get(dto.sessionId);
+      if (session && session.phone === phone) {
+        if (session.exp < Date.now()) {
+          this.sessions.delete(dto.sessionId);
+        } else {
+          session.attempts += 1;
+          if (session.attempts > MAX_ATTEMPTS) {
+            this.sessions.delete(dto.sessionId);
+            throw new HttpException('Слишком много попыток', HttpStatus.TOO_MANY_REQUESTS);
+          }
+          if (this.codesMatch(session.codeHash, code)) {
+            this.sessions.delete(dto.sessionId);
+            this.adminCodesByPhone.delete(phone);
+            return this.finishLogin(phone);
+          }
+        }
+      }
     }
 
-    session.attempts += 1;
-    if (session.attempts > MAX_ATTEMPTS) {
-      this.sessions.delete(dto.sessionId);
-      throw new HttpException('Слишком много попыток', HttpStatus.TOO_MANY_REQUESTS);
+    if (this.tryAdminLoginCode(phone, code)) {
+      this.adminCodesByPhone.delete(phone);
+      if (dto.sessionId) this.sessions.delete(dto.sessionId);
+      return this.finishLogin(phone);
     }
 
-    if (!this.codesMatch(session.codeHash, normalizeCallCode(dto.code))) {
-      throw new UnauthorizedException('Неверные цифры');
-    }
+    throw new UnauthorizedException('Неверные цифры или код истёк');
+  }
 
-    this.sessions.delete(dto.sessionId);
-    return this.finishLogin(phone);
+  issueAdminLoginCode(phone: string) {
+    const normalized = normalizePhone(phone);
+    const code = String(randomInt(1000, 10000));
+    this.adminCodesByPhone.set(normalized, {
+      phone: normalized,
+      codeHash: this.hashCode(code),
+      exp: Date.now() + ADMIN_CODE_TTL_SEC * 1000,
+    });
+    return {
+      phone: normalized,
+      code,
+      expiresInSec: ADMIN_CODE_TTL_SEC,
+    };
+  }
+
+  private tryAdminLoginCode(phone: string, code: string): boolean {
+    const entry = this.adminCodesByPhone.get(phone);
+    if (!entry || entry.phone !== phone) return false;
+    if (entry.exp < Date.now()) {
+      this.adminCodesByPhone.delete(phone);
+      return false;
+    }
+    return this.codesMatch(entry.codeHash, code);
   }
 
   private hashCode(code: string): string {

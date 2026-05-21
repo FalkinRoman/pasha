@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { TableEmptyRow } from '../components/TableEmptyRow';
 import { FeedbackRow, fetchFeedback } from '../api/admin';
 
 export function FeedbackPage() {
@@ -23,6 +24,7 @@ export function FeedbackPage() {
             </tr>
           </thead>
           <tbody>
+            {rows.length === 0 && <TableEmptyRow colSpan={4} />}
             {rows.map((f) => (
               <tr key={f.id}>
                 <td>{new Date(f.createdAt).toLocaleString('ru-RU')}</td>

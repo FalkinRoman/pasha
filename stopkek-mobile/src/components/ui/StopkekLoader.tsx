@@ -192,7 +192,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   message: {
-    ...typography.caption,
+    ...typography.brand,
+    fontSize: 22,
+    letterSpacing: 2,
     color: colors.textSecondary,
   },
   dots: {

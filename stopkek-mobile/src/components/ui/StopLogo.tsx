@@ -13,7 +13,7 @@ export function StopLogo({ size = 80 }: Props) {
         source={logoSource}
         style={{ width: size, height: size }}
         resizeMode="contain"
-        accessibilityLabel="stopkek"
+        accessibilityLabel="стопкек"
       />
     </View>
   );
@@ -23,5 +23,6 @@ const styles = StyleSheet.create({
   wrap: {
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'transparent',
   },
 });

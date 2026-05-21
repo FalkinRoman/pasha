@@ -30,6 +30,7 @@ export function ForgotPasswordPage() {
     <div className="login-page">
       <form className="login-card card" onSubmit={onSubmit}>
         <StopLogo size={72} />
+        <p className="brand-wordmark">стопкек</p>
         <h1 className="login-title">Восстановление пароля</h1>
         <p className="muted">Отправим ссылку на email</p>
         <label>

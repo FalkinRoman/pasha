@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { TransactionRow, fetchTransactions } from '../api/admin';
+import { TableEmptyRow } from '../components/TableEmptyRow';
 import { TX_TYPE } from '../lib/statusLabels';
 
 export function TransactionsPage() {
@@ -25,6 +26,7 @@ export function TransactionsPage() {
             </tr>
           </thead>
           <tbody>
+            {rows.length === 0 && <TableEmptyRow colSpan={5} />}
             {rows.map((t) => (
               <tr key={t.id}>
                 <td>{new Date(t.createdAt).toLocaleString('ru-RU')}</td>

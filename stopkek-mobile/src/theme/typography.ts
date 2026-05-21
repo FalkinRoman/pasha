@@ -2,9 +2,11 @@ import { TextStyle } from 'react-native';
 
 export const typography = {
   brand: {
-    fontFamily: 'PermanentMarker_400Regular',
+    fontFamily: 'Oswald_700Bold',
     fontSize: 36,
     color: '#FFFFFF',
+    letterSpacing: 3,
+    textTransform: 'uppercase',
   } as TextStyle,
   h1: {
     fontFamily: 'Manrope_700Bold',

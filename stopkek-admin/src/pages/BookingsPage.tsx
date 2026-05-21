@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { BookingRow, cancelBooking, fetchBookings } from '../api/admin';
+import { TableEmptyRow } from '../components/TableEmptyRow';
 import { BOOKING_STATUS } from '../lib/statusLabels';
 
 const STATUSES = [
@@ -71,13 +72,7 @@ export function BookingsPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="muted">
-                      Нет броней
-                    </td>
-                  </tr>
-                )}
+                {rows.length === 0 && <TableEmptyRow colSpan={7} />}
                 {rows.map((b) => (
                   <tr key={b.id}>
                     <td>{b.userPhone}</td>

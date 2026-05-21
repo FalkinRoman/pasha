@@ -8,8 +8,12 @@ import {
   Post,
   Query,
   Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import type { Response } from 'express';
 import { BookingStatus } from '@prisma/client';
 import { AdminAuthService } from './admin-auth.service';
@@ -24,13 +28,16 @@ import { UpdateSeatDto } from './dto/update-seat.dto';
 import { UpdateZoneDto } from './dto/update-zone.dto';
 import { RejectVerificationDto } from './dto/reject-verification.dto';
 import { WalletAdjustDto } from './dto/wallet-adjust.dto';
+import { UpdateClubDto } from './dto/update-club.dto';
 import { AdminJwtGuard } from './guards/admin-jwt.guard';
+import { ClubService } from '../club/club.service';
 
 @Controller('admin')
 export class AdminController {
   constructor(
     private readonly auth: AdminAuthService,
-    private readonly admin: AdminService
+    private readonly admin: AdminService,
+    private readonly club: ClubService
   ) {}
 
   @Post('auth/login')
@@ -136,6 +143,36 @@ export class AdminController {
   @UseGuards(AdminJwtGuard)
   adjustWallet(@Param('id') id: string, @Body() dto: WalletAdjustDto) {
     return this.admin.adjustWallet(id, dto);
+  }
+
+  @Post('users/:id/login-code')
+  @UseGuards(AdminJwtGuard)
+  generateLoginCode(@Param('id') id: string) {
+    return this.admin.generateUserLoginCode(id);
+  }
+
+  @Get('club')
+  @UseGuards(AdminJwtGuard)
+  getClubSettings() {
+    return this.club.getClubSettings();
+  }
+
+  @Patch('club')
+  @UseGuards(AdminJwtGuard)
+  updateClubSettings(@Body() dto: UpdateClubDto) {
+    return this.club.updateClubSettings(dto);
+  }
+
+  @Post('club/image')
+  @UseGuards(AdminJwtGuard)
+  @UseInterceptors(
+    FileInterceptor('image', {
+      storage: memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 },
+    })
+  )
+  uploadClubImage(@UploadedFile() file: Express.Multer.File) {
+    return this.club.uploadClubImage(file);
   }
 
   @Get('transactions')

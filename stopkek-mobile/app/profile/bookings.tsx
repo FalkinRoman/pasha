@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { fetchBookingHistory } from '../../src/api/bookings';
 import { Booking } from '../../src/types';
+import { EmptyHint } from '../../src/components/ui/EmptyHint';
 import { Header } from '../../src/components/ui/Header';
 import { Screen } from '../../src/components/ui/Screen';
 import { StopkekLoader } from '../../src/components/ui/StopkekLoader';
@@ -29,7 +30,7 @@ export default function BookingsHistoryScreen() {
       {loading ? (
         <StopkekLoader flex size="sm" message="Загружаем" />
       ) : list.length === 0 ? (
-        <Text style={typography.bodySecondary}>Пока пусто</Text>
+        <EmptyHint />
       ) : (
         list.map((b) => (
           <Pressable
