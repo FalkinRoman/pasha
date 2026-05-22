@@ -114,6 +114,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     opacity: 0.02,
     color: 'transparent',
+    fontSize: 16,
   },
   box: {
     width: BOX_W,

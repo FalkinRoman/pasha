@@ -42,7 +42,7 @@ sudo usermod -aG docker $USER
 ## 2. Клон и env
 
 ```bash
-git clone <ваш-repo> stopkek && cd stopkek
+git clone https://github.com/FalkinRoman/pasha.git stopkek && cd stopkek
 cp deploy/.env.prod.example deploy/.env.prod
 nano deploy/.env.prod   # пароли, JWT, SMSRU, SMTP, PUBLIC_* URL
 ```

@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .env
+deploy/.env.prod
 .DS_Store
 *.log
 stopkek-api/dist/

@@ -40,7 +40,8 @@ services:
       context: ../stopkek-admin
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${PUBLIC_API_URL}
+        # /api = http://IP/api через gateway; иначе PUBLIC_API_URL
+        VITE_API_URL: ${VITE_API_URL:-/api}
     restart: unless-stopped
 
   gateway:
