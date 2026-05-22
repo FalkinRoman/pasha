@@ -42,7 +42,6 @@ export function SeatsPage() {
   const [seatNumber, setSeatNumber] = useState('');
   const [seatZoneId, setSeatZoneId] = useState('');
   const [seatStatus, setSeatStatus] = useState<string>('free');
-  const [seatLockId, setSeatLockId] = useState('');
   const [seatCellLock, setSeatCellLock] = useState('');
 
   const load = async () => {
@@ -132,7 +131,6 @@ export function SeatsPage() {
     setSeatNumber(String(nextNum));
     setSeatZoneId(zones[0]?.id ?? '');
     setSeatStatus('free');
-    setSeatLockId('');
     setSeatCellLock('');
   };
 
@@ -141,8 +139,7 @@ export function SeatsPage() {
     setSeatNumber(String(s.number));
     setSeatZoneId(s.zoneId);
     setSeatStatus(s.status);
-    setSeatLockId(s.lockId ?? '');
-    setSeatCellLock(s.cellLock ?? '');
+    setSeatCellLock(s.cellLock ?? s.lockId ?? `cell-${s.number}`);
   };
 
   const onSaveSeat = async (e: FormEvent) => {
@@ -161,8 +158,7 @@ export function SeatsPage() {
           zoneId: seatZoneId,
           number: num,
           status: seatStatus,
-          lockId: seatLockId,
-          cellLock: seatCellLock,
+          cellLock: seatCellLock.trim() || `cell-${num}`,
         });
       }
       setSeatForm(null);
@@ -463,21 +459,16 @@ export function SeatsPage() {
             </select>
           </label>
           <label>
-            Замок ячейки (cellLock)
+            ID замка бокса
             <input
               className="input"
               value={seatCellLock}
               onChange={(e) => setSeatCellLock(e.target.value)}
-              placeholder="cell-12"
+              placeholder={`cell-${seatNumber || '12'}`}
             />
-          </label>
-          <label>
-            lockId (запасной)
-            <input
-              className="input"
-              value={seatLockId}
-              onChange={(e) => setSeatLockId(e.target.value)}
-            />
+            <span className="muted form-hint" style={{ marginTop: 4 }}>
+              Тот же ID уходит в API замков при «Открыть бокс» в приложении
+            </span>
           </label>
           <div className="modal-actions">
             <button type="submit" className="btn">

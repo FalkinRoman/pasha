@@ -5,24 +5,21 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { BookingStatus, SessionPhase } from '@prisma/client';
-import { mkdirSync, writeFileSync } from 'fs';
-import { extname, join } from 'path';
+import { mkdirSync } from 'fs';
+import { join } from 'path';
 import { LockerLogService } from '../locker/locker-log.service';
 import { ensureSeatCellLock } from '../locks/lock-ids';
 import { LocksService } from '../locks/locks.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { SubmitAcceptanceDto } from './dto/acceptance.dto';
 import {
   DOOR_EARLY_MIN,
   NO_SHOW_GRACE_MIN,
   REFUND_MIN_REMAINING_MIN,
   WALK_IN_START_MIN,
-  ACCEPTANCE_BUFFER_MIN,
 } from './session.constants';
 
 const PENDING_MS_DEFAULT = 15 * 60 * 1000;
-const PHOTO_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 
 @Injectable()
 export class BookingsService {
@@ -39,25 +36,6 @@ export class BookingsService {
   ) {
     this.pendingMs =
       Number(config.get('BOOKING_PENDING_TTL_SEC', 900)) * 1000 || PENDING_MS_DEFAULT;
-    mkdirSync(join(this.uploadRoot, 'acceptance'), { recursive: true });
-    mkdirSync(join(this.uploadRoot, 'checkout'), { recursive: true });
-  }
-
-  private saveBookingPhoto(
-    folder: 'acceptance' | 'checkout',
-    bookingId: string,
-    file: Express.Multer.File
-  ) {
-    if (!file?.buffer?.length) {
-      throw new BadRequestException('Загрузите фото');
-    }
-    const ext = extname(file.originalname || '').toLowerCase();
-    if (!PHOTO_EXT.has(ext)) {
-      throw new BadRequestException('Формат: JPG, PNG или WebP');
-    }
-    const rel = join(folder, `${bookingId}${ext}`);
-    writeFileSync(join(this.uploadRoot, rel), file.buffer);
-    return rel;
   }
 
   /** Cron: paid, не зашёл в клуб */
@@ -66,7 +44,7 @@ export class BookingsService {
     const list = await this.prisma.booking.findMany({
       where: {
         status: 'paid',
-        sessionPhase: { in: ['awaiting_arrival', 'arrival', 'cell_pending'] },
+        sessionPhase: { in: ['awaiting_arrival', 'arrival'] },
       },
       include: { seats: true },
     });
@@ -93,8 +71,7 @@ export class BookingsService {
     return t >= this.doorWindowStart(startAt).getTime() && t < endAt.getTime();
   }
 
-  /** Обновляет фазу по времени (лениво) */
-  private resolvePhase(
+  private normalizePhase(
     status: BookingStatus,
     sessionPhase: SessionPhase,
     startAt: Date,
@@ -102,16 +79,55 @@ export class BookingsService {
     now = new Date()
   ): SessionPhase {
     if (status === 'completed' || status === 'cancelled') return sessionPhase;
-    if (sessionPhase === 'issue' || sessionPhase === 'checkout') return sessionPhase;
-
+    if (
+      ['acceptance', 'cell_pending', 'issue', 'checkout'].includes(sessionPhase)
+    ) {
+      if (status === 'active') return 'playing';
+      return this.inDoorWindow(startAt, endAt, now) ? 'arrival' : 'awaiting_arrival';
+    }
     if (status === 'paid') {
       if (!this.inDoorWindow(startAt, endAt, now)) return 'awaiting_arrival';
       if (sessionPhase === 'awaiting_arrival') return 'arrival';
-      return sessionPhase;
+      return sessionPhase === 'playing' ? 'arrival' : sessionPhase;
     }
-
-    if (status === 'active' && sessionPhase === 'playing') return 'playing';
+    if (status === 'active') return 'playing';
     return sessionPhase;
+  }
+
+  /** По расписанию: с startAt включаем игровой таймер */
+  private async activateScheduledIfDue(bookingId: string) {
+    const now = new Date();
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { seats: true },
+    });
+    if (!booking || booking.status !== 'paid' || now < booking.startAt) return null;
+    const seatId = booking.seats[0]?.seatId;
+    if (!seatId) return null;
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.seat.update({
+        where: { id: seatId },
+        data: { status: 'occupied' },
+      });
+      return tx.booking.update({
+        where: { id: bookingId },
+        data: {
+          status: 'active',
+          sessionPhase: 'playing',
+          startedAt: booking.startAt,
+        },
+        include: { seats: { include: { seat: { include: { zone: true } } } } },
+      });
+    });
+
+    const seatNum = updated.seats[0]?.seatNumber ?? 0;
+    void this.notifications.notifySessionStarted(
+      booking.userId,
+      bookingId,
+      seatNum
+    );
+    return updated;
   }
 
   async syncSeatStates() {
@@ -135,6 +151,17 @@ export class BookingsService {
     });
     for (const b of expired) {
       await this.releaseBooking(b.id, 'completed');
+    }
+
+    const dueStart = await this.prisma.booking.findMany({
+      where: {
+        status: 'paid',
+        startAt: { lte: now },
+        endAt: { gt: now },
+      },
+    });
+    for (const b of dueStart) {
+      await this.activateScheduledIfDue(b.id);
     }
   }
 
@@ -161,16 +188,27 @@ export class BookingsService {
     });
     if (!b) return null;
 
-    const phase = this.resolvePhase(b.status, b.sessionPhase, b.startAt, b.endAt);
-    if (phase !== b.sessionPhase) {
+    let current = b;
+    if (b.status === 'paid' && now >= b.startAt) {
+      const activated = await this.activateScheduledIfDue(b.id);
+      if (activated) current = activated;
+    }
+
+    const phase = this.normalizePhase(
+      current.status,
+      current.sessionPhase,
+      current.startAt,
+      current.endAt
+    );
+    if (phase !== current.sessionPhase) {
       const updated = await this.prisma.booking.update({
-        where: { id: b.id },
+        where: { id: current.id },
         data: { sessionPhase: phase },
         include: { seats: { include: { seat: { include: { zone: true } } } } },
       });
       return this.format(updated);
     }
-    return this.format(b);
+    return this.format(current);
   }
 
   async getHistory(userId: string) {
@@ -288,15 +326,9 @@ export class BookingsService {
     }
 
     const now = new Date();
-    const inWindow = this.inDoorWindow(booking.startAt, booking.endAt, now);
-    const phase: SessionPhase = inWindow ? 'arrival' : 'awaiting_arrival';
     const walkIn = this.isWalkIn(booking.startAt, now);
-    const payEndAt = walkIn
-      ? new Date(
-          now.getTime() +
-            (booking.durationMinutes + ACCEPTANCE_BUFFER_MIN) * 60_000
-        )
-      : booking.endAt;
+    const inWindow = this.inDoorWindow(booking.startAt, booking.endAt, now);
+    const scheduledReady = !walkIn && now >= booking.startAt;
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const existing = await tx.transaction.findFirst({
@@ -317,16 +349,43 @@ export class BookingsService {
           },
         });
       }
+
+      if (walkIn || scheduledReady) {
+        await tx.seat.update({
+          where: { id: seat.id },
+          data: { status: 'occupied' },
+        });
+        const startedAt = walkIn ? now : booking.startAt;
+        const endAt = walkIn
+          ? new Date(now.getTime() + booking.durationMinutes * 60_000)
+          : booking.endAt;
+        return tx.booking.update({
+          where: { id: bookingId },
+          data: {
+            status: 'active',
+            sessionPhase: 'playing',
+            startedAt,
+            endAt,
+          },
+          include: { seats: { include: { seat: { include: { zone: true } } } } },
+        });
+      }
+
+      const phase: SessionPhase = inWindow ? 'arrival' : 'awaiting_arrival';
       return tx.booking.update({
         where: { id: bookingId },
         data: {
           status: 'paid',
           sessionPhase: phase,
-          ...(walkIn ? { endAt: payEndAt } : {}),
         },
         include: { seats: { include: { seat: { include: { zone: true } } } } },
       });
     });
+
+    if (updated.status === 'active') {
+      const seatNum = updated.seats[0]?.seatNumber ?? 0;
+      void this.notifications.notifySessionStarted(userId, bookingId, seatNum);
+    }
 
     return this.format(updated);
   }
@@ -359,9 +418,18 @@ export class BookingsService {
 
   async openDoor(userId: string, bookingId: string, type: 'main' | 'cell') {
     const booking = await this.getOngoingBooking(userId, bookingId);
-    if (booking.sessionPhase === 'issue') {
-      throw new BadRequestException('Сеанс на паузе — дождитесь администратора');
+
+    const recent = await this.prisma.lockerLog.findFirst({
+      where: {
+        bookingId,
+        type: type === 'main' ? 'lock_open_main' : 'lock_open_cell',
+        createdAt: { gte: new Date(Date.now() - 30_000) },
+      },
+    });
+    if (recent) {
+      throw new BadRequestException('Подождите 30 сек перед повторным открытием');
     }
+
     if (!this.inDoorWindow(booking.startAt, booking.endAt)) {
       throw new BadRequestException('Доступ в клуб откроется за 15 минут до начала');
     }
@@ -385,7 +453,7 @@ export class BookingsService {
       throw new BadRequestException(
         type === 'main'
           ? 'Главная дверь не настроена в админке (Замки)'
-          : 'Замок ячейки не привязан к месту'
+          : 'Замок бокса не привязан к месту'
       );
     }
 
@@ -403,20 +471,25 @@ export class BookingsService {
       throw new BadRequestException(lockResult.error ?? 'Не удалось открыть замок');
     }
 
-    let nextPhase = booking.sessionPhase;
-    if (type === 'main') {
-      if (['awaiting_arrival', 'arrival'].includes(booking.sessionPhase)) {
-        nextPhase = 'cell_pending';
-      }
-    } else {
-      nextPhase = 'acceptance';
+    let updated = booking;
+    if (booking.status === 'paid') {
+      const activated = await this.activateScheduledIfDue(bookingId);
+      if (activated) updated = activated;
     }
 
-    const updated = await this.prisma.booking.update({
-      where: { id: bookingId },
-      data: { sessionPhase: nextPhase },
-      include: { seats: { include: { seat: { include: { zone: true } } } } },
-    });
+    const phase = this.normalizePhase(
+      updated.status,
+      updated.sessionPhase,
+      updated.startAt,
+      updated.endAt
+    );
+    if (phase !== updated.sessionPhase) {
+      updated = await this.prisma.booking.update({
+        where: { id: bookingId },
+        data: { sessionPhase: phase },
+        include: { seats: { include: { seat: { include: { zone: true } } } } },
+      });
+    }
 
     void this.lockerLog.write({
       bookingId,
@@ -478,131 +551,10 @@ export class BookingsService {
     return this.format(updated);
   }
 
-  async submitAcceptance(
-    userId: string,
-    bookingId: string,
-    dto: SubmitAcceptanceDto,
-    photo?: Express.Multer.File
-  ) {
+  async endSession(userId: string, bookingId: string) {
     const booking = await this.getOngoingBooking(userId, bookingId);
-    if (!['acceptance', 'cell_pending', 'arrival'].includes(booking.sessionPhase)) {
-      throw new BadRequestException('Приёмка недоступна на этом этапе');
-    }
-
-    const photoPath = photo
-      ? this.saveBookingPhoto('acceptance', bookingId, photo)
-      : null;
-
-    const seatRow = booking.seats[0];
-    const seat = seatRow?.seat;
-    const cellLock = seat
-      ? await ensureSeatCellLock(this.prisma, seat)
-      : `cell-${seatRow?.seatNumber ?? 0}`;
-
-    await this.prisma.acceptanceReport.create({
-      data: {
-        bookingId,
-        userId,
-        items: dto.items,
-        comment: dto.comment?.trim() ?? '',
-        hasIssue: dto.hasIssue,
-        photoPath,
-      },
-    });
-
-    void this.lockerLog.write({
-      bookingId,
-      userId,
-      seatId: seat?.id ?? seatRow?.seatId,
-      seatNumber: seatRow?.seatNumber ?? seat?.number ?? 0,
-      cellLock,
-      type: 'acceptance',
-      photoPath,
-      payload: {
-        items: dto.items,
-        hasIssue: dto.hasIssue,
-        comment: dto.comment?.trim() ?? '',
-      },
-    });
-
-    if (dto.hasIssue) {
-      const updated = await this.prisma.booking.update({
-        where: { id: bookingId },
-        data: { sessionPhase: 'issue' },
-        include: { seats: { include: { seat: { include: { zone: true } } } } },
-      });
-      return this.format(updated);
-    }
-
-    const now = new Date();
-    const walkIn = this.isWalkIn(booking.startAt, now);
-    const startedAt = walkIn
-      ? now
-      : booking.startAt > now
-        ? booking.startAt
-        : now;
-    const endAt = walkIn
-      ? new Date(now.getTime() + booking.durationMinutes * 60_000)
-      : booking.endAt;
-
-    const seatId = booking.seats[0].seatId;
-    const updated = await this.prisma.$transaction(async (tx) => {
-      await tx.seat.update({
-        where: { id: seatId },
-        data: { status: 'occupied' },
-      });
-      return tx.booking.update({
-        where: { id: bookingId },
-        data: {
-          status: 'active',
-          sessionPhase: 'playing',
-          startedAt,
-          endAt,
-        },
-        include: { seats: { include: { seat: { include: { zone: true } } } } },
-      });
-    });
-
-    const seatNum = updated.seats[0]?.seatNumber ?? 0;
-    void this.notifications.notifySessionStarted(userId, bookingId, seatNum);
-
-    return this.format(updated);
-  }
-
-  async startCheckout(userId: string, bookingId: string) {
-    const booking = await this.getOngoingBooking(userId, bookingId);
-    if (booking.status !== 'active' || booking.sessionPhase !== 'playing') {
-      throw new BadRequestException('Завершение доступно во время игры');
-    }
-
-    const updated = await this.prisma.booking.update({
-      where: { id: bookingId },
-      data: { sessionPhase: 'checkout' },
-      include: { seats: { include: { seat: { include: { zone: true } } } } },
-    });
-    return this.format(updated);
-  }
-
-  async completeCheckout(
-    userId: string,
-    bookingId: string,
-    photo?: Express.Multer.File
-  ) {
-    const booking = await this.getOngoingBooking(userId, bookingId);
-    if (booking.sessionPhase !== 'checkout') {
-      throw new BadRequestException('Сначала начните завершение сеанса');
-    }
-    const photoPath = photo
-      ? this.saveBookingPhoto('checkout', bookingId, photo)
-      : booking.checkoutPhotoPath;
-    if (!photoPath) {
-      throw new BadRequestException('Сделайте фото ячейки перед завершением');
-    }
-    if (photo) {
-      await this.prisma.booking.update({
-        where: { id: bookingId },
-        data: { checkoutPhotoPath: photoPath },
-      });
+    if (booking.status !== 'active') {
+      throw new BadRequestException('Сеанс ещё не начался');
     }
 
     const now = new Date();
@@ -618,24 +570,6 @@ export class BookingsService {
       refundKopecks = Math.min(refundKopecks, booking.totalPrice);
     }
 
-    const seatRow = booking.seats[0];
-    const seat = seatRow?.seat;
-    const cellLock =
-      seat?.cellLock?.trim() ||
-      seat?.lockId?.trim() ||
-      (seat ? await ensureSeatCellLock(this.prisma, seat) : `cell-${seatRow?.seatNumber ?? 0}`);
-
-    void this.lockerLog.write({
-      bookingId,
-      userId,
-      seatId: seat?.id ?? seatRow?.seatId,
-      seatNumber: seatRow?.seatNumber ?? seat?.number ?? 0,
-      cellLock,
-      type: 'checkout',
-      photoPath,
-      payload: { refundKopecks },
-    });
-
     await this.prisma.$transaction(async (tx) => {
       if (refundKopecks > 0) {
         const wallet = await tx.wallet.findUnique({ where: { userId } });
@@ -650,7 +584,7 @@ export class BookingsService {
               type: 'refund',
               amount: refundKopecks,
               description: 'Возврат за досрочное завершение',
-              externalId: `${bookingId}-checkout`,
+              externalId: `${bookingId}-end`,
             },
           });
         }
@@ -669,24 +603,6 @@ export class BookingsService {
       refundRub: Math.round(refundKopecks / 100),
       balanceRub: Math.round((wallet?.balance ?? 0) / 100),
     };
-  }
-
-  async saveCheckoutPhoto(
-    userId: string,
-    bookingId: string,
-    photo: Express.Multer.File
-  ) {
-    const booking = await this.getOngoingBooking(userId, bookingId);
-    if (booking.sessionPhase !== 'checkout') {
-      throw new BadRequestException('Сначала начните завершение сеанса');
-    }
-    const photoPath = this.saveBookingPhoto('checkout', bookingId, photo);
-    const updated = await this.prisma.booking.update({
-      where: { id: bookingId },
-      data: { checkoutPhotoPath: photoPath },
-      include: { seats: { include: { seat: { include: { zone: true } } } } },
-    });
-    return this.format(updated);
   }
 
   private async releaseBooking(bookingId: string, status: BookingStatus) {
@@ -725,7 +641,7 @@ export class BookingsService {
   }) {
     const now = new Date();
     const zoneName = booking.seats[0]?.seat.zone.name ?? '';
-    const phase = this.resolvePhase(
+    const phase = this.normalizePhase(
       booking.status,
       booking.sessionPhase,
       booking.startAt,
@@ -735,7 +651,8 @@ export class BookingsService {
     const gameRunning =
       booking.status === 'active' &&
       phase === 'playing' &&
-      booking.startedAt != null;
+      booking.startedAt != null &&
+      now.getTime() >= booking.startedAt.getTime();
     const doorOpen = this.inDoorWindow(booking.startAt, booking.endAt, now);
     const untilStartMs = Math.max(0, booking.startAt.getTime() - now.getTime());
     const untilEndMs = Math.max(0, booking.endAt.getTime() - now.getTime());
@@ -743,21 +660,16 @@ export class BookingsService {
       0,
       this.doorWindowStart(booking.startAt).getTime() - now.getTime()
     );
-    const paidDurationMs = booking.durationMinutes * 60_000;
 
     let timerMode: string;
     let displayRemainingMs: number;
     let timerLabel: string;
 
-    if (phase === 'issue') {
-      timerMode = 'paused';
-      displayRemainingMs = untilEndMs;
-      timerLabel = 'на паузе';
-    } else if (gameRunning) {
+    if (gameRunning) {
       timerMode = 'playing';
       displayRemainingMs = untilEndMs;
       timerLabel = 'осталось';
-    } else if (booking.status === 'paid' && !booking.startedAt) {
+    } else if (booking.status === 'paid') {
       if (doorOpensMs > 0) {
         timerMode = 'until_door';
         displayRemainingMs = doorOpensMs;
@@ -767,15 +679,18 @@ export class BookingsService {
         displayRemainingMs = untilStartMs;
         timerLabel = 'до начала';
       } else {
-        timerMode = 'pre_play';
-        displayRemainingMs = paidDurationMs;
-        timerLabel = 'после приёмки';
+        timerMode = 'until_start';
+        displayRemainingMs = untilEndMs;
+        timerLabel = 'до старта';
       }
     } else {
       timerMode = 'until_end';
       displayRemainingMs = untilEndMs;
       timerLabel = 'осталось';
     }
+
+    const canAccessDoors =
+      doorOpen && ['awaiting_arrival', 'arrival', 'playing'].includes(phase);
 
     return {
       id: booking.id,
@@ -795,15 +710,8 @@ export class BookingsService {
       doorWindowOpen: doorOpen,
       untilStartMs,
       untilEndMs,
-      canOpenMainDoor:
-        doorOpen &&
-        !['issue', 'checkout', 'acceptance'].includes(phase) &&
-        ['awaiting_arrival', 'arrival', 'cell_pending'].includes(phase),
-      canOpenCell:
-        doorOpen &&
-        !['issue', 'checkout'].includes(phase) &&
-        phase !== 'playing',
-      needsAcceptance: phase === 'acceptance',
+      canOpenMainDoor: canAccessDoors,
+      canOpenCell: canAccessDoors,
     };
   }
 

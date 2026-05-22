@@ -209,9 +209,14 @@ export class AdminService {
       data: {
         ...(dto.status !== undefined ? { status: dto.status } : {}),
         ...(dto.zoneId !== undefined ? { zoneId: dto.zoneId } : {}),
-        ...(dto.lockId !== undefined ? { lockId: dto.lockId.trim() || null } : {}),
         ...(dto.cellLock !== undefined
-          ? { cellLock: dto.cellLock.trim() || null }
+          ? (() => {
+              const cellLock = dto.cellLock.trim() || null;
+              return { cellLock, lockId: cellLock };
+            })()
+          : {}),
+        ...(dto.lockId !== undefined && dto.cellLock === undefined
+          ? { lockId: dto.lockId.trim() || null }
           : {}),
         ...(dto.number !== undefined ? { number: dto.number } : {}),
       },
@@ -528,6 +533,7 @@ export class AdminService {
     b: {
       id: string;
       status: BookingStatus;
+      sessionPhase?: string;
       startAt: Date;
       endAt: Date;
       totalPrice: number;
@@ -542,6 +548,7 @@ export class AdminService {
     return {
       id: b.id,
       status: b.status,
+      sessionPhase: b.sessionPhase ?? null,
       startAt: b.startAt,
       endAt: b.endAt,
       totalPriceRub: Math.round(b.totalPrice / 100),
@@ -646,14 +653,36 @@ export class AdminService {
     return { ok: true };
   }
 
+  async purgeAccessLogs() {
+    const legacy = await this.prisma.lockerLog.deleteMany({
+      where: { type: { in: ['acceptance', 'checkout'] } },
+    });
+    const events = await this.prisma.lockEvent.deleteMany();
+    return {
+      ok: true,
+      removedLegacy: legacy.count,
+      removedLockEvents: events.count,
+    };
+  }
+
   async listLockerLogs(params: {
     seatNumber?: number;
     cellLock?: string;
     limit?: number;
+    types?: string[];
   }) {
     const limit = Math.min(params.limit ?? 80, 200);
+    const typeFilter =
+      params.types?.length &&
+      params.types.every((t) =>
+        ['lock_open_main', 'lock_open_cell', 'acceptance', 'checkout'].includes(t)
+      )
+        ? params.types
+        : ['lock_open_main', 'lock_open_cell'];
+
     const list = await this.prisma.lockerLog.findMany({
       where: {
+        type: { in: typeFilter as ('lock_open_main' | 'lock_open_cell')[] },
         ...(params.seatNumber != null
           ? { seatNumber: params.seatNumber }
           : {}),
@@ -669,6 +698,7 @@ export class AdminService {
           select: {
             id: true,
             status: true,
+            sessionPhase: true,
             totalPrice: true,
             startAt: true,
             endAt: true,
@@ -690,9 +720,18 @@ export class AdminService {
       userPhone: r.user.phone,
       userName: r.user.name || 'Игрок',
       bookingStatus: r.booking?.status ?? null,
+      bookingPhase: r.booking?.sessionPhase ?? null,
+      bookingStartAt: r.booking?.startAt.toISOString() ?? null,
+      bookingEndAt: r.booking?.endAt.toISOString() ?? null,
       bookingTotalRub: r.booking
         ? Math.round(r.booking.totalPrice / 100)
         : null,
+      lockOk:
+        r.payload &&
+        typeof r.payload === 'object' &&
+        'ok' in (r.payload as object)
+          ? Boolean((r.payload as { ok?: boolean }).ok)
+          : null,
     }));
   }
 

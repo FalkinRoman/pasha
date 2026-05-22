@@ -1,5 +1,7 @@
 import {
   BadRequestException,
+  HttpException,
+  HttpStatus,
   Injectable,
   Logger,
   UnauthorizedException,
@@ -13,6 +15,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { isRateLimited, rateLimitRetrySec } from '../common/rate-limit';
 import { AdminJwtPayload } from './admin-jwt.strategy';
 
 @Injectable()
@@ -26,8 +29,22 @@ export class AdminAuthService {
     private readonly mail: MailService
   ) {}
 
+  private adminJwtSecret() {
+    return (
+      this.config.get<string>('JWT_ADMIN_SECRET') ||
+      this.config.get<string>('JWT_SECRET')
+    );
+  }
+
   async login(dto: AdminLoginDto) {
     const email = dto.email.trim().toLowerCase();
+    if (isRateLimited(`admin-login:${email}`, 8, 15 * 60_000)) {
+      const wait = rateLimitRetrySec(`admin-login:${email}`, 15 * 60_000);
+      throw new HttpException(
+        `Слишком много попыток. Повторите через ${wait} сек`,
+        HttpStatus.TOO_MANY_REQUESTS
+      );
+    }
     const admin = await this.prisma.admin.findUnique({ where: { email } });
     if (!admin || !(await bcrypt.compare(dto.password, admin.passwordHash))) {
       throw new UnauthorizedException('Неверный email или пароль');
@@ -41,7 +58,7 @@ export class AdminAuthService {
     };
 
     const accessToken = await this.jwt.signAsync(payload, {
-      secret: this.config.get('JWT_SECRET'),
+      secret: this.adminJwtSecret(),
       expiresIn: this.config.get('JWT_ADMIN_TTL', '12h'),
     });
 
@@ -71,6 +88,13 @@ export class AdminAuthService {
   /** Всегда один ответ — не палим, есть ли email в базе */
   async forgotPassword(dto: ForgotPasswordDto) {
     const email = dto.email.trim().toLowerCase();
+    if (isRateLimited(`admin-forgot:${email}`, 5, 60 * 60_000)) {
+      return {
+        ok: true,
+        message:
+          'Если аккаунт с таким email существует, мы отправили ссылку для сброса пароля.',
+      };
+    }
     const admin = await this.prisma.admin.findUnique({ where: { email } });
 
     if (admin) {

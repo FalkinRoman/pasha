@@ -1,15 +1,12 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   ClubLocks,
   fetchClubLocks,
-  fetchLockEvents,
-  LockEventRow,
   updateClubLocks,
 } from '../api/admin';
-import { TableEmptyRow } from './TableEmptyRow';
 
 export function ClubLocksSettings() {
-  const [events, setEvents] = useState<LockEventRow[]>([]);
   const [provider, setProvider] = useState<ClubLocks['lockProvider']>('mock');
   const [mainDoorLockId, setMainDoorLockId] = useState('');
   const [lockHttpBaseUrl, setLockHttpBaseUrl] = useState('');
@@ -23,10 +20,9 @@ export function ClubLocksSettings() {
       setProvider(c.lockProvider);
       setMainDoorLockId(c.mainDoorLockId ?? '');
       setLockHttpBaseUrl(c.lockHttpBaseUrl ?? '');
-      setLockHttpToken(c.lockHttpToken ?? '');
+      setLockHttpToken('');
       setLockMqttTopic(c.lockMqttTopic ?? '');
     });
-    fetchLockEvents().then(setEvents);
   };
 
   useEffect(() => {
@@ -42,7 +38,7 @@ export function ClubLocksSettings() {
         lockProvider: provider,
         mainDoorLockId,
         lockHttpBaseUrl,
-        lockHttpToken,
+        ...(lockHttpToken.trim() ? { lockHttpToken } : {}),
         lockMqttTopic,
       });
       setMessage('Сохранено');
@@ -53,96 +49,69 @@ export function ClubLocksSettings() {
   };
 
   return (
-    <>
-      <form className="card card-form" onSubmit={onSave}>
-        <h3>Замки</h3>
-        <p className="muted form-hint">
-          mock — только лог. http — POST {'{base}'}/open. mqtt — через HTTP-мост.
-          Замки ячеек — в «Места и зоны»: cellLock у каждого ПК.
-        </p>
-        <label>
-          Провайдер
-          <select
-            className="input"
-            value={provider}
-            onChange={(e) =>
-              setProvider(e.target.value as ClubLocks['lockProvider'])
-            }
-          >
-            <option value="mock">mock (тест)</option>
-            <option value="http">HTTP</option>
-            <option value="mqtt">MQTT (через HTTP-мост)</option>
-          </select>
-        </label>
-        <label>
-          ID замка главной двери
-          <input
-            className="input"
-            value={mainDoorLockId}
-            onChange={(e) => setMainDoorLockId(e.target.value)}
-            placeholder="main-door"
-          />
-        </label>
-        <label>
-          HTTP base URL
-          <input
-            className="input"
-            value={lockHttpBaseUrl}
-            onChange={(e) => setLockHttpBaseUrl(e.target.value)}
-            placeholder="https://locks.example.com/api"
-          />
-        </label>
-        <label>
-          HTTP token (Bearer)
-          <input
-            className="input"
-            value={lockHttpToken}
-            onChange={(e) => setLockHttpToken(e.target.value)}
-            placeholder="оставьте пустым, чтобы не менять"
-          />
-        </label>
-        <label>
-          MQTT topic prefix
-          <input
-            className="input"
-            value={lockMqttTopic}
-            onChange={(e) => setLockMqttTopic(e.target.value)}
-            placeholder="stopkek/locks"
-          />
-        </label>
-        {error ? <p className="error">{error}</p> : null}
-        {message ? <p className="muted">{message}</p> : null}
-        <button type="submit" className="btn">
-          Сохранить замки
-        </button>
-      </form>
-
-      <div className="card" style={{ marginTop: 16 }}>
-        <h3>Последние события замков</h3>
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Время</th>
-                <th>Тип</th>
-                <th>Замок</th>
-                <th>OK</th>
-              </tr>
-            </thead>
-            <tbody>
-              {events.length === 0 && <TableEmptyRow colSpan={4} />}
-              {events.map((ev) => (
-                <tr key={ev.id}>
-                  <td>{new Date(ev.createdAt).toLocaleString('ru-RU')}</td>
-                  <td>{ev.lockType}</td>
-                  <td>{ev.lockTarget}</td>
-                  <td>{ev.success ? '✓' : ev.error ?? '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </>
+    <form className="card card-form" onSubmit={onSave}>
+      <h3>Замки и API</h3>
+      <p className="muted form-hint">
+        <strong>Главная дверь</strong> — ID ниже. <strong>Боксы</strong> — ID замка у каждого места в{' '}
+        <Link to="/seats">Места и зоны</Link>.
+      </p>
+      <label>
+        Провайдер
+        <select
+          className="input"
+          value={provider}
+          onChange={(e) =>
+            setProvider(e.target.value as ClubLocks['lockProvider'])
+          }
+        >
+          <option value="mock">mock (тест, без реального замка)</option>
+          <option value="http">HTTP API</option>
+          <option value="mqtt">MQTT (через HTTP-мост)</option>
+        </select>
+      </label>
+      <label>
+        ID замка главной двери
+        <input
+          className="input"
+          value={mainDoorLockId}
+          onChange={(e) => setMainDoorLockId(e.target.value)}
+          placeholder="main-door"
+        />
+      </label>
+      <label>
+        HTTP base URL
+        <input
+          className="input"
+          value={lockHttpBaseUrl}
+          onChange={(e) => setLockHttpBaseUrl(e.target.value)}
+          placeholder="https://locks.example.com/api"
+        />
+      </label>
+      <label>
+        HTTP token (Bearer)
+        <input
+          className="input"
+          type="password"
+          autoComplete="new-password"
+          value={lockHttpToken}
+          onChange={(e) => setLockHttpToken(e.target.value)}
+          placeholder="новый токен (пусто = не менять)"
+        />
+      </label>
+      <label>
+        MQTT topic prefix
+        <input
+          className="input"
+          value={lockMqttTopic}
+          onChange={(e) => setLockMqttTopic(e.target.value)}
+          placeholder="stopkek/locks"
+        />
+      </label>
+      {error ? <p className="error">{error}</p> : null}
+      {message ? <p className="muted">{message}</p> : null}
+      <button type="submit" className="btn">
+        Сохранить замки
+      </button>
+    </form>
   );
 }

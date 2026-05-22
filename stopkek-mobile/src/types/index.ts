@@ -90,5 +90,4 @@ export interface Booking {
   displayRemainingMs?: number;
   canOpenMainDoor?: boolean;
   canOpenCell?: boolean;
-  needsAcceptance?: boolean;
 }

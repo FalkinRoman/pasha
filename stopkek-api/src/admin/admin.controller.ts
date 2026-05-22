@@ -229,6 +229,23 @@ export class AdminController {
     return this.admin.approveVerification(id, a.adminId);
   }
 
+  @Get('access-logs')
+  @UseGuards(AdminJwtGuard)
+  accessLogs(
+    @Query('seatNumber') seatNumber?: string,
+    @Query('cellLock') cellLock?: string,
+    @Query('limit') limit?: string,
+    @Query('types') types?: string
+  ) {
+    return this.admin.listLockerLogs({
+      seatNumber: seatNumber ? Number(seatNumber) : undefined,
+      cellLock,
+      limit: limit ? Number(limit) : undefined,
+      types: types?.split(',').map((t) => t.trim()).filter(Boolean),
+    });
+  }
+
+  /** @deprecated use GET /admin/access-logs */
   @Get('cell-control')
   @UseGuards(AdminJwtGuard)
   cellControl(
@@ -241,6 +258,12 @@ export class AdminController {
       cellLock,
       limit: limit ? Number(limit) : undefined,
     });
+  }
+
+  @Post('access-logs/purge-legacy')
+  @UseGuards(AdminJwtGuard)
+  purgeAccessLogs() {
+    return this.admin.purgeAccessLogs();
   }
 
   @Get('cell-control/:id/photo')

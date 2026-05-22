@@ -3,9 +3,9 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import {
+  endSession,
   fetchActiveBooking,
   openSessionDoor,
-  startSessionCheckout,
 } from '../../src/api/bookings';
 import { ApiError } from '../../src/api/client';
 import { Header } from '../../src/components/ui/Header';
@@ -40,22 +40,11 @@ export default function ActiveSessionScreen() {
 
   useEffect(() => {
     if (!booking) return;
-    if (booking.needsAcceptance || phase === 'acceptance') {
-      router.replace('/session/acceptance');
-      return;
-    }
-    if (phase === 'checkout') {
-      router.replace('/session/checkout');
-    }
-  }, [booking?.id, phase, booking?.needsAcceptance]);
-
-  useEffect(() => {
-    if (!booking) return;
     const mode = booking.timerMode ?? 'until_end';
     const base =
       booking.displayRemainingMs ??
       (booking.durationMinutes ?? 60) * 60_000;
-    if (mode === 'pre_play') {
+    if (mode !== 'playing' && mode !== 'until_end') {
       setRemaining(base);
       return;
     }
@@ -77,14 +66,10 @@ export default function ActiveSessionScreen() {
     try {
       const updated = await openSessionDoor(booking.id, type);
       dispatch(setActiveBooking(updated));
-      if (type === 'cell' || updated.sessionPhase === 'acceptance') {
-        router.push('/session/acceptance');
-      } else {
-        Alert.alert(
-          type === 'main' ? 'Главная дверь' : `Ячейка #${seatNum}`,
-          'Команда отправлена'
-        );
-      }
+      Alert.alert(
+        type === 'main' ? 'Главная дверь' : `Бокс #${seatNum}`,
+        'Команда отправлена'
+      );
     } catch (e) {
       Alert.alert('Ошибка', e instanceof ApiError ? e.message : 'Не удалось');
     } finally {
@@ -92,23 +77,33 @@ export default function ActiveSessionScreen() {
     }
   };
 
-  const onFinish = async () => {
+  const onFinish = () => {
     if (!booking) return;
-    Alert.alert('Завершить сеанс?', 'Неиспользованное время вернётся на баланс (от 30 мин)', [
-      { text: 'Отмена', style: 'cancel' },
-      {
-        text: 'Завершить',
-        onPress: async () => {
-          try {
-            const updated = await startSessionCheckout(booking.id);
-            dispatch(setActiveBooking(updated));
-            router.push('/session/checkout');
-          } catch (e) {
-            Alert.alert('Ошибка', e instanceof ApiError ? e.message : 'Не удалось');
-          }
+    Alert.alert(
+      'Завершить сеанс?',
+      'Неиспользованное время вернётся на баланс (от 30 мин)',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Завершить',
+          onPress: async () => {
+            try {
+              const res = await endSession(booking.id);
+              dispatch(setActiveBooking(null));
+              Alert.alert(
+                'Сеанс завершён',
+                res.refundRub > 0
+                  ? `На баланс вернули ${res.refundRub} ₽`
+                  : 'Спасибо за визит'
+              );
+              router.replace('/(tabs)/home');
+            } catch (e) {
+              Alert.alert('Ошибка', e instanceof ApiError ? e.message : 'Не удалось');
+            }
+          },
         },
-      },
-    ]);
+      ]
+    );
   };
 
   if (!booking) {
@@ -121,15 +116,13 @@ export default function ActiveSessionScreen() {
     );
   }
 
-  const isPlaying = phase === 'playing' && booking.status === 'active';
-  const isIssue = phase === 'issue';
+  const isPlaying = booking.gameRunning ?? (phase === 'playing' && booking.status === 'active');
   const waiting =
     phase === 'awaiting_arrival' || (booking.status === 'paid' && !booking.doorWindowOpen);
 
   const timerLabel =
     booking.timerLabel ??
     (waiting ? 'до начала' : isPlaying ? 'осталось' : 'до старта');
-  const prePlay = booking.timerMode === 'pre_play';
 
   return (
     <Screen scroll>
@@ -149,26 +142,10 @@ export default function ActiveSessionScreen() {
         >
           {formatDuration(remaining)}
         </Text>
-        <Text style={typography.caption}>
-          {prePlay ? `${timerLabel} · ${formatDuration(remaining)}` : timerLabel}
-        </Text>
+        <Text style={typography.caption}>{timerLabel}</Text>
       </View>
       <Text style={[typography.h2, styles.center]}>Место #{seatNum}</Text>
       <Text style={[typography.bodySecondary, styles.center]}>{booking.zoneName}</Text>
-
-      {isIssue && (
-        <View style={styles.issueBox}>
-          <Text style={typography.body}>
-            Ожидайте администратора. Сеанс на паузе.
-          </Text>
-          <StopButton
-            title="Поддержка"
-            variant="ghost"
-            onPress={() => router.push('/support')}
-            style={{ marginTop: spacing.md }}
-          />
-        </View>
-      )}
 
       {waiting && (
         <Text style={[typography.bodySecondary, styles.hint]}>
@@ -176,7 +153,7 @@ export default function ActiveSessionScreen() {
         </Text>
       )}
 
-      {!isIssue && !isPlaying && booking.canOpenMainDoor && (
+      {booking.canOpenMainDoor && (
         <StopButton
           title="Открыть главную дверь"
           onPress={() => onDoor('main')}
@@ -185,9 +162,9 @@ export default function ActiveSessionScreen() {
         />
       )}
 
-      {!isIssue && !isPlaying && booking.canOpenCell && (
+      {booking.canOpenCell && (
         <StopButton
-          title={`Открыть ячейку #${seatNum}`}
+          title={`Открыть бокс #${seatNum}`}
           variant="ghost"
           onPress={() => onDoor('cell')}
           disabled={loading}
@@ -226,12 +203,4 @@ const styles = StyleSheet.create({
   hint: { textAlign: 'center', marginTop: spacing.lg },
   action: { marginTop: spacing.sm },
   row: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xl },
-  issueBox: {
-    marginTop: spacing.xl,
-    padding: spacing.md,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.warning,
-    backgroundColor: '#1a1408',
-  },
 });

@@ -45,7 +45,7 @@ export default function App() {
             <Route path="verifications" element={<VerificationsPage />} />
             <Route
               path="acceptance"
-              element={<Navigate to="/cell-control?tab=issues" replace />}
+              element={<Navigate to="/cell-control" replace />}
             />
             <Route path="cell-control" element={<CellControlPage />} />
             <Route path="transactions" element={<TransactionsPage />} />

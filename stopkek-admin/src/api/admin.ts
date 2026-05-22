@@ -43,6 +43,7 @@ export type ZoneRow = {
 export type BookingRow = {
   id: string;
   status: string;
+  sessionPhase?: string | null;
   startAt: string;
   endAt: string;
   totalPriceRub: number;
@@ -422,10 +423,14 @@ export type LockerLogRow = {
   userPhone: string;
   userName: string;
   bookingStatus: string | null;
+  bookingPhase: string | null;
+  bookingStartAt: string | null;
+  bookingEndAt: string | null;
   bookingTotalRub: number | null;
+  lockOk: boolean | null;
 };
 
-export function fetchCellControl(params?: {
+export function fetchAccessLogs(params?: {
   seatNumber?: number;
   cellLock?: string;
   limit?: number;
@@ -435,7 +440,18 @@ export function fetchCellControl(params?: {
   if (params?.cellLock) q.set('cellLock', params.cellLock);
   if (params?.limit != null) q.set('limit', String(params.limit));
   const suffix = q.toString() ? `?${q}` : '';
-  return api<LockerLogRow[]>(`/admin/cell-control${suffix}`);
+  return api<LockerLogRow[]>(`/admin/access-logs${suffix}`);
+}
+
+/** @deprecated */
+export const fetchCellControl = fetchAccessLogs;
+
+export function purgeLegacyAccessLogs() {
+  return api<{
+    ok: boolean;
+    removedLegacy: number;
+    removedLockEvents: number;
+  }>('/admin/access-logs/purge-legacy', { method: 'POST' });
 }
 
 export function lockerLogPhotoPath(logId: string) {

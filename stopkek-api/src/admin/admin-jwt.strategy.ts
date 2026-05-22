@@ -16,7 +16,9 @@ export class AdminJwtStrategy extends PassportStrategy(Strategy, 'admin-jwt') {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: config.get<string>('JWT_SECRET'),
+      secretOrKey:
+        config.get<string>('JWT_ADMIN_SECRET') ||
+        config.get<string>('JWT_SECRET'),
     });
   }
 

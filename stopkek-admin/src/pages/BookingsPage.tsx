@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BookingRow, cancelBooking, fetchBookings } from '../api/admin';
 import { TableEmptyRow } from '../components/TableEmptyRow';
-import { BOOKING_STATUS } from '../lib/statusLabels';
+import { BOOKING_STATUS, SESSION_PHASE } from '../lib/statusLabels';
 
 const STATUSES = [
   '',
@@ -67,12 +67,13 @@ export function BookingsPage() {
                   <th className="hide-mobile">Начало</th>
                   <th className="hide-mobile">Конец</th>
                   <th>Статус</th>
+                  <th className="hide-mobile">Этап</th>
                   <th>Сумма</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {rows.length === 0 && <TableEmptyRow colSpan={7} />}
+                {rows.length === 0 && <TableEmptyRow colSpan={8} />}
                 {rows.map((b) => (
                   <tr key={b.id}>
                     <td>{b.userPhone}</td>
@@ -83,6 +84,11 @@ export function BookingsPage() {
                       <span className={`badge badge-${b.status}`}>
                         {BOOKING_STATUS[b.status] ?? b.status}
                       </span>
+                    </td>
+                    <td className="hide-mobile muted">
+                      {b.sessionPhase
+                        ? SESSION_PHASE[b.sessionPhase] ?? b.sessionPhase
+                        : '—'}
                     </td>
                     <td>{b.totalPriceRub} ₽</td>
                     <td>

@@ -5,6 +5,16 @@ export const SEAT_STATUS: Record<string, string> = {
   repair: 'Ремонт',
 };
 
+export const SESSION_PHASE: Record<string, string> = {
+  awaiting_arrival: 'Ожидает визита',
+  arrival: 'Можно войти',
+  playing: 'Игра',
+  cell_pending: 'В клубе',
+  acceptance: '—',
+  issue: '—',
+  checkout: '—',
+};
+
 export const BOOKING_STATUS: Record<string, string> = {
   draft: 'Черновик',
   pending_payment: 'Ожидает оплаты',

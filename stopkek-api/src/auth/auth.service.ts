@@ -219,7 +219,7 @@ export class AuthService {
   }
 
   private async issueTokens(userId: string, phone: string) {
-    const payload = { sub: userId, phone };
+    const payload = { sub: userId, phone, typ: 'user' as const };
     const accessToken = await this.jwt.signAsync(payload, {
       secret: this.config.get('JWT_SECRET'),
       expiresIn: this.config.get('JWT_ACCESS_TTL', '15m'),
