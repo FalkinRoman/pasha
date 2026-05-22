@@ -14,7 +14,7 @@ export function Input({ label, error, style, ...rest }: Props) {
       {label && <Text style={typography.caption}>{label}</Text>}
       <TextInput
         placeholderTextColor={colors.textDisabled}
-        style={[styles.input, typography.body, error && styles.inputError, style]}
+        style={[typography.body, error && styles.inputError, style, styles.input]}
         {...rest}
       />
       {error && <Text style={styles.error}>{error}</Text>}

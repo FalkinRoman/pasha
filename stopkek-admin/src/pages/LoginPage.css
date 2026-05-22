@@ -65,3 +65,9 @@
   font-size: 13px;
   color: var(--muted);
 }
+
+.login-card input,
+.login-card .input,
+.login-card .password-input {
+  font-size: 16px !important;
+}

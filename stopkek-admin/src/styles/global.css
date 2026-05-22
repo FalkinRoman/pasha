@@ -14,6 +14,11 @@
   box-sizing: border-box;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
+}
+
 html,
 body,
 #root {
@@ -70,18 +75,19 @@ a {
   text-decoration: none;
 }
 
-button,
-input,
-select {
+button {
   font: inherit;
 }
 
-/* iOS Safari не зумит страницу при фокусе, если font-size >= 16px */
+/* iOS Safari зумит при font-size < 16px; inherit с label (13px) ломает это */
 input:not([type='checkbox']):not([type='radio']):not([type='file']),
 textarea,
 select,
-.input {
-  font-size: 16px;
+.input,
+.password-input {
+  font-family: Manrope, system-ui, sans-serif;
+  font-size: 16px !important;
+  line-height: 1.35;
 }
 
 .btn {

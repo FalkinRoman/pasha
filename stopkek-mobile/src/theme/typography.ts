@@ -26,7 +26,7 @@ export const typography = {
   } as TextStyle,
   body: {
     fontFamily: 'Manrope_400Regular',
-    fontSize: 15,
+    fontSize: 16,
     color: '#FFFFFF',
     lineHeight: 22,
   } as TextStyle,
