@@ -43,7 +43,7 @@ async function main() {
   }
 
   console.log(`Мест: ${seats.length}, обновлено: ${updated}`);
-  console.log('ID боксов: cell-1 … cell-25 (настраиваются в админке → Места)');
+  console.log('ID боксов: cell-1 … cell-4 (настраиваются в админке → Места)');
 }
 
 main()
