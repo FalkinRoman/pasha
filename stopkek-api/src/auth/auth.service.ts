@@ -3,6 +3,7 @@ import {
   HttpStatus,
   Injectable,
   Logger,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -90,7 +91,10 @@ export class AuthService {
       code = [...this.mockCodes][0] ?? '1234';
       devCode = code;
     } else {
-      code = String(randomInt(1000, 10000));
+      this.logger.error('call/request: SMSRU_API_ID не задан в production');
+      throw new ServiceUnavailableException(
+        'Вход по звонку временно недоступен. Обратитесь в поддержку.'
+      );
     }
 
     this.sessions.set(sessionId, {
