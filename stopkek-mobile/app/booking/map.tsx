@@ -104,11 +104,6 @@ export default function MapScreen() {
             </View>
           </View>
         </View>
-        <View style={styles.legend}>
-          <LegendDot color={colors.seatFree} label="Свободно" />
-          <LegendDot color={colors.seatReserved} label="Бронь" />
-          <LegendDot color={colors.seatOccupied} label="Занято" />
-        </View>
       </View>
 
       <View style={styles.mapArea}>
@@ -141,15 +136,6 @@ export default function MapScreen() {
   );
 }
 
-function LegendDot({ color, label }: { color: string; label: string }) {
-  return (
-    <View style={styles.legendItem}>
-      <View style={[styles.legendDot, { backgroundColor: color }]} />
-      <Text style={typography.caption}>{label}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg, width: '100%', overflow: 'hidden' },
   pad: { paddingHorizontal: SCREEN_PADDING },
@@ -167,14 +153,6 @@ const styles = StyleSheet.create({
   },
   clubInfo: { flex: 1, justifyContent: 'center', minWidth: 0 },
   rating: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-  legend: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  legendDot: { width: 10, height: 10, borderRadius: 5 },
   mapArea: {
     flex: 1,
     minHeight: 0,
