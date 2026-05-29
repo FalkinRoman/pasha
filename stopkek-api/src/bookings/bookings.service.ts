@@ -166,6 +166,14 @@ export class BookingsService {
     }
   }
 
+  async syncSeatStatesForKiosk() {
+    await this.syncSeatStates();
+  }
+
+  async activateScheduledForKiosk(bookingId: string) {
+    await this.activateScheduledIfDue(bookingId);
+  }
+
   async getActive(userId: string) {
     await this.syncSeatStates();
     const now = new Date();
@@ -207,9 +215,9 @@ export class BookingsService {
         data: { sessionPhase: phase },
         include: { seats: { include: { seat: { include: { zone: true } } } } },
       });
-      return this.format(updated);
+      return this.formatBooking(updated);
     }
-    return this.format(current);
+    return this.formatBooking(current);
   }
 
   async getHistory(userId: string) {
@@ -223,7 +231,7 @@ export class BookingsService {
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
-    return list.map((b) => this.format(b));
+    return list.map((b) => this.formatBooking(b));
   }
 
   async quote(seatId: string, durationHours: number, startAtIso?: string) {
@@ -318,7 +326,7 @@ export class BookingsService {
       });
     });
 
-    return this.format(booking);
+    return this.formatBooking(booking);
   }
 
   async cancelPending(userId: string, bookingId: string) {
@@ -415,7 +423,7 @@ export class BookingsService {
       void this.notifications.notifySessionStarted(userId, bookingId, seatNum);
     }
 
-    return this.format(updated);
+    return this.formatBooking(updated);
   }
 
   private async getOngoingBooking(userId: string, bookingId: string) {
@@ -517,7 +525,7 @@ export class BookingsService {
     });
 
     return {
-      ...this.format(updated),
+      ...this.formatBooking(updated),
       lockCommandSent: true,
       lockType: 'main',
     };
@@ -574,7 +582,7 @@ export class BookingsService {
       });
     });
 
-    return this.format(updated);
+    return this.formatBooking(updated);
   }
 
   async endSession(userId: string, bookingId: string) {
@@ -654,7 +662,7 @@ export class BookingsService {
     });
   }
 
-  private format(booking: {
+  formatBooking(booking: {
     id: string;
     status: BookingStatus;
     sessionPhase: SessionPhase;

@@ -272,6 +272,7 @@ model Booking {
   startAt         DateTime
   endAt           DateTime
   startedAt       DateTime?
+  pcUnlockedAt    DateTime?
   durationMinutes Int           @default(60)
   basePrice          Int           @default(0)
   discountAmount     Int           @default(0)

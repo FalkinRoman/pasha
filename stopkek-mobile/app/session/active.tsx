@@ -159,6 +159,15 @@ export default function ActiveSessionScreen() {
         />
       )}
 
+      {(isPlaying || booking.canOpenMainDoor) && (
+        <StopButton
+          title="Сканировать QR на мониторе"
+          variant="ghost"
+          onPress={() => router.push('/session/scan-pc')}
+          style={styles.action}
+        />
+      )}
+
       {isPlaying && (
         <View style={styles.row}>
           <StopButton

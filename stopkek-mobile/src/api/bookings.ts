@@ -68,3 +68,29 @@ export async function endSession(bookingId: string) {
     { method: 'POST', auth: true }
   );
 }
+
+export type PcUnlockCode = {
+  code: string;
+  seatNumber: number;
+  expiresInSec: number;
+  qrPayload: string;
+  userName: string;
+};
+
+export async function fetchPcUnlockCode(bookingId: string) {
+  return apiFetch<PcUnlockCode>(`/kiosk/bookings/${bookingId}/pc-code`, {
+    method: 'POST',
+    auth: true,
+  });
+}
+
+export async function confirmPcQr(bookingId: string, challengeId: string) {
+  return apiFetch<{ ok: boolean; seatNumber: number }>(
+    `/kiosk/bookings/${bookingId}/confirm-qr`,
+    {
+      method: 'POST',
+      auth: true,
+      body: JSON.stringify({ challengeId }),
+    }
+  );
+}

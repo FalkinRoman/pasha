@@ -7,6 +7,7 @@ import { AdminModule } from './admin/admin.module';
 import { MailModule } from './mail/mail.module';
 import { IdentityModule } from './identity/identity.module';
 import { FeedbackModule } from './feedback/feedback.module';
+import { KioskModule } from './kiosk/kiosk.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -24,6 +25,7 @@ import { WalletModule } from './wallet/wallet.module';
     UsersModule,
     IdentityModule,
     BookingsModule,
+    KioskModule,
     WalletModule,
     FeedbackModule,
     AdminModule,

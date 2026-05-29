@@ -1,0 +1,222 @@
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { randomInt, randomUUID } from 'crypto';
+import { BookingsService } from '../bookings/bookings.service';
+import { PrismaService } from '../prisma/prisma.service';
+
+type PcCodeEntry = {
+  bookingId: string;
+  seatNumber: number;
+  exp: number;
+};
+
+type QrChallenge = {
+  seatNumber: number;
+  exp: number;
+};
+
+const CODE_TTL_MS = 5 * 60_000;
+const CHALLENGE_TTL_MS = 2 * 60_000;
+
+@Injectable()
+export class KioskService {
+  private readonly codes = new Map<string, PcCodeEntry>();
+  private readonly challenges = new Map<string, QrChallenge>();
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly bookings: BookingsService,
+    private readonly config: ConfigService
+  ) {}
+
+  async issuePcCode(userId: string, bookingId: string) {
+    await this.bookings.syncSeatStatesForKiosk();
+    const booking = await this.prisma.booking.findFirst({
+      where: {
+        id: bookingId,
+        userId,
+        status: { in: ['paid', 'active'] },
+        endAt: { gt: new Date() },
+      },
+      include: {
+        seats: true,
+        user: { select: { name: true, phone: true } },
+      },
+    });
+    if (!booking) throw new NotFoundException('Активная бронь не найдена');
+    const seatNumber = booking.seats[0]?.seatNumber;
+    if (!seatNumber) throw new BadRequestException('В брони нет места');
+
+    const code = String(randomInt(100_000, 1_000_000));
+    this.codes.set(code, {
+      bookingId,
+      seatNumber,
+      exp: Date.now() + CODE_TTL_MS,
+    });
+
+    const apiBase =
+      this.config.get<string>('PUBLIC_API_URL', '').replace(/\/api\/?$/, '') ||
+      '';
+
+    return {
+      code,
+      seatNumber,
+      expiresInSec: Math.floor(CODE_TTL_MS / 1000),
+      qrPayload: JSON.stringify({
+        v: 1,
+        seat: seatNumber,
+        code,
+        api: apiBase ? `${apiBase}/api` : undefined,
+      }),
+      userName: booking.user.name || 'Гость',
+    };
+  }
+
+  async unlock(seatNumber: number, code: string) {
+    await this.bookings.syncSeatStatesForKiosk();
+    const entry = this.codes.get(code);
+    if (!entry || entry.exp < Date.now() || entry.seatNumber !== seatNumber) {
+      throw new BadRequestException('Неверный или просроченный код');
+    }
+    this.codes.delete(code);
+    return this.unlockBooking(entry.bookingId, seatNumber);
+  }
+
+  async confirmQr(userId: string, bookingId: string, challengeId: string) {
+    await this.bookings.syncSeatStatesForKiosk();
+    const ch = this.challenges.get(challengeId);
+    if (!ch || ch.exp < Date.now()) {
+      throw new BadRequestException('QR устарел — обновите код на мониторе');
+    }
+
+    const booking = await this.prisma.booking.findFirst({
+      where: {
+        id: bookingId,
+        userId,
+        status: { in: ['paid', 'active'] },
+        endAt: { gt: new Date() },
+      },
+      include: { seats: true },
+    });
+    if (!booking) throw new NotFoundException('Активная бронь не найдена');
+    const seatNumber = booking.seats[0]?.seatNumber;
+    if (!seatNumber || seatNumber !== ch.seatNumber) {
+      throw new BadRequestException('Этот QR для другого компьютера');
+    }
+
+    this.challenges.delete(challengeId);
+    await this.unlockBooking(bookingId, seatNumber);
+    return { ok: true, seatNumber };
+  }
+
+  private async unlockBooking(bookingId: string, seatNumber: number) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { seats: true },
+    });
+    if (!booking || booking.status === 'completed' || booking.status === 'cancelled') {
+      throw new BadRequestException('Сеанс недоступен');
+    }
+    const seatMatch = booking.seats.some((s) => s.seatNumber === seatNumber);
+    if (!seatMatch) throw new BadRequestException('Бронь не для этого ПК');
+
+    if (booking.status === 'paid' && new Date() >= booking.startAt) {
+      await this.bookings.activateScheduledForKiosk(booking.id);
+    }
+
+    await this.prisma.booking.update({
+      where: { id: booking.id },
+      data: { pcUnlockedAt: new Date() },
+    });
+
+    return this.getSeatState(seatNumber);
+  }
+
+  private createQrChallenge(seatNumber: number) {
+    const now = Date.now();
+    for (const [id, c] of this.challenges) {
+      if (c.seatNumber === seatNumber && c.exp > now) return id;
+      if (c.exp <= now) this.challenges.delete(id);
+    }
+    const challengeId = randomUUID();
+    this.challenges.set(challengeId, {
+      seatNumber,
+      exp: now + CHALLENGE_TTL_MS,
+    });
+    return challengeId;
+  }
+
+  private buildQrPayload(seatNumber: number, challengeId: string) {
+    return JSON.stringify({
+      v: 2,
+      type: 'stopkek-unlock',
+      seat: seatNumber,
+      challengeId,
+    });
+  }
+
+  async getSeatState(seatNumber: number) {
+    await this.bookings.syncSeatStatesForKiosk();
+    const seat = await this.prisma.seat.findFirst({ where: { number: seatNumber } });
+    if (!seat) throw new NotFoundException('Место не найдено');
+
+    const now = new Date();
+    const row = await this.prisma.booking.findFirst({
+      where: {
+        status: { in: ['paid', 'active'] },
+        pcUnlockedAt: { not: null },
+        seats: { some: { seatNumber } },
+        endAt: { gt: now },
+      },
+      include: {
+        user: { select: { name: true, phone: true } },
+        seats: { include: { seat: { include: { zone: true } } } },
+      },
+      orderBy: { pcUnlockedAt: 'desc' },
+    });
+
+    if (!row) {
+      const challengeId = this.createQrChallenge(seatNumber);
+      return {
+        state: 'locked' as const,
+        seatNumber,
+        seatStatus: seat.status,
+        qrPayload: this.buildQrPayload(seatNumber, challengeId),
+        qrRefreshSec: Math.floor(CHALLENGE_TTL_MS / 1000),
+      };
+    }
+
+    const wallet = await this.prisma.wallet.findUnique({
+      where: { userId: row.userId },
+    });
+    const session = {
+      ...this.bookings.formatBooking(row),
+      userName: row.user.name || 'Гость',
+      phoneMask: `···${row.user.phone.slice(-4)}`,
+      balanceRub: Math.round((wallet?.balance ?? 0) / 100),
+    };
+    const expired = session.displayRemainingMs <= 0 && session.gameRunning;
+
+    if (expired || (row.status === 'active' && session.displayRemainingMs <= 0)) {
+      return {
+        state: 'expired' as const,
+        seatNumber,
+        session,
+      };
+    }
+
+    const warn15 =
+      session.gameRunning && session.displayRemainingMs <= 15 * 60_000;
+
+    return {
+      state: 'active' as const,
+      seatNumber,
+      session,
+      notice: warn15 ? 'Осталось меньше 15 минут — продлите в приложении' : undefined,
+    };
+  }
+}
