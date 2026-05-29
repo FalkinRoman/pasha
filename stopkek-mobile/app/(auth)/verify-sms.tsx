@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
-import { requestCall, verifyCall } from '../../src/api/auth';
+import { useEffect, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { requestSms, verifySms } from '../../src/api/auth';
 import { ApiError } from '../../src/api/client';
 import { setAccessToken } from '../../src/api/client';
 import { AuthSupportHint } from '../../src/components/support/AuthSupportHint';
@@ -18,17 +18,15 @@ import { typography } from '../../src/theme/typography';
 
 const CODE_LEN = 4;
 
-export default function VerifyCallScreen() {
+export default function VerifySmsScreen() {
   const dispatch = useAppDispatch();
   const phone = useAppSelector((s) => s.auth.pendingPhone);
   const [sessionId, setSessionId] = useState('');
   const [devCode, setDevCode] = useState<string | null>(null);
-  const [calling, setCalling] = useState(true);
+  const [sending, setSending] = useState(true);
   const [countdown, setCountdown] = useState(0);
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
-  const pulse = useRef(new Animated.Value(1)).current;
-  const pulseLoop = useRef<Animated.CompositeAnimation | null>(null);
 
   const finishLogin = async (
     user: Parameters<typeof loginSuccess>[0]['payload']['user'],
@@ -42,117 +40,87 @@ export default function VerifyCallScreen() {
     else router.replace('/(tabs)/home');
   };
 
-  const startCallFlow = async () => {
+  const sendSms = async () => {
     if (!phone) return;
-    setCalling(true);
+    setSending(true);
     setCode('');
     setError('');
     try {
-      const res = await requestCall(phone);
+      const res = await requestSms(phone);
       setSessionId(res.sessionId);
       setDevCode(res.devCode ?? null);
-      setCountdown(res.retryAfterSec ?? 15);
-      setTimeout(() => setCalling(false), 2500);
+      setCountdown(res.retryAfterSec ?? 60);
     } catch (e) {
       if (e instanceof ApiError && e.status === 429 && e.body && typeof e.body === 'object') {
         const body = e.body as { message?: { retryAfterSec?: number; message?: string } | string };
         const nested = typeof body.message === 'object' ? body.message : null;
-        const wait = nested?.retryAfterSec ?? 15;
+        const wait = nested?.retryAfterSec ?? 60;
         setCountdown(wait);
         setError(nested?.message ?? e.message);
       } else {
-        setError(e instanceof ApiError ? e.message : 'Не удалось позвонить');
+        setError(e instanceof ApiError ? e.message : 'Не удалось отправить SMS');
       }
-      setCalling(false);
+    } finally {
+      setSending(false);
     }
   };
 
   useEffect(() => {
-    startCallFlow();
+    sendSms();
   }, [phone]);
 
   useEffect(() => {
-    if (countdown <= 0 || calling) return;
+    if (countdown <= 0 || sending) return;
     const t = setInterval(() => setCountdown((c) => c - 1), 1000);
     return () => clearInterval(t);
-  }, [calling, countdown]);
-
-  useEffect(() => {
-    if (!calling) {
-      pulseLoop.current?.stop();
-      pulse.setValue(1);
-      return;
-    }
-    pulseLoop.current = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1.15, duration: 800, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: 800, useNativeDriver: true }),
-      ])
-    );
-    pulseLoop.current.start();
-    return () => pulseLoop.current?.stop();
-  }, [calling, pulse]);
+  }, [sending, countdown]);
 
   const submitCode = async (value: string) => {
     setCode(value);
     setError('');
     if (value.length < CODE_LEN || !phone) return;
     if (!sessionId) {
-      setError('Сессия не создана — нажмите «Позвонить снова»');
+      setError('Сессия не создана — отправьте SMS снова');
       return;
     }
     try {
-      const res = await verifyCall(phone, sessionId, value);
+      const res = await verifySms(phone, sessionId, value);
       await finishLogin(res.user, res.accessToken, res.needsProfileSetup);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Неверные цифры');
+      setError(e instanceof ApiError ? e.message : 'Неверный код');
       setCode('');
     }
   };
 
   const resend = () => {
-    if (calling || countdown > 0) return;
-    startCallFlow();
+    if (sending || countdown > 0) return;
+    sendSms();
   };
 
   return (
     <Screen scroll>
       <View style={styles.iconWrap}>
-        {calling && (
-          <Animated.View style={[styles.pulseRing, { transform: [{ scale: pulse }] }]} />
-        )}
-        <View
-          style={[
-            styles.iconCircle,
-            !calling && styles.iconCircleIdle,
-            !calling && code.length > 0 && styles.iconCircleActive,
-          ]}
-        >
+        <View style={[styles.iconCircle, code.length > 0 && styles.iconCircleActive]}>
           <Ionicons
-            name={calling ? 'call' : 'keypad'}
+            name={sending ? 'hourglass-outline' : 'chatbubble-ellipses'}
             size={36}
-            color={!calling && code.length > 0 ? colors.accentBright : colors.accent}
+            color={code.length > 0 ? colors.accentBright : colors.accent}
           />
         </View>
       </View>
 
       <Text style={[typography.h1, styles.center]}>
-        {calling ? 'Входящий звонок' : 'Код из звонка'}
+        {sending ? 'Отправляем SMS…' : 'Код из SMS'}
       </Text>
       <Text style={[typography.bodySecondary, styles.center, styles.mb]}>
-        {calling
-          ? `Звоним на ${phone || 'ваш номер'}… Не сбрасывайте`
-          : 'Введите последние 4 цифры звонка'}
+        {sending
+          ? `Сообщение на ${phone || 'ваш номер'}`
+          : 'Введите 4 цифры из SMS'}
       </Text>
 
-      {!calling && (
+      {!sending && (
         <>
-          <CodeInput
-            value={code}
-            onChange={submitCode}
-            error={Boolean(error)}
-            autoFocus
-          />
+          <CodeInput value={code} onChange={submitCode} error={Boolean(error)} autoFocus />
           {error ? <Text style={styles.error}>{error}</Text> : null}
           {devCode ? (
             <Text style={[typography.caption, styles.demo]}>Dev-код: {devCode}</Text>
@@ -160,24 +128,20 @@ export default function VerifyCallScreen() {
         </>
       )}
 
-      {calling && (
-        <View style={styles.waiting}>
-          <Text style={typography.caption}>Звонок сбросится сам — это бесплатно</Text>
-        </View>
-      )}
-
       <View style={styles.footer}>
-        {countdown > 0 && !calling ? (
+        {countdown > 0 && !sending ? (
           <Text style={[typography.caption, styles.center]}>
-            Повторный звонок через {countdown} сек
+            Повторная SMS через {countdown} сек
           </Text>
         ) : (
-          <StopButton title="Позвонить снова" variant="ghost" onPress={resend} disabled={calling} />
+          <StopButton title="Отправить снова" variant="ghost" onPress={resend} disabled={sending} />
         )}
         <StopButton title="Изменить номер" variant="ghost" onPress={() => router.back()} />
-        <Pressable style={styles.alt} onPress={() => router.replace('/(auth)/phone-sms')}>
-          <Text style={styles.altText}>Войти по SMS</Text>
-        </Pressable>
+        <StopButton
+          title="Вход по звонку"
+          variant="ghost"
+          onPress={() => router.replace('/(auth)/phone')}
+        />
         <AuthSupportHint />
       </View>
     </Screen>
@@ -188,13 +152,6 @@ const styles = StyleSheet.create({
   center: { textAlign: 'center' },
   mb: { marginBottom: spacing.xl },
   iconWrap: { alignItems: 'center', justifyContent: 'center', height: 120, marginVertical: spacing.lg },
-  pulseRing: {
-    position: 'absolute',
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: colors.accentGlow,
-  },
   iconCircle: {
     width: 72,
     height: 72,
@@ -205,15 +162,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconCircleIdle: { borderColor: colors.border },
   iconCircleActive: {
     borderColor: colors.accentBright,
     backgroundColor: '#1f1010',
   },
   error: { ...typography.caption, color: colors.danger, textAlign: 'center', marginTop: spacing.md },
   demo: { textAlign: 'center', marginTop: spacing.md, color: colors.textDisabled },
-  waiting: { alignItems: 'center', paddingVertical: spacing.xl },
   footer: { marginTop: 'auto', gap: spacing.sm, paddingTop: spacing.xl },
-  alt: { alignItems: 'center', paddingVertical: spacing.xs },
-  altText: { ...typography.body, color: colors.accentBright, textAlign: 'center' },
 });

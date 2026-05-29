@@ -10,11 +10,12 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { createHmac, randomInt, randomUUID, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { SmscService } from '../smsc/smsc.service';
 import { normalizeCallCode, SmsRuService } from '../smsru/smsru.service';
 import { CallRequestDto } from './dto/call-request.dto';
 import { CallVerifyDto } from './dto/call-verify.dto';
 
-type CallSession = {
+type OtpSession = {
   phone: string;
   codeHash: string;
   exp: number;
@@ -34,7 +35,8 @@ const ADMIN_CODE_TTL_SEC = 15 * 60;
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
-  private readonly sessions = new Map<string, CallSession>();
+  private readonly callSessions = new Map<string, OtpSession>();
+  private readonly smsSessions = new Map<string, OtpSession>();
   private readonly adminCodesByPhone = new Map<string, AdminLoginCode>();
   private readonly lastRequestByPhone = new Map<string, number>();
   private readonly mockCodes: Set<string>;
@@ -47,7 +49,8 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
-    private readonly smsRu: SmsRuService
+    private readonly smsRu: SmsRuService,
+    private readonly smsc: SmscService
   ) {
     const raw = this.config.get<string>('MOCK_CALL_CODES', '1234');
     this.mockCodes = new Set(raw.split(',').map((c) => c.trim()));
@@ -97,7 +100,7 @@ export class AuthService {
       );
     }
 
-    this.sessions.set(sessionId, {
+    this.callSessions.set(sessionId, {
       phone,
       codeHash: this.hashCode(code),
       exp: Date.now() + this.ttlSec * 1000,
@@ -115,23 +118,77 @@ export class AuthService {
     };
   }
 
+  async requestSms(dto: CallRequestDto) {
+    const phone = normalizePhone(dto.phone);
+    const digits = phoneDigits(phone);
+
+    const last = this.lastRequestByPhone.get(phone);
+    if (last && Date.now() - last < this.phoneCooldownMs) {
+      const waitSec = Math.ceil((this.phoneCooldownMs - (Date.now() - last)) / 1000);
+      throw new HttpException(
+        { message: `Повторная SMS через ${waitSec} сек`, retryAfterSec: waitSec },
+        HttpStatus.TOO_MANY_REQUESTS
+      );
+    }
+
+    const sessionId = randomUUID();
+    const code = String(randomInt(1000, 10000));
+    let devCode: string | undefined;
+
+    this.logger.log(`sms/request phone=${phone} smsc=${this.smsc.enabled}`);
+
+    if (this.smsc.enabled) {
+      await this.smsc.sendOtp(digits, code);
+    } else if (this.isDev) {
+      devCode = code;
+    } else {
+      throw new ServiceUnavailableException(
+        'Вход по SMS временно недоступен. Настройте SMSC_LOGIN в API или используйте вход по звонку.'
+      );
+    }
+
+    this.smsSessions.set(sessionId, {
+      phone,
+      codeHash: this.hashCode(code),
+      exp: Date.now() + this.ttlSec * 1000,
+      attempts: 0,
+    });
+    this.lastRequestByPhone.set(phone, Date.now());
+
+    return {
+      sessionId,
+      phone,
+      expiresInSec: this.ttlSec,
+      retryAfterSec: Math.ceil(this.phoneCooldownMs / 1000),
+      ...(devCode ? { devCode } : {}),
+    };
+  }
+
   async verifyCall(dto: CallVerifyDto) {
+    return this.verifyOtp(dto, this.callSessions);
+  }
+
+  async verifySms(dto: CallVerifyDto) {
+    return this.verifyOtp(dto, this.smsSessions);
+  }
+
+  private async verifyOtp(dto: CallVerifyDto, store: Map<string, OtpSession>) {
     const phone = normalizePhone(dto.phone);
     const code = normalizeCallCode(dto.code);
 
     if (dto.sessionId) {
-      const session = this.sessions.get(dto.sessionId);
+      const session = store.get(dto.sessionId);
       if (session && session.phone === phone) {
         if (session.exp < Date.now()) {
-          this.sessions.delete(dto.sessionId);
+          store.delete(dto.sessionId);
         } else {
           session.attempts += 1;
           if (session.attempts > MAX_ATTEMPTS) {
-            this.sessions.delete(dto.sessionId);
+            store.delete(dto.sessionId);
             throw new HttpException('Слишком много попыток', HttpStatus.TOO_MANY_REQUESTS);
           }
           if (this.codesMatch(session.codeHash, code)) {
-            this.sessions.delete(dto.sessionId);
+            store.delete(dto.sessionId);
             this.adminCodesByPhone.delete(phone);
             return this.finishLogin(phone);
           }
@@ -141,11 +198,11 @@ export class AuthService {
 
     if (this.tryAdminLoginCode(phone, code)) {
       this.adminCodesByPhone.delete(phone);
-      if (dto.sessionId) this.sessions.delete(dto.sessionId);
+      if (dto.sessionId) store.delete(dto.sessionId);
       return this.finishLogin(phone);
     }
 
-    throw new UnauthorizedException('Неверные цифры или код истёк');
+    throw new UnauthorizedException('Неверный код или срок истёк');
   }
 
   issueAdminLoginCode(phone: string) {

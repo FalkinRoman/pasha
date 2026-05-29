@@ -22,4 +22,14 @@ export class AuthController {
   verifyCall(@Body() dto: CallVerifyDto) {
     return this.auth.verifyCall(dto);
   }
+
+  @Post('sms/request')
+  requestSms(@Body() dto: CallRequestDto) {
+    return this.auth.requestSms(dto);
+  }
+
+  @Post('sms/verify')
+  verifySms(@Body() dto: CallVerifyDto) {
+    return this.auth.verifySms(dto);
+  }
 }

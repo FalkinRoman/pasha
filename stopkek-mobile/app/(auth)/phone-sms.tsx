@@ -13,7 +13,7 @@ import { spacing } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
 import { formatPhone, phoneDigits } from '../../src/utils/format';
 
-export default function PhoneScreen() {
+export default function PhoneSmsScreen() {
   const dispatch = useAppDispatch();
   const [phone, setPhone] = useState('+7');
   const [error, setError] = useState('');
@@ -31,16 +31,16 @@ export default function PhoneScreen() {
       return;
     }
     dispatch(setPendingPhone(normalized));
-    router.push('/(auth)/verify-call');
+    router.push('/(auth)/verify-sms');
   };
 
   return (
     <Screen scroll>
       <View style={styles.top}>
         <StopLogo size={64} />
-        <Text style={[typography.h1, styles.title]}>Вход</Text>
+        <Text style={[typography.h1, styles.title]}>Вход по SMS</Text>
         <Text style={typography.bodySecondary}>
-          Подтвердим номер входящим звонком — введёте последние 4 цифры
+          Введите номер — отправим SMS с кодом из 4 цифр
         </Text>
       </View>
       <Input
@@ -53,12 +53,12 @@ export default function PhoneScreen() {
       />
       <View style={styles.hint}>
         <Text style={typography.caption}>
-          Нажимая «Позвонить мне», вы соглашаетесь с политикой конфиденциальности
+          Основной способ — бесплатный входящий звонок. SMS — запасной вариант.
         </Text>
       </View>
-      <StopButton title="Позвонить мне" onPress={submit} style={styles.cta} />
-      <Pressable style={styles.alt} onPress={() => router.push('/(auth)/phone-sms')}>
-        <Text style={styles.altText}>Другой способ входа</Text>
+      <StopButton title="Отправить SMS" onPress={submit} style={styles.cta} />
+      <Pressable style={styles.alt} onPress={() => router.back()}>
+        <Text style={styles.altText}>Вернуться к входу по звонку</Text>
       </Pressable>
       <AuthSupportHint />
     </Screen>
