@@ -12,7 +12,6 @@ import {
 import { createReadStream, existsSync } from 'fs';
 import { join } from 'path';
 import type { Response } from 'express';
-import { defaultCellLock } from '../locks/lock-ids';
 import { AuthService } from '../auth/auth.service';
 import { BookingsService } from '../bookings/bookings.service';
 import { IdentityService } from '../identity/identity.service';
@@ -21,6 +20,8 @@ import { CreateSeatDto } from './dto/create-seat.dto';
 import { CreateZoneDto } from './dto/create-zone.dto';
 import { UpdateSeatDto } from './dto/update-seat.dto';
 import { UpdateZoneDto } from './dto/update-zone.dto';
+import { UpsertDurationPackageDto } from './dto/upsert-duration-package.dto';
+import { UpsertNightPricingDto } from './dto/upsert-night-pricing.dto';
 import { WalletAdjustDto } from './dto/wallet-adjust.dto';
 
 const IDENTITY_VERIFIED: IdentityStatus[] = ['approved', 'auto_approved'];
@@ -160,7 +161,6 @@ export class AdminService {
         ? { x: dto.x, y: dto.y }
         : await this.nextSeatPosition(dto.zoneId);
 
-    const cellLock = defaultCellLock(dto.number);
     return this.prisma.seat.create({
       data: {
         zoneId: dto.zoneId,
@@ -168,8 +168,6 @@ export class AdminService {
         status: dto.status ?? 'free',
         x,
         y,
-        cellLock,
-        lockId: cellLock,
       },
     });
   }
@@ -209,15 +207,6 @@ export class AdminService {
       data: {
         ...(dto.status !== undefined ? { status: dto.status } : {}),
         ...(dto.zoneId !== undefined ? { zoneId: dto.zoneId } : {}),
-        ...(dto.cellLock !== undefined
-          ? (() => {
-              const cellLock = dto.cellLock.trim() || null;
-              return { cellLock, lockId: cellLock };
-            })()
-          : {}),
-        ...(dto.lockId !== undefined && dto.cellLock === undefined
-          ? { lockId: dto.lockId.trim() || null }
-          : {}),
         ...(dto.number !== undefined ? { number: dto.number } : {}),
       },
     });
@@ -678,7 +667,7 @@ export class AdminService {
         ['lock_open_main', 'lock_open_cell', 'acceptance', 'checkout'].includes(t)
       )
         ? params.types
-        : ['lock_open_main', 'lock_open_cell'];
+        : ['lock_open_main'];
 
     const list = await this.prisma.lockerLog.findMany({
       where: {
@@ -762,5 +751,144 @@ export class AdminService {
     if (!existsSync(path)) throw new NotFoundException('Фото не найдено');
     res.setHeader('Content-Type', 'image/jpeg');
     createReadStream(path).pipe(res);
+  }
+
+  private async requireClub() {
+    const club = await this.prisma.club.findFirst();
+    if (!club) throw new BadRequestException('Клуб не найден');
+    return club;
+  }
+
+  async listPricing() {
+    const club = await this.requireClub();
+    const [packages, nightRules, zones] = await Promise.all([
+      this.prisma.durationPackage.findMany({
+        where: { clubId: club.id },
+        orderBy: [{ sortOrder: 'asc' }, { minHours: 'asc' }],
+      }),
+      this.prisma.nightPricing.findMany({ where: { clubId: club.id } }),
+      this.prisma.zone.findMany({
+        where: { clubId: club.id },
+        select: { id: true, name: true, slug: true },
+        orderBy: { sortOrder: 'asc' },
+      }),
+    ]);
+    return {
+      packages: packages.map((p) => ({
+        id: p.id,
+        zoneId: p.zoneId,
+        minHours: p.minHours,
+        discountPercent: p.discountPercent,
+        label: p.label,
+        badge: p.badge,
+        recommended: p.recommended,
+        sortOrder: p.sortOrder,
+        active: p.active,
+      })),
+      nightRules: nightRules.map((n) => ({
+        id: n.id,
+        zoneId: n.zoneId,
+        startHour: n.startHour,
+        endHour: n.endHour,
+        discountPercent: n.discountPercent,
+        active: n.active,
+      })),
+      zones,
+    };
+  }
+
+  async createDurationPackage(dto: UpsertDurationPackageDto) {
+    const club = await this.requireClub();
+    if (dto.zoneId) {
+      const z = await this.prisma.zone.findFirst({
+        where: { id: dto.zoneId, clubId: club.id },
+      });
+      if (!z) throw new BadRequestException('Зона не найдена');
+    }
+    const maxOrder = await this.prisma.durationPackage.aggregate({
+      where: { clubId: club.id },
+      _max: { sortOrder: true },
+    });
+    return this.prisma.durationPackage.create({
+      data: {
+        clubId: club.id,
+        zoneId: dto.zoneId ?? null,
+        minHours: dto.minHours,
+        discountPercent: dto.discountPercent,
+        label: dto.label.trim(),
+        badge: dto.badge?.trim() || null,
+        recommended: dto.recommended ?? false,
+        sortOrder: dto.sortOrder ?? (maxOrder._max.sortOrder ?? -1) + 1,
+        active: dto.active ?? true,
+      },
+    });
+  }
+
+  async updateDurationPackage(id: string, dto: UpsertDurationPackageDto) {
+    const pkg = await this.prisma.durationPackage.findUnique({ where: { id } });
+    if (!pkg) throw new NotFoundException('Пакет не найден');
+    if (dto.zoneId) {
+      const z = await this.prisma.zone.findFirst({
+        where: { id: dto.zoneId, clubId: pkg.clubId },
+      });
+      if (!z) throw new BadRequestException('Зона не найдена');
+    }
+    return this.prisma.durationPackage.update({
+      where: { id },
+      data: {
+        ...(dto.zoneId !== undefined ? { zoneId: dto.zoneId || null } : {}),
+        minHours: dto.minHours,
+        discountPercent: dto.discountPercent,
+        label: dto.label.trim(),
+        badge: dto.badge?.trim() || null,
+        recommended: dto.recommended ?? false,
+        ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}),
+        ...(dto.active !== undefined ? { active: dto.active } : {}),
+      },
+    });
+  }
+
+  async deleteDurationPackage(id: string) {
+    await this.prisma.durationPackage.delete({ where: { id } });
+    return { ok: true };
+  }
+
+  async upsertNightPricing(dto: UpsertNightPricingDto) {
+    const club = await this.requireClub();
+    if (dto.zoneId) {
+      const z = await this.prisma.zone.findFirst({
+        where: { id: dto.zoneId, clubId: club.id },
+      });
+      if (!z) throw new BadRequestException('Зона не найдена');
+    }
+    const existing = await this.prisma.nightPricing.findFirst({
+      where: { clubId: club.id, zoneId: dto.zoneId ?? null },
+    });
+    if (existing) {
+      return this.prisma.nightPricing.update({
+        where: { id: existing.id },
+        data: {
+          startHour: dto.startHour,
+          endHour: dto.endHour,
+          discountPercent: dto.discountPercent,
+          ...(dto.active !== undefined ? { active: dto.active } : {}),
+        },
+      });
+    }
+    return this.prisma.nightPricing.create({
+      data: {
+        clubId: club.id,
+        zoneId: dto.zoneId ?? null,
+        startHour: dto.startHour,
+        endHour: dto.endHour,
+        discountPercent: dto.discountPercent,
+        active: dto.active ?? true,
+      },
+    });
+  }
+
+  async deleteNightPricing(id: string) {
+    await this.prisma.nightPricing.delete({ where: { id } });
+    return { ok: true };
   }
 }

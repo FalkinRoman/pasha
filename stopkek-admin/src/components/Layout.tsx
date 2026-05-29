@@ -10,6 +10,7 @@ const nav = [
   { to: '/seats', label: 'Места и зоны' },
   { to: '/verifications', label: 'Верификация' },
   { to: '/bookings', label: 'Брони' },
+  { to: '/pricing', label: 'Тарифы' },
   { to: '/cell-control', label: 'Журнал доступа' },
   { to: '/users', label: 'Клиенты' },
   { to: '/transactions', label: 'Транзакции' },

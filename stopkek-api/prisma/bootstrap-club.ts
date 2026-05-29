@@ -50,13 +50,26 @@ async function main() {
         w: cap.w,
         h: cap.h,
         status: 'free',
-        cellLock: `cell-${cap.number}`,
-        lockId: `cell-${cap.number}`,
       },
     });
   }
 
-  console.log('Клуб создан:', club.name, '— 4 соло-капсулы (все free).');
+  const packages = [
+    { minHours: 3, discountPercent: 10, label: 'Пакет 3 ч', badge: '−10%', sortOrder: 0 },
+    { minHours: 4, discountPercent: 15, label: 'Пакет 4 ч', badge: '−15%', recommended: true, sortOrder: 1 },
+    { minHours: 6, discountPercent: 20, label: 'Пакет 6 ч', badge: '−20%', sortOrder: 2 },
+    { minHours: 8, discountPercent: 25, label: 'Пакет 8 ч', badge: '−25%', sortOrder: 3 },
+  ];
+  for (const p of packages) {
+    await prisma.durationPackage.create({
+      data: { clubId: club.id, ...p },
+    });
+  }
+  await prisma.nightPricing.create({
+    data: { clubId: club.id, startHour: 23, endHour: 7, discountPercent: 20 },
+  });
+
+  console.log('Клуб создан:', club.name, '— 4 соло-капсулы, тарифы по умолчанию.');
 }
 
 main()

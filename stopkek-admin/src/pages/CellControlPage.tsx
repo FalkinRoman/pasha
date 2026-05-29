@@ -7,7 +7,7 @@ import './CellControlPage.css';
 
 const TYPE_LABEL: Record<string, string> = {
   lock_open_main: 'Главная дверь',
-  lock_open_cell: 'Бокс',
+  lock_open_cell: 'Бокс (архив)',
 };
 
 const TYPE_BADGE: Record<string, string> = {
@@ -50,15 +50,14 @@ export function CellControlPage() {
     <div className="cell-page-full">
       <h1 className="page-title">Журнал доступа</h1>
       <p className="muted page-subtitle">
-        Открытия двери и боксов из приложения. ID замков — в{' '}
-        <Link to="/seats">Места</Link>, главная дверь и API — в{' '}
+        Открытия главной двери из приложения. Настройка замка и API — в{' '}
         <Link to="/settings">Настройки</Link>.
       </p>
 
       <input
         className="input"
         style={{ maxWidth: 280, marginBottom: 16 }}
-        placeholder="Место № или cell-7"
+        placeholder="Место №"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />

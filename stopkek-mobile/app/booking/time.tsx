@@ -1,16 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { quoteBooking } from '../../src/api/bookings';
 import { Card } from '../../src/components/ui/Card';
 import { Header } from '../../src/components/ui/Header';
 import { Screen } from '../../src/components/ui/Screen';
 import { StopButton } from '../../src/components/ui/StopButton';
 import { useAppDispatch, useAppSelector } from '../../src/store/hooks';
-import { setCalculatedPrice, setDuration, setStartAt } from '../../src/store/bookingSlice';
+import { setDuration, setPriceQuote, setStartAt } from '../../src/store/bookingSlice';
 import { colors } from '../../src/theme/colors';
 import { radius, spacing } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
+import { PresetQuote } from '../../src/types';
 import {
   formatDurationHours,
   formatMoney,
@@ -43,9 +45,15 @@ function buildTimeSlots(from: Date) {
   return slots;
 }
 
+function presetMeta(presets: PresetQuote[] | undefined, h: number) {
+  return presets?.find((p) => p.hours === h);
+}
+
 export default function TimeScreen() {
   const dispatch = useAppDispatch();
-  const { selectedSeatIds, seats, zones, durationHours } = useAppSelector((s) => s.booking);
+  const { selectedSeatIds, seats, zones, durationHours, priceQuote } = useAppSelector(
+    (s) => s.booking
+  );
   const seat = seats.find((s) => s.id === selectedSeatIds[0]);
   const zone = zones.find((z) => z.id === seat?.zoneId);
   const pricePerHour = zone?.pricePerHour ?? 150;
@@ -56,6 +64,7 @@ export default function TimeScreen() {
   const [pickedStart, setPickedStart] = useState(() => timeSlots[0] ?? new Date());
   const [customHoursText, setCustomHoursText] = useState(String(durationHours));
   const [useCustomHours, setUseCustomHours] = useState(!PRESETS.includes(durationHours));
+  const [quoteLoading, setQuoteLoading] = useState(false);
 
   const hours = useMemo(() => {
     const n = parseInt(customHoursText.replace(/\D/g, ''), 10);
@@ -65,7 +74,6 @@ export default function TimeScreen() {
   }, [customHoursText]);
 
   const effectiveHours = useCustomHours ? hours : durationHours;
-
   const startDate = startMode === 'now' ? nowAnchor : pickedStart;
 
   useEffect(() => {
@@ -77,17 +85,40 @@ export default function TimeScreen() {
     [startDate, effectiveHours]
   );
 
-  const totalPrice = pricePerHour * effectiveHours;
   const hoursError =
-    hours < MIN_HOURS || hours > MAX_HOURS
-      ? `От ${MIN_HOURS} до ${MAX_HOURS} ч`
-      : '';
+    hours < MIN_HOURS || hours > MAX_HOURS ? `От ${MIN_HOURS} до ${MAX_HOURS} ч` : '';
+
+  const startAtIso = startDate.toISOString();
 
   useEffect(() => {
-    dispatch(setDuration(effectiveHours));
-    dispatch(setStartAt(startDate.toISOString()));
-    dispatch(setCalculatedPrice(totalPrice));
-  }, [effectiveHours, startDate, totalPrice, dispatch]);
+    if (!seat?.id || hoursError) return;
+    let cancelled = false;
+    setQuoteLoading(true);
+    quoteBooking(seat.id, effectiveHours, startAtIso)
+      .then((q) => {
+        if (!cancelled) {
+          dispatch(setPriceQuote(q));
+          dispatch(setDuration(effectiveHours));
+          dispatch(setStartAt(startAtIso));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) dispatch(setPriceQuote(null));
+      })
+      .finally(() => {
+        if (!cancelled) setQuoteLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [seat?.id, effectiveHours, startAtIso, hoursError, dispatch]);
+
+  const totalPrice = priceQuote?.totalPriceRub ?? pricePerHour * effectiveHours;
+  const basePrice = priceQuote?.basePriceRub ?? pricePerHour * effectiveHours;
+  const hasDiscount = (priceQuote?.discountRub ?? 0) > 0;
+  const nightMinutes = priceQuote?.nightMinutes ?? 0;
+  const nightShare =
+    effectiveHours > 0 ? Math.min(100, Math.round((nightMinutes / (effectiveHours * 60)) * 100)) : 0;
 
   const selectPreset = (h: number) => {
     setUseCustomHours(false);
@@ -107,7 +138,7 @@ export default function TimeScreen() {
   };
 
   const next = () => {
-    if (hoursError) return;
+    if (hoursError || quoteLoading) return;
     router.push('/booking/summary');
   };
 
@@ -166,6 +197,8 @@ export default function TimeScreen() {
         >
           {timeSlots.map((slot) => {
             const active = pickedStart.getTime() === slot.getTime();
+            const hour = slot.getHours();
+            const isNight = hour >= 23 || hour < 7;
             return (
               <Pressable
                 key={slot.toISOString()}
@@ -178,6 +211,9 @@ export default function TimeScreen() {
                 <Text style={[typography.caption, active && styles.slotTextActive]}>
                   {formatSessionDay(slot)}
                 </Text>
+                {isNight ? (
+                  <Text style={[styles.nightChip, active && styles.nightChipActive]}>ночь</Text>
+                ) : null}
               </Pressable>
             );
           })}
@@ -190,22 +226,45 @@ export default function TimeScreen() {
 
       <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>Сколько играть</Text>
       <View style={styles.presets}>
-        {PRESETS.map((h) => (
-          <Pressable
-            key={h}
-            style={[styles.preset, !useCustomHours && durationHours === h && styles.presetActive]}
-            onPress={() => selectPreset(h)}
-          >
-            <Text
+        {PRESETS.map((h) => {
+          const meta = presetMeta(priceQuote?.presets, h);
+          const active = !useCustomHours && durationHours === h;
+          const recommended = meta?.recommended;
+          return (
+            <Pressable
+              key={h}
               style={[
-                typography.body,
-                !useCustomHours && durationHours === h && styles.presetTextActive,
+                styles.preset,
+                active && styles.presetActive,
+                recommended && !active && styles.presetRecommended,
               ]}
+              onPress={() => selectPreset(h)}
             >
-              {h} ч
-            </Text>
-          </Pressable>
-        ))}
+              {meta?.badge ? (
+                <View style={[styles.badge, active && styles.badgeActive]}>
+                  <Text style={[styles.badgeText, active && styles.badgeTextActive]}>
+                    {meta.badge}
+                  </Text>
+                </View>
+              ) : null}
+              <Text style={[typography.body, active && styles.presetTextActive]}>{h} ч</Text>
+              {meta ? (
+                <Text style={[styles.presetPrice, active && styles.presetTextActive]}>
+                  {formatMoney(meta.totalPriceRub)}
+                </Text>
+              ) : (
+                <Text style={[styles.presetPrice, active && styles.presetTextActive]}>
+                  {formatMoney(pricePerHour * h)}
+                </Text>
+              )}
+              {recommended ? (
+                <Text style={[styles.recommendedLabel, active && styles.presetTextActive]}>
+                  выгодно
+                </Text>
+              ) : null}
+            </Pressable>
+          );
+        })}
       </View>
 
       <Card style={styles.customCard}>
@@ -246,15 +305,45 @@ export default function TimeScreen() {
         </View>
 
         <View style={styles.barTrack}>
-          <View style={styles.barFill} />
+          {nightShare > 0 && nightShare < 100 ? (
+            <View style={[styles.barNight, { width: `${nightShare}%` }]} />
+          ) : null}
+          <View
+            style={[
+              styles.barFill,
+              nightShare >= 100 && styles.barFillNight,
+              nightShare > 0 && nightShare < 100 && { width: `${100 - nightShare}%`, marginLeft: `${nightShare}%` },
+            ]}
+          />
           <View style={styles.barDotStart} />
           <View style={styles.barDotEnd} />
         </View>
+        {nightMinutes > 0 ? (
+          <Text style={styles.nightHint}>
+            <Ionicons name="moon-outline" size={14} color={colors.accentBright} /> Ночной тариф:{' '}
+            {Math.round(nightMinutes / 60 * 10) / 10} ч
+          </Text>
+        ) : null}
 
         <View style={styles.summaryRow}>
           <Text style={typography.body}>{formatDurationHours(effectiveHours)}</Text>
-          <Text style={typography.h3}>{formatMoney(totalPrice)}</Text>
+          <View style={styles.priceCol}>
+            {hasDiscount ? (
+              <Text style={styles.basePrice}>{formatMoney(basePrice)}</Text>
+            ) : null}
+            <View style={styles.priceRow}>
+              {quoteLoading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
+              <Text style={typography.h3}>{formatMoney(totalPrice)}</Text>
+            </View>
+          </View>
         </View>
+
+        {priceQuote?.discounts.map((d, i) => (
+          <Text key={i} style={styles.discountLine}>
+            {d.label}: −{formatMoney(Math.round(d.amountKopecks / 100))}
+          </Text>
+        ))}
+
         <Text style={[typography.caption, styles.tariff]}>
           Тариф {zone?.name} · {formatMoney(pricePerHour)}/ч
         </Text>
@@ -263,7 +352,7 @@ export default function TimeScreen() {
       <StopButton
         title="Продолжить"
         onPress={next}
-        disabled={Boolean(hoursError)}
+        disabled={Boolean(hoursError) || quoteLoading}
         style={styles.cta}
       />
     </Screen>
@@ -326,6 +415,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accentMuted,
   },
   slotTextActive: { color: colors.accentBright, fontWeight: '600' },
+  nightChip: {
+    ...typography.caption,
+    fontSize: 10,
+    color: colors.accentBright,
+    marginTop: 2,
+  },
+  nightChipActive: { color: colors.accent },
   presets: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -337,16 +433,45 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     alignItems: 'center',
     paddingVertical: spacing.md,
+    paddingTop: spacing.lg,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.bgMuted,
+    position: 'relative',
+    minHeight: 72,
+  },
+  presetRecommended: {
+    borderColor: colors.accent,
   },
   presetActive: {
     backgroundColor: colors.accent,
     borderColor: colors.accent,
   },
   presetTextActive: { color: '#fff', fontWeight: '600' },
+  presetPrice: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  recommendedLabel: {
+    ...typography.caption,
+    fontSize: 10,
+    color: colors.accentBright,
+    marginTop: 2,
+  },
+  badge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    backgroundColor: colors.accentMuted,
+    borderRadius: radius.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  badgeActive: { backgroundColor: 'rgba(255,255,255,0.25)' },
+  badgeText: { fontSize: 10, fontWeight: '700', color: colors.accentBright },
+  badgeTextActive: { color: '#fff' },
   customCard: { marginBottom: spacing.lg },
   stepperRow: {
     flexDirection: 'row',
@@ -387,14 +512,29 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     backgroundColor: colors.border,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.sm,
     position: 'relative',
+    overflow: 'hidden',
   },
   barFill: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
     borderRadius: 3,
     backgroundColor: colors.accent,
     width: '100%',
+  },
+  barFillNight: {
+    backgroundColor: '#4a3f8c',
+  },
+  barNight: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: '#4a3f8c',
+    borderRadius: 3,
   },
   barDotStart: {
     position: 'absolute',
@@ -406,6 +546,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accentBright,
     borderWidth: 2,
     borderColor: colors.bg,
+    zIndex: 1,
   },
   barDotEnd: {
     position: 'absolute',
@@ -417,11 +558,31 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accentBright,
     borderWidth: 2,
     borderColor: colors.bg,
+    zIndex: 1,
+  },
+  nightHint: {
+    ...typography.caption,
+    color: colors.accentBright,
+    marginBottom: spacing.md,
+    textAlign: 'center',
   },
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  priceCol: { alignItems: 'flex-end' },
+  priceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  basePrice: {
+    ...typography.caption,
+    color: colors.textDisabled,
+    textDecorationLine: 'line-through',
+  },
+  discountLine: {
+    ...typography.caption,
+    color: colors.accentBright,
+    textAlign: 'center',
+    marginTop: spacing.xs,
   },
   tariff: { marginTop: spacing.xs, color: colors.textSecondary, textAlign: 'center' },
   cta: { marginTop: 'auto' },

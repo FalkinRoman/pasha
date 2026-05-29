@@ -5,7 +5,6 @@ import { PrismaService } from '../prisma/prisma.service';
 
 export type OpenLockParams = {
   lockId: string;
-  lockType: 'main' | 'cell';
   userId?: string;
   bookingId?: string;
   provider: LockProvider;
@@ -30,7 +29,7 @@ export class LocksService {
 
     try {
       if (provider === 'mock') {
-        this.logger.log(`LOCK MOCK open ${params.lockType} lockId=${params.lockId}`);
+        this.logger.log(`LOCK MOCK open main-door lockId=${params.lockId}`);
         success = true;
       } else if (provider === 'http') {
         await this.openHttp(params);
@@ -48,7 +47,7 @@ export class LocksService {
       data: {
         userId: params.userId,
         bookingId: params.bookingId,
-        lockType: params.lockType,
+        lockType: 'main',
         lockTarget: params.lockId,
         provider,
         success,
@@ -75,7 +74,7 @@ export class LocksService {
       body: JSON.stringify({
         lockId: params.lockId,
         action: 'open',
-        type: params.lockType,
+        type: 'main',
       }),
     });
     if (!res.ok) {

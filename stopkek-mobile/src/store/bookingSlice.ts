@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { Booking, ClubSummary, Seat, Zone } from '../types';
+import { Booking, BookingPriceQuote, ClubSummary, Seat, Zone } from '../types';
 
 interface BookingState {
   seats: Seat[];
@@ -9,6 +9,7 @@ interface BookingState {
   startAt: string | null;
   durationHours: number;
   calculatedPrice: number;
+  priceQuote: BookingPriceQuote | null;
   pendingBookingId: string | null;
   activeBooking: Booking | null;
 }
@@ -21,6 +22,7 @@ const initialState: BookingState = {
   startAt: null,
   durationHours: 2,
   calculatedPrice: 0,
+  priceQuote: null,
   pendingBookingId: null,
   activeBooking: null,
 };
@@ -48,12 +50,19 @@ const bookingSlice = createSlice({
     setCalculatedPrice(state, action: PayloadAction<number>) {
       state.calculatedPrice = action.payload;
     },
+    setPriceQuote(state, action: PayloadAction<BookingPriceQuote | null>) {
+      state.priceQuote = action.payload;
+      if (action.payload) {
+        state.calculatedPrice = action.payload.totalPriceRub;
+      }
+    },
     setPendingBookingId(state, action: PayloadAction<string | null>) {
       state.pendingBookingId = action.payload;
     },
     clearDraft(state) {
       state.selectedSeatIds = [];
       state.calculatedPrice = 0;
+      state.priceQuote = null;
       state.pendingBookingId = null;
     },
     setActiveBooking(state, action: PayloadAction<Booking | null>) {
@@ -83,6 +92,7 @@ export const {
   setDuration,
   setStartAt,
   setCalculatedPrice,
+  setPriceQuote,
   setPendingBookingId,
   clearDraft,
   setActiveBooking,

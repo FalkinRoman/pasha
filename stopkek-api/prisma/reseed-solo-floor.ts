@@ -53,8 +53,6 @@ async function main() {
         w: cap.w,
         h: cap.h,
         status: 'free',
-        cellLock: `cell-${cap.number}`,
-        lockId: `cell-${cap.number}`,
       },
     });
   }

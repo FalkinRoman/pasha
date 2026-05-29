@@ -21,8 +21,16 @@ import {
 
 export default function SummaryScreen() {
   const dispatch = useAppDispatch();
-  const { selectedSeatIds, seats, zones, durationHours, startAt, calculatedPrice, pendingBookingId } =
-    useAppSelector((s) => s.booking);
+  const {
+    selectedSeatIds,
+    seats,
+    zones,
+    durationHours,
+    startAt,
+    calculatedPrice,
+    priceQuote,
+    pendingBookingId,
+  } = useAppSelector((s) => s.booking);
   const seat = seats.find((s) => s.id === selectedSeatIds[0]);
   const zone = zones.find((z) => z.id === seat?.zoneId);
   const [loading, setLoading] = useState(!pendingBookingId);
@@ -79,6 +87,24 @@ export default function SummaryScreen() {
               {formatDurationHours(durationHours)}
             </Text>
           </View>
+          {(priceQuote?.discountRub ?? 0) > 0 ? (
+            <>
+              <View style={styles.row}>
+                <Text style={typography.bodySecondary}>Без скидки</Text>
+                <Text style={[typography.body, styles.rowValue, styles.strike]}>
+                  {formatMoney(priceQuote?.basePriceRub ?? calculatedPrice)}
+                </Text>
+              </View>
+              {priceQuote?.discounts.map((d, i) => (
+                <View key={i} style={styles.row}>
+                  <Text style={typography.bodySecondary}>{d.label}</Text>
+                  <Text style={[typography.body, styles.rowValue, styles.discount]}>
+                    −{formatMoney(Math.round(d.amountKopecks / 100))}
+                  </Text>
+                </View>
+              ))}
+            </>
+          ) : null}
           <View style={styles.total}>
             <Text style={typography.h2}>К оплате</Text>
             <Text style={typography.h1}>{formatMoney(calculatedPrice)}</Text>
@@ -108,5 +134,7 @@ const styles = StyleSheet.create({
   },
   rowValue: { flex: 1, textAlign: 'right', flexShrink: 1 },
   total: { marginTop: spacing.xl, alignItems: 'center', gap: spacing.sm },
+  strike: { textDecorationLine: 'line-through', color: colors.textDisabled },
+  discount: { color: colors.accentBright },
   error: { ...typography.caption, color: colors.danger, textAlign: 'center', marginTop: spacing.md },
 });

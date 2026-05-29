@@ -3,11 +3,11 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "scripts": {
-    "start": "EXPO_OFFLINE=1 EXPO_NO_DEPENDENCY_VALIDATION=1 expo start --offline --port 8082",
-    "start:clear": "EXPO_OFFLINE=1 EXPO_NO_DEPENDENCY_VALIDATION=1 expo start --offline -c --port 8082",
-    "start:lan": "EXPO_OFFLINE=1 EXPO_NO_DEPENDENCY_VALIDATION=1 expo start --offline --lan --port 8082",
-    "android": "EXPO_OFFLINE=1 expo start --offline --android --port 8082",
-    "ios": "EXPO_OFFLINE=1 expo start --offline --ios --port 8082",
+    "start": "expo start --lan --port 8082",
+    "start:clear": "expo start --lan --port 8082 -c",
+    "start:offline": "EXPO_OFFLINE=1 expo start --offline --lan --port 8082",
+    "android": "expo start --lan --android --port 8082",
+    "ios": "expo start --lan --ios --port 8082",
     "web": "expo start --web"
   },
   "dependencies": {
@@ -41,8 +41,10 @@
     "react-redux": "^9.3.0"
   },
   "devDependencies": {
+    "@expo/ngrok": "^4.1.3",
     "@types/react": "~19.1.0",
     "typescript": "~5.9.2"
   },
-  "private": true
+  "private": true,
+  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }

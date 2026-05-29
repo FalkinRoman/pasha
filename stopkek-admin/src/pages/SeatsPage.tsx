@@ -42,7 +42,6 @@ export function SeatsPage() {
   const [seatNumber, setSeatNumber] = useState('');
   const [seatZoneId, setSeatZoneId] = useState('');
   const [seatStatus, setSeatStatus] = useState<string>('free');
-  const [seatCellLock, setSeatCellLock] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -131,7 +130,6 @@ export function SeatsPage() {
     setSeatNumber(String(nextNum));
     setSeatZoneId(zones[0]?.id ?? '');
     setSeatStatus('free');
-    setSeatCellLock('');
   };
 
   const openEditSeat = (s: SeatRow) => {
@@ -139,7 +137,6 @@ export function SeatsPage() {
     setSeatNumber(String(s.number));
     setSeatZoneId(s.zoneId);
     setSeatStatus(s.status);
-    setSeatCellLock(s.cellLock ?? s.lockId ?? `cell-${s.number}`);
   };
 
   const onSaveSeat = async (e: FormEvent) => {
@@ -158,7 +155,6 @@ export function SeatsPage() {
           zoneId: seatZoneId,
           number: num,
           status: seatStatus,
-          cellLock: seatCellLock.trim() || `cell-${num}`,
         });
       }
       setSeatForm(null);
@@ -457,18 +453,6 @@ export function SeatsPage() {
                 </option>
               ))}
             </select>
-          </label>
-          <label>
-            ID замка бокса
-            <input
-              className="input"
-              value={seatCellLock}
-              onChange={(e) => setSeatCellLock(e.target.value)}
-              placeholder={`cell-${seatNumber || '12'}`}
-            />
-            <span className="muted form-hint" style={{ marginTop: 4 }}>
-              Тот же ID уходит в API замков при «Открыть бокс» в приложении
-            </span>
           </label>
           <div className="modal-actions">
             <button type="submit" className="btn">

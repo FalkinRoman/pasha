@@ -70,6 +70,33 @@ export type SessionPhase =
   | 'playing'
   | 'checkout';
 
+export interface PriceDiscountLine {
+  type: 'package' | 'night';
+  label: string;
+  amountKopecks: number;
+}
+
+export interface PresetQuote {
+  hours: number;
+  basePriceRub: number;
+  totalPriceRub: number;
+  discountRub: number;
+  badge: string | null;
+  recommended: boolean;
+}
+
+export interface BookingPriceQuote {
+  basePriceRub: number;
+  totalPriceRub: number;
+  discountRub: number;
+  nightMinutes: number;
+  discounts: PriceDiscountLine[];
+  packageBadge: string | null;
+  packageLabel: string | null;
+  recommended: boolean;
+  presets: PresetQuote[];
+}
+
 export interface Booking {
   id: string;
   seatNumbers: number[];
@@ -79,6 +106,8 @@ export interface Booking {
   startedAt?: string | null;
   durationMinutes?: number;
   totalPrice: number;
+  basePriceRub?: number;
+  discountRub?: number;
   status: BookingStatus;
   sessionPhase?: SessionPhase;
   doorWindowOpen?: boolean;
@@ -89,5 +118,4 @@ export interface Booking {
   timerLabel?: string;
   displayRemainingMs?: number;
   canOpenMainDoor?: boolean;
-  canOpenCell?: boolean;
 }

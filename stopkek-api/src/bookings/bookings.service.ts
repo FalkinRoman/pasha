@@ -8,9 +8,9 @@ import { BookingStatus, SessionPhase } from '@prisma/client';
 import { mkdirSync } from 'fs';
 import { join } from 'path';
 import { LockerLogService } from '../locker/locker-log.service';
-import { ensureSeatCellLock } from '../locks/lock-ids';
 import { LocksService } from '../locks/locks.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PricingService } from '../pricing/pricing.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   DOOR_EARLY_MIN,
@@ -29,6 +29,7 @@ export class BookingsService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly pricing: PricingService,
     private readonly locks: LocksService,
     private readonly lockerLog: LockerLogService,
     private readonly notifications: NotificationsService,
@@ -225,6 +226,25 @@ export class BookingsService {
     return list.map((b) => this.format(b));
   }
 
+  async quote(seatId: string, durationHours: number, startAtIso?: string) {
+    const seat = await this.prisma.seat.findUnique({
+      where: { id: seatId },
+      include: { zone: true },
+    });
+    if (!seat) throw new NotFoundException('Место не найдено');
+    const startAt = startAtIso ? new Date(startAtIso) : new Date();
+    if (Number.isNaN(startAt.getTime())) {
+      throw new BadRequestException('Некорректное время начала');
+    }
+    return this.pricing.quoteForSeat(
+      seat.zoneId,
+      seat.zone.clubId,
+      seat.zone.pricePerHour,
+      durationHours,
+      startAt
+    );
+  }
+
   async create(
     userId: string,
     seatId: string,
@@ -266,7 +286,13 @@ export class BookingsService {
     }
     const durationMinutes = Math.round(durationHours * 60);
     const endAt = new Date(startAt.getTime() + durationMinutes * 60_000);
-    const totalPrice = seat.zone.pricePerHour * durationHours * 100;
+    const price = await this.pricing.quoteForSeat(
+      seat.zoneId,
+      seat.zone.clubId,
+      seat.zone.pricePerHour,
+      durationHours,
+      startAt
+    );
 
     const booking = await this.prisma.$transaction(async (tx) => {
       await tx.seat.update({
@@ -281,7 +307,9 @@ export class BookingsService {
           startAt,
           endAt,
           durationMinutes,
-          totalPrice,
+          basePrice: price.basePriceKopecks,
+          discountAmount: price.discountAmountKopecks,
+          totalPrice: price.totalPriceKopecks,
           seats: {
             create: { seatId, seatNumber: seat.number },
           },
@@ -416,13 +444,13 @@ export class BookingsService {
     return booking;
   }
 
-  async openDoor(userId: string, bookingId: string, type: 'main' | 'cell') {
+  async openMainDoor(userId: string, bookingId: string) {
     const booking = await this.getOngoingBooking(userId, bookingId);
 
     const recent = await this.prisma.lockerLog.findFirst({
       where: {
         bookingId,
-        type: type === 'main' ? 'lock_open_main' : 'lock_open_cell',
+        type: 'lock_open_main',
         createdAt: { gte: new Date(Date.now() - 30_000) },
       },
     });
@@ -438,28 +466,15 @@ export class BookingsService {
     const seat = booking.seats[0]?.seat;
     const seatNumber = booking.seats[0]?.seatNumber ?? seat?.number ?? 0;
 
-    let lockId = type === 'main' ? club?.mainDoorLockId : undefined;
-    let cellLock = seat?.cellLock?.trim() || seat?.lockId?.trim() || '';
-
-    if (type === 'cell') {
-      if (!seat) {
-        throw new BadRequestException('Нет места в брони');
-      }
-      cellLock = await ensureSeatCellLock(this.prisma, seat);
-      lockId = cellLock;
-    }
-
+    const lockId = club?.mainDoorLockId?.trim();
     if (!lockId) {
       throw new BadRequestException(
-        type === 'main'
-          ? 'Главная дверь не настроена в админке (Замки)'
-          : 'Замок бокса не привязан к месту'
+        'Главная дверь не настроена в админке (Настройки → Замки)'
       );
     }
 
     const lockResult = await this.locks.open({
       lockId,
-      lockType: type,
       userId,
       bookingId,
       provider: club?.lockProvider ?? 'mock',
@@ -496,15 +511,15 @@ export class BookingsService {
       userId,
       seatId: seat?.id,
       seatNumber,
-      cellLock: type === 'cell' ? cellLock : 'main-door',
-      type: type === 'main' ? 'lock_open_main' : 'lock_open_cell',
+      cellLock: lockId,
+      type: 'lock_open_main',
       payload: { lockId, ok: lockResult.ok },
     });
 
     return {
       ...this.format(updated),
       lockCommandSent: true,
-      lockType: type,
+      lockType: 'main',
     };
   }
 
@@ -518,7 +533,15 @@ export class BookingsService {
     }
     const seat = booking.seats[0]?.seat;
     if (!seat) throw new BadRequestException('Нет места');
-    const addKopecks = seat.zone.pricePerHour * hours * 100;
+    const extendStart = booking.endAt;
+    const price = await this.pricing.quoteForSeat(
+      seat.zoneId,
+      seat.zone.clubId,
+      seat.zone.pricePerHour,
+      hours,
+      extendStart
+    );
+    const addKopecks = price.totalPriceKopecks;
     const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
     if (!wallet || wallet.balance < addKopecks) {
       throw new BadRequestException('Недостаточно средств на балансе');
@@ -543,6 +566,9 @@ export class BookingsService {
         data: {
           endAt: new Date(booking.endAt.getTime() + hours * 3600_000),
           durationMinutes: booking.durationMinutes + hours * 60,
+          basePrice: booking.basePrice + price.basePriceKopecks,
+          discountAmount: booking.discountAmount + price.discountAmountKopecks,
+          totalPrice: booking.totalPrice + addKopecks,
         },
         include: { seats: { include: { seat: { include: { zone: true } } } } },
       });
@@ -637,6 +663,8 @@ export class BookingsService {
     startedAt: Date | null;
     durationMinutes: number;
     totalPrice: number;
+    basePrice?: number;
+    discountAmount?: number;
     seats: { seatNumber: number; seat: { zone: { name: string } } }[];
   }) {
     const now = new Date();
@@ -701,6 +729,8 @@ export class BookingsService {
       startedAt: booking.startedAt?.toISOString() ?? null,
       durationMinutes: booking.durationMinutes,
       totalPrice: Math.round(booking.totalPrice / 100),
+      basePriceRub: Math.round((booking.basePrice ?? booking.totalPrice) / 100),
+      discountRub: Math.round((booking.discountAmount ?? 0) / 100),
       status: booking.status,
       sessionPhase: phase,
       gameRunning,
@@ -711,7 +741,6 @@ export class BookingsService {
       untilStartMs,
       untilEndMs,
       canOpenMainDoor: canAccessDoors,
-      canOpenCell: canAccessDoors,
     };
   }
 

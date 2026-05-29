@@ -457,3 +457,90 @@ export function purgeLegacyAccessLogs() {
 export function lockerLogPhotoPath(logId: string) {
   return `/admin/cell-control/${logId}/photo`;
 }
+
+export type DurationPackageRow = {
+  id: string;
+  zoneId: string | null;
+  minHours: number;
+  discountPercent: number;
+  label: string;
+  badge: string | null;
+  recommended: boolean;
+  sortOrder: number;
+  active: boolean;
+};
+
+export type NightPricingRow = {
+  id: string;
+  zoneId: string | null;
+  startHour: number;
+  endHour: number;
+  discountPercent: number;
+  active: boolean;
+};
+
+export type PricingData = {
+  packages: DurationPackageRow[];
+  nightRules: NightPricingRow[];
+  zones: { id: string; name: string; slug: string }[];
+};
+
+export function fetchPricing() {
+  return api<PricingData>('/admin/pricing');
+}
+
+export function createDurationPackage(body: {
+  zoneId?: string | null;
+  minHours: number;
+  discountPercent: number;
+  label: string;
+  badge?: string | null;
+  recommended?: boolean;
+  sortOrder?: number;
+  active?: boolean;
+}) {
+  return api<DurationPackageRow>('/admin/pricing/packages', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateDurationPackage(
+  id: string,
+  body: {
+    zoneId?: string | null;
+    minHours: number;
+    discountPercent: number;
+    label: string;
+    badge?: string | null;
+    recommended?: boolean;
+    sortOrder?: number;
+    active?: boolean;
+  }
+) {
+  return api<DurationPackageRow>(`/admin/pricing/packages/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteDurationPackage(id: string) {
+  return api<{ ok: boolean }>(`/admin/pricing/packages/${id}`, { method: 'DELETE' });
+}
+
+export function upsertNightPricing(body: {
+  zoneId?: string | null;
+  startHour: number;
+  endHour: number;
+  discountPercent: number;
+  active?: boolean;
+}) {
+  return api<NightPricingRow>('/admin/pricing/night', {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteNightPricing(id: string) {
+  return api<{ ok: boolean }>(`/admin/pricing/night/${id}`, { method: 'DELETE' });
+}

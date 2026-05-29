@@ -188,7 +188,9 @@ model Club {
   lockMqttTopic    String?
   createdAt        DateTime @default(now())
 
-  zones Zone[]
+  zones            Zone[]
+  durationPackages DurationPackage[]
+  nightPricing     NightPricing[]
 }
 
 model Zone {
@@ -202,10 +204,45 @@ model Zone {
   labelY       Float  @default(0)
   sortOrder    Int    @default(0)
 
-  club  Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
-  seats Seat[]
+  club             Club              @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  seats            Seat[]
+  durationPackages DurationPackage[]
+  nightPricing     NightPricing[]
 
   @@unique([clubId, slug])
+}
+
+model DurationPackage {
+  id              String  @id @default(cuid())
+  clubId          String
+  zoneId          String?
+  minHours        Int
+  discountPercent Int
+  label           String
+  badge           String?
+  recommended     Boolean @default(false)
+  sortOrder       Int     @default(0)
+  active          Boolean @default(true)
+
+  club Club  @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  zone Zone? @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@index([clubId, active])
+}
+
+model NightPricing {
+  id              String  @id @default(cuid())
+  clubId          String
+  zoneId          String?
+  startHour       Int     @default(23)
+  endHour         Int     @default(7)
+  discountPercent Int     @default(20)
+  active          Boolean @default(true)
+
+  club Club  @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  zone Zone? @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@index([clubId, active])
 }
 
 model Seat {
@@ -236,6 +273,8 @@ model Booking {
   endAt           DateTime
   startedAt       DateTime?
   durationMinutes Int           @default(60)
+  basePrice          Int           @default(0)
+  discountAmount     Int           @default(0)
   totalPrice         Int           @default(0)
   checkoutPhotoPath  String?
   createdAt          DateTime      @default(now())

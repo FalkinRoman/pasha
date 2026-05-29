@@ -1,5 +1,17 @@
-import { Booking } from '../types';
+import { Booking, BookingPriceQuote } from '../types';
 import { apiFetch } from './client';
+
+export async function quoteBooking(
+  seatId: string,
+  durationHours: number,
+  startAt?: string
+) {
+  return apiFetch<BookingPriceQuote>('/bookings/quote', {
+    method: 'POST',
+    auth: true,
+    body: JSON.stringify({ seatId, durationHours, startAt }),
+  });
+}
 
 export async function fetchActiveBooking() {
   return apiFetch<Booking | null>('/bookings/active', { auth: true });
@@ -35,11 +47,10 @@ export async function cancelBooking(bookingId: string) {
   });
 }
 
-export async function openSessionDoor(bookingId: string, type: 'main' | 'cell') {
+export async function openSessionDoor(bookingId: string) {
   return apiFetch<Booking>(`/bookings/${bookingId}/door`, {
     method: 'POST',
     auth: true,
-    body: JSON.stringify({ type }),
   });
 }
 

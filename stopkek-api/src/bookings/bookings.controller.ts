@@ -12,6 +12,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { BookingsService } from './bookings.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 import { ExtendBookingDto } from './dto/extend.dto';
+import { QuoteBookingDto } from './dto/quote-booking.dto';
 
 @Controller('bookings')
 @UseGuards(JwtAuthGuard)
@@ -26,6 +27,11 @@ export class BookingsController {
   @Get('history')
   history(@CurrentUser() u: { userId: string }) {
     return this.bookings.getHistory(u.userId);
+  }
+
+  @Post('quote')
+  quote(@Body() dto: QuoteBookingDto) {
+    return this.bookings.quote(dto.seatId, dto.durationHours, dto.startAt);
   }
 
   @Post()
@@ -49,12 +55,8 @@ export class BookingsController {
   }
 
   @Post(':id/door')
-  openDoor(
-    @CurrentUser() u: { userId: string },
-    @Param('id') id: string,
-    @Body('type') type: 'main' | 'cell'
-  ) {
-    return this.bookings.openDoor(u.userId, id, type);
+  openDoor(@CurrentUser() u: { userId: string }, @Param('id') id: string) {
+    return this.bookings.openMainDoor(u.userId, id);
   }
 
   @Post(':id/extend')

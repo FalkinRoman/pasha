@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   Res,
   UploadedFile,
@@ -33,6 +34,8 @@ import { AdminJwtGuard } from './guards/admin-jwt.guard';
 import { ClubService } from '../club/club.service';
 import { LocksService } from '../locks/locks.service';
 import { UpdateClubLocksDto } from './dto/update-club-locks.dto';
+import { UpsertDurationPackageDto } from './dto/upsert-duration-package.dto';
+import { UpsertNightPricingDto } from './dto/upsert-night-pricing.dto';
 
 @Controller('admin')
 export class AdminController {
@@ -294,5 +297,41 @@ export class AdminController {
     @Body() dto: RejectVerificationDto
   ) {
     return this.admin.rejectVerification(id, a.adminId, dto.reason);
+  }
+
+  @Get('pricing')
+  @UseGuards(AdminJwtGuard)
+  pricing() {
+    return this.admin.listPricing();
+  }
+
+  @Post('pricing/packages')
+  @UseGuards(AdminJwtGuard)
+  createPackage(@Body() dto: UpsertDurationPackageDto) {
+    return this.admin.createDurationPackage(dto);
+  }
+
+  @Patch('pricing/packages/:id')
+  @UseGuards(AdminJwtGuard)
+  updatePackage(@Param('id') id: string, @Body() dto: UpsertDurationPackageDto) {
+    return this.admin.updateDurationPackage(id, dto);
+  }
+
+  @Delete('pricing/packages/:id')
+  @UseGuards(AdminJwtGuard)
+  deletePackage(@Param('id') id: string) {
+    return this.admin.deleteDurationPackage(id);
+  }
+
+  @Put('pricing/night')
+  @UseGuards(AdminJwtGuard)
+  upsertNight(@Body() dto: UpsertNightPricingDto) {
+    return this.admin.upsertNightPricing(dto);
+  }
+
+  @Delete('pricing/night/:id')
+  @UseGuards(AdminJwtGuard)
+  deleteNight(@Param('id') id: string) {
+    return this.admin.deleteNightPricing(id);
   }
 }

@@ -60,16 +60,13 @@ export default function ActiveSessionScreen() {
     booking?.durationMinutes,
   ]);
 
-  const onDoor = async (type: 'main' | 'cell') => {
+  const onOpenMainDoor = async () => {
     if (!booking) return;
     setLoading(true);
     try {
-      const updated = await openSessionDoor(booking.id, type);
+      const updated = await openSessionDoor(booking.id);
       dispatch(setActiveBooking(updated));
-      Alert.alert(
-        type === 'main' ? 'Главная дверь' : `Бокс #${seatNum}`,
-        'Команда отправлена'
-      );
+      Alert.alert('Главная дверь', 'Команда отправлена');
     } catch (e) {
       Alert.alert('Ошибка', e instanceof ApiError ? e.message : 'Не удалось');
     } finally {
@@ -156,17 +153,7 @@ export default function ActiveSessionScreen() {
       {booking.canOpenMainDoor && (
         <StopButton
           title="Открыть главную дверь"
-          onPress={() => onDoor('main')}
-          disabled={loading}
-          style={styles.action}
-        />
-      )}
-
-      {booking.canOpenCell && (
-        <StopButton
-          title={`Открыть бокс #${seatNum}`}
-          variant="ghost"
-          onPress={() => onDoor('cell')}
+          onPress={onOpenMainDoor}
           disabled={loading}
           style={styles.action}
         />

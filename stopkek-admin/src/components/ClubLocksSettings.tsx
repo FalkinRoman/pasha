@@ -1,5 +1,4 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import {
   ClubLocks,
   fetchClubLocks,
@@ -52,8 +51,7 @@ export function ClubLocksSettings() {
     <form className="card card-form" onSubmit={onSave}>
       <h3>Замки и API</h3>
       <p className="muted form-hint">
-        <strong>Главная дверь</strong> — ID ниже. <strong>Боксы</strong> — ID замка у каждого места в{' '}
-        <Link to="/seats">Места и зоны</Link>.
+        Только <strong>главная дверь</strong> клуба. Открытие из приложения — в окне оплаченной брони.
       </p>
       <label>
         Провайдер
