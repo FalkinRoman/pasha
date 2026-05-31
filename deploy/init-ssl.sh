@@ -35,7 +35,7 @@ docker run --rm \
 
 echo "==> Включаем HTTPS nginx"
 cp nginx-gateway.ssl.conf nginx-gateway.conf
-$COMPOSE up -d gateway certbot
+$COMPOSE up -d --force-recreate gateway certbot
 
 echo "==> Обнови .env.prod на https (если ещё http):"
 echo "    PUBLIC_BASE_URL=https://$DOMAIN"
