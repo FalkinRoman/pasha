@@ -7,7 +7,7 @@
 Админка (Vite)  ──JWT──►  API /api
 ```
 
-Публичный URL (сейчас `http://46.149.71.92`, потом домен + HTTPS):
+Публичный URL: `http://stopkek.site` (потом HTTPS):
 
 | Путь | Кто |
 |------|-----|
@@ -33,7 +33,7 @@
 
 ```env
 KIOSK_API_KEY=длинный-секрет
-PUBLIC_API_URL=https://ваш-домен.ru/api
+PUBLIC_API_URL=http://stopkek.site/api
 ```
 
 Миграция: `pcUnlockedAt` на `Booking`.
@@ -42,9 +42,9 @@ PUBLIC_API_URL=https://ваш-домен.ru/api
 
 ```json
 {
-  "apiUrl": "https://ваш-домен.ru/api",
-  "seatNumber": 12,
-  "kioskKey": "тот же KIOSK_API_KEY"
+  "apiUrl": "http://stopkek.site/api",
+  "seatNumber": 1,
+  "kioskKey": "stopkek-kiosk-prod-2026"
 }
 ```
 

@@ -9,9 +9,9 @@ function loadConfig() {
     return JSON.parse(fs.readFileSync(configPath, 'utf8'));
   } catch {
     return {
-      apiUrl: 'http://46.149.71.92/api',
+      apiUrl: 'http://stopkek.site/api',
       seatNumber: 1,
-      kioskKey: 'dev-kiosk-key-change-me',
+      kioskKey: 'stopkek-kiosk-prod-2026',
     };
   }
 }

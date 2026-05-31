@@ -72,4 +72,5 @@ export class BookingsController {
   end(@CurrentUser() u: { userId: string }, @Param('id') id: string) {
     return this.bookings.endSession(u.userId, id);
   }
+
 }

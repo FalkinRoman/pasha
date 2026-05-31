@@ -50,15 +50,15 @@
 
 ```json
 {
-  "apiUrl": "http://46.149.71.92/api",
-  "seatNumber": 5,
-  "kioskKey": "ваш-секретный-ключ-одинаковый-на-всех-пк"
+  "apiUrl": "http://stopkek.site/api",
+  "seatNumber": 1,
+  "kioskKey": "stopkek-kiosk-prod-2026"
 }
 ```
 
 | Поле | Описание |
 |------|----------|
-| `apiUrl` | Адрес API. Сейчас: `http://46.149.71.92/api`. После домена: `https://stopkek.ru/api` |
+| `apiUrl` | Адрес API: `http://stopkek.site/api` (потом `https://`) |
 | `seatNumber` | Номер этого ПК (см. админку → Места) |
 | `kioskKey` | Секретный ключ — **тот же**, что `KIOSK_API_KEY` на сервере |
 
@@ -68,7 +68,7 @@
 
 ```env
 KIOSK_API_KEY=ваш-секретный-ключ-одинаковый-на-всех-пк
-PUBLIC_API_URL=http://46.149.71.92/api
+PUBLIC_API_URL=http://stopkek.site/api
 ```
 
 После смены — перезапуск API (`docker compose ... up -d --build`).

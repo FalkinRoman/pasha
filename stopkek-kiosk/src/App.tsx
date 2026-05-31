@@ -23,9 +23,9 @@ export function App() {
     window.stopkekKiosk?.onConfig((c) => setCfg(c));
     if (!window.stopkekKiosk) {
       setCfg({
-        apiUrl: 'http://46.149.71.92/api',
+        apiUrl: 'http://stopkek.site/api',
         seatNumber: 1,
-        kioskKey: 'dev-kiosk-key-change-me',
+        kioskKey: 'stopkek-kiosk-prod-2026',
       });
     }
   }, []);
