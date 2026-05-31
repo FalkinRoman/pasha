@@ -2,7 +2,6 @@ import { FormEvent, useEffect, useState } from 'react';
 import { ApiError } from '../api/client';
 import {
   DurationPackageRow,
-  NightPricingRow,
   PricingData,
   createDurationPackage,
   deleteDurationPackage,
@@ -182,7 +181,7 @@ export function PricingPage() {
             </thead>
             <tbody>
               {!data?.packages.length ? (
-                <TableEmptyRow colSpan={7} text="Нет пакетов — npm run seed:pricing в API" />
+                <TableEmptyRow colSpan={7} message="Нет пакетов — npm run seed:pricing в API" />
               ) : (
                 data.packages.map((p) => (
                   <tr key={p.id}>
