@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { LEGAL_URLS } from '../../src/constants/legal';
 import { Input } from '../../src/components/ui/Input';
 import { Screen } from '../../src/components/ui/Screen';
 import { StopButton } from '../../src/components/ui/StopButton';
@@ -53,7 +54,14 @@ export default function PhoneScreen() {
       />
       <View style={styles.hint}>
         <Text style={typography.caption}>
-          Нажимая «Позвонить мне», вы соглашаетесь с политикой конфиденциальности
+          Нажимая «Позвонить мне», вы соглашаетесь с{' '}
+          <Text style={styles.link} onPress={() => Linking.openURL(LEGAL_URLS.privacy)}>
+            политикой конфиденциальности
+          </Text>
+          {' '}и{' '}
+          <Text style={styles.link} onPress={() => Linking.openURL(LEGAL_URLS.terms)}>
+            пользовательским соглашением
+          </Text>
         </Text>
       </View>
       <StopButton title="Позвонить мне" onPress={submit} style={styles.cta} />
@@ -69,6 +77,7 @@ const styles = StyleSheet.create({
   top: { alignItems: 'center', gap: spacing.md, marginBottom: spacing.xl },
   title: { marginTop: spacing.md },
   hint: { marginTop: spacing.md, marginBottom: spacing.lg },
+  link: { color: colors.accentBright, textDecorationLine: 'underline' },
   cta: { marginTop: 'auto' },
   alt: { alignItems: 'center', paddingVertical: spacing.md },
   altText: { ...typography.body, color: colors.accentBright },
