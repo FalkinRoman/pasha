@@ -2,17 +2,23 @@ const { app, BrowserWindow, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
-const configPath = path.join(__dirname, '..', 'config.json');
+const DEFAULT_CONFIG = {
+  apiUrl: 'https://stopkek.site/api',
+  seatNumber: 1,
+  kioskKey: 'stopkek-kiosk-prod-2026',
+};
+
+function resolveConfigPath() {
+  const besideExe = path.join(path.dirname(process.execPath), 'config.json');
+  if (fs.existsSync(besideExe)) return besideExe;
+  return path.join(__dirname, '..', 'config.json');
+}
 
 function loadConfig() {
   try {
-    return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    return { ...DEFAULT_CONFIG, ...JSON.parse(fs.readFileSync(resolveConfigPath(), 'utf8')) };
   } catch {
-    return {
-      apiUrl: 'http://stopkek.site/api',
-      seatNumber: 1,
-      kioskKey: 'stopkek-kiosk-prod-2026',
-    };
+    return { ...DEFAULT_CONFIG };
   }
 }
 

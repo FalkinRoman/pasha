@@ -23,7 +23,7 @@ export function App() {
     window.stopkekKiosk?.onConfig((c) => setCfg(c));
     if (!window.stopkekKiosk) {
       setCfg({
-        apiUrl: 'http://stopkek.site/api',
+        apiUrl: 'https://stopkek.site/api',
         seatNumber: 1,
         kioskKey: 'stopkek-kiosk-prod-2026',
       });
