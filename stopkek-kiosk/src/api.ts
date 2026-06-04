@@ -2,6 +2,7 @@ export type KioskConfig = {
   apiUrl: string;
   seatNumber: number;
   kioskKey: string;
+  staffPassword?: string;
 };
 
 export type KioskState =
@@ -21,6 +22,7 @@ export type KioskState =
   | { state: 'expired'; seatNumber: number; session: SessionView };
 
 export type SessionView = {
+  id: string;
   userName: string;
   phoneMask: string;
   balanceRub: number;
@@ -68,5 +70,12 @@ export function unlockPc(cfg: KioskConfig, code: string) {
   return kioskFetch<KioskState>(cfg, '/kiosk/unlock', {
     method: 'POST',
     body: JSON.stringify({ seatNumber: cfg.seatNumber, code }),
+  });
+}
+
+export function endSeatSession(cfg: KioskConfig) {
+  return kioskFetch<KioskState>(cfg, '/kiosk/end-session', {
+    method: 'POST',
+    body: JSON.stringify({ seatNumber: cfg.seatNumber }),
   });
 }

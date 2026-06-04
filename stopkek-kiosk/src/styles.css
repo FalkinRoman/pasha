@@ -15,12 +15,23 @@
   padding: 0;
 }
 
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
 body {
   font-family: Manrope, system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
   overflow: hidden;
   user-select: none;
+}
+
+body:has(.header-mode) {
+  background: transparent;
 }
 
 .app {
@@ -242,4 +253,162 @@ body {
   bottom: 24px;
   color: #5c5c5c;
   font-size: 13px;
+}
+
+/* Активный сеанс — полоска сверху, рабочий стол доступен под окном */
+.app.header-mode {
+  min-height: 0;
+  height: 100%;
+  padding: 0;
+  justify-content: flex-start;
+  background: #0a0a0af2;
+  border-bottom: 2px solid var(--accent);
+}
+
+.session-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+  height: 72px;
+  padding: 0 20px;
+  box-sizing: border-box;
+}
+
+.session-header-brand {
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+}
+
+.session-header-logo {
+  font-family: Oswald, sans-serif;
+  font-size: 22px;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.session-header-meta {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.session-header-user {
+  font-size: 13px;
+  color: var(--muted);
+  min-width: 140px;
+}
+
+.session-header-timer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 88px;
+}
+
+.session-header-time {
+  font-family: Oswald, sans-serif;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.session-header-timer.warn .session-header-time {
+  color: var(--warning);
+}
+
+.session-header-label {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.session-header-stat {
+  display: flex;
+  flex-direction: column;
+  min-width: 72px;
+}
+
+.session-header-stat-label {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.session-header-stat strong {
+  font-size: 16px;
+}
+
+.session-header-notice {
+  font-size: 12px;
+  color: var(--warning);
+  max-width: 200px;
+}
+
+.session-header-hint {
+  font-size: 11px;
+  color: var(--muted);
+  flex: 1;
+  margin: 0;
+}
+
+.btn-end {
+  width: auto;
+  min-height: 40px;
+  padding: 0 18px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.header-error {
+  position: absolute;
+  bottom: 4px;
+  left: 20px;
+  font-size: 12px;
+  color: #ff6b6b;
+}
+
+.staff-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: #000000cc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.staff-modal {
+  width: min(360px, 92vw);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.staff-modal h3 {
+  margin-bottom: 8px;
+}
+
+.staff-modal p {
+  color: var(--muted);
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.staff-modal-input {
+  width: 100%;
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #111;
+  color: #fff;
+  padding: 0 12px;
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.staff-modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
 }

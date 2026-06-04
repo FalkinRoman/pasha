@@ -219,4 +219,30 @@ export class KioskService {
       notice: warn15 ? 'Осталось меньше 15 минут — продлите в приложении' : undefined,
     };
   }
+
+  async endSeatSession(seatNumber: number) {
+    await this.bookings.syncSeatStatesForKiosk();
+    const now = new Date();
+    const row = await this.prisma.booking.findFirst({
+      where: {
+        status: { in: ['paid', 'active'] },
+        pcUnlockedAt: { not: null },
+        seats: { some: { seatNumber } },
+        endAt: { gt: now },
+      },
+      orderBy: { pcUnlockedAt: 'desc' },
+    });
+    if (!row) {
+      throw new NotFoundException('Нет активного сеанса на этом ПК');
+    }
+    if (row.status === 'active') {
+      await this.bookings.endSession(row.userId, row.id);
+    } else {
+      await this.prisma.booking.update({
+        where: { id: row.id },
+        data: { pcUnlockedAt: null },
+      });
+    }
+    return this.getSeatState(seatNumber);
+  }
 }

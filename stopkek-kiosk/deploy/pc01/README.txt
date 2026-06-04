@@ -11,7 +11,8 @@
   3. PowerShell:
      curl -H "X-Kiosk-Key: stopkek-kiosk-prod-2026" "https://stopkek.site/api/kiosk/state?seatNumber=1"
 
-Выход для персонала: Ctrl+Shift+Q
+Выход: Ctrl+Shift+Q → пароль staffPassword в config.json
+После QR — полоска сверху, рабочий стол открыт. Полный блок при окончании времени.
 
 На сервере (VPS) в deploy/.env.prod должно быть:
   PUBLIC_API_URL=https://stopkek.site/api

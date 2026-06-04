@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/co
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ConfirmQrDto } from './dto/confirm-qr.dto';
+import { KioskEndDto } from './dto/kiosk-end.dto';
 import { KioskUnlockDto } from './dto/kiosk-unlock.dto';
 import { KioskGuard } from './kiosk.guard';
 import { KioskService } from './kiosk.service';
@@ -30,6 +31,12 @@ export class KioskController {
   @UseGuards(KioskGuard)
   unlock(@Body() dto: KioskUnlockDto) {
     return this.kiosk.unlock(dto.seatNumber, dto.code);
+  }
+
+  @Post('end-session')
+  @UseGuards(KioskGuard)
+  endSession(@Body() dto: KioskEndDto) {
+    return this.kiosk.endSeatSession(dto.seatNumber);
   }
 
   @Post('bookings/:id/confirm-qr')
