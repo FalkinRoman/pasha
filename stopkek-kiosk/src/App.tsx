@@ -78,10 +78,11 @@ export function App() {
       : 0;
 
   useEffect(() => {
+    if (staffQuitOpen) return;
     const mode = isHeaderMode(state, remaining) ? 'header' : 'overlay';
     setDisplayMode(mode);
     void window.stopkekKiosk?.setDisplayMode(mode);
-  }, [state, remaining, tick]);
+  }, [state, remaining, tick, staffQuitOpen]);
 
   const handleEndSession = async () => {
     if (!cfg || ending) return;
@@ -100,6 +101,14 @@ export function App() {
     }
   };
 
+  const closeStaffQuit = () => {
+    setStaffQuitOpen(false);
+  };
+
+  if (staffQuitOpen) {
+    return <StaffQuitModal open onClose={closeStaffQuit} />;
+  }
+
   if (!cfg) {
     return (
       <div className="app overlay-mode">
@@ -113,58 +122,49 @@ export function App() {
 
   if (state?.state === 'expired' || (state?.state === 'active' && remaining <= 0)) {
     return (
-      <>
-        <div className="block-overlay overlay-mode">
-          <div className="logo">STOPKEK</div>
-          <h2>Время вышло</h2>
-          <p style={{ color: 'var(--muted)', maxWidth: 420, textAlign: 'center' }}>
-            Продлите сеанс в приложении stopkek или обратитесь к администратору.
-          </p>
-          <p className="footer-hint">ПК #{seatNum}</p>
-        </div>
-        <StaffQuitModal open={staffQuitOpen} onClose={() => setStaffQuitOpen(false)} />
-      </>
+      <div className="block-overlay overlay-mode">
+        <div className="logo">STOPKEK</div>
+        <h2>Время вышло</h2>
+        <p style={{ color: 'var(--muted)', maxWidth: 420, textAlign: 'center' }}>
+          Продлите сеанс в приложении stopkek или обратитесь к администратору.
+        </p>
+        <p className="footer-hint">ПК #{seatNum}</p>
+      </div>
     );
   }
 
   if (state?.state === 'active' && state.session && remaining > 0) {
     return (
-      <>
-        <div className={`app header-mode ${displayMode}`}>
-          <SessionHeader
-            cfg={cfg}
-            session={state.session}
-            remainingMs={remaining}
-            notice={state.notice}
-            ending={ending}
-            onEndSession={() => void handleEndSession()}
-            formatMs={formatMs}
-          />
-          {error && <p className="header-error">{error}</p>}
-        </div>
-        <StaffQuitModal open={staffQuitOpen} onClose={() => setStaffQuitOpen(false)} />
-      </>
+      <div className="app header-mode">
+        <SessionHeader
+          cfg={cfg}
+          session={state.session}
+          remainingMs={remaining}
+          notice={state.notice}
+          ending={ending}
+          onEndSession={() => void handleEndSession()}
+          formatMs={formatMs}
+        />
+        {error && <p className="header-error">{error}</p>}
+      </div>
     );
   }
 
   return (
-    <>
-      <div className="app overlay-mode">
-        <div className="logo">STOPKEK</div>
-        <p className="seat-badge">ПК #{seatNum}</p>
-        <div className="card card-wide">
-          <h1>Оплатите в приложении</h1>
-          <p>Забронируйте место #{seatNum}, оплатите сеанс — затем отсканируйте QR ниже.</p>
-          {state?.qrPayload ? (
-            <QrPanel payload={state.qrPayload} seatNumber={seatNum} />
-          ) : (
-            <p className="error">Ожидание QR…</p>
-          )}
-          {error && <p className="error">{error}</p>}
-        </div>
-        <p className="footer-hint">QR обновляется каждые 2 мин · вход только через приложение</p>
+    <div className="app overlay-mode">
+      <div className="logo">STOPKEK</div>
+      <p className="seat-badge">ПК #{seatNum}</p>
+      <div className="card card-wide">
+        <h1>Оплатите в приложении</h1>
+        <p>Забронируйте место #{seatNum}, оплатите сеанс — затем отсканируйте QR ниже.</p>
+        {state?.qrPayload ? (
+          <QrPanel payload={state.qrPayload} seatNumber={seatNum} />
+        ) : (
+          <p className="error">Ожидание QR…</p>
+        )}
+        {error && <p className="error">{error}</p>}
       </div>
-      <StaffQuitModal open={staffQuitOpen} onClose={() => setStaffQuitOpen(false)} />
-    </>
+      <p className="footer-hint">QR обновляется каждые 2 мин · вход только через приложение</p>
+    </div>
   );
 }

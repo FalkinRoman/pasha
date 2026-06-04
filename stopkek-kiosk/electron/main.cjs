@@ -19,6 +19,8 @@ const DEFAULT_CONFIG = {
 
 let mainWindow = null;
 let displayMode = 'overlay';
+let staffQuitOpen = false;
+let displayModeBeforeStaffQuit = 'overlay';
 
 function resolveConfigPath() {
   const besideExe = path.join(path.dirname(process.execPath), 'config.json');
@@ -48,8 +50,17 @@ function applyHeaderMode(win) {
   win.setResizable(false);
   win.setMovable(false);
   win.setFocusable(true);
-  win.setBounds({ x: 0, y: 0, width, height: HEADER_HEIGHT });
-  win.show();
+
+  const bounds = { x: 0, y: 0, width, height: HEADER_HEIGHT };
+  const finish = () => {
+    win.setBounds(bounds);
+    win.show();
+    win.webContents.send('display-mode', 'header');
+  };
+
+  // На Windows после fullscreen/kiosk bounds иногда не схлопываются без задержки
+  if (process.platform === 'win32') setTimeout(finish, 80);
+  else finish();
 }
 
 function applyOverlayMode(win) {
@@ -65,13 +76,48 @@ function applyOverlayMode(win) {
   win.setFocusable(true);
   win.show();
   win.focus();
+  win.webContents.send('display-mode', 'overlay');
+}
+
+function applyStaffQuitOverlay(win) {
+  const b = primaryBounds();
+  staffQuitOpen = true;
+  // Не setFullScreen(true) — на Windows потом хедер не схлопывается обратно
+  win.setKiosk(false);
+  win.setFullScreen(false);
+  win.setAlwaysOnTop(true, 'screen-saver');
+  win.setSkipTaskbar(true);
+  win.setResizable(false);
+  win.setMovable(false);
+  win.setFocusable(true);
+
+  const finish = () => {
+    win.setBounds(b);
+    win.show();
+    win.focus();
+  };
+  if (process.platform === 'win32') setTimeout(finish, 80);
+  else finish();
+}
+
+function dismissStaffQuitOverlay(win) {
+  if (!staffQuitOpen) return;
+  staffQuitOpen = false;
+  if (displayModeBeforeStaffQuit === 'header') applyHeaderMode(win);
+  else applyOverlayMode(win);
 }
 
 function setDisplayMode(mode) {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (!mainWindow || mainWindow.isDestroyed() || staffQuitOpen) return;
   if (mode === 'header') applyHeaderMode(mainWindow);
   else applyOverlayMode(mainWindow);
-  mainWindow.webContents.send('display-mode', mode);
+}
+
+function openStaffQuit() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  displayModeBeforeStaffQuit = displayMode;
+  applyStaffQuitOverlay(mainWindow);
+  mainWindow.webContents.send('staff-quit-request');
 }
 
 function createWindow() {
@@ -110,12 +156,12 @@ function createWindow() {
   win.on('close', (e) => {
     if (!app.isQuitting) {
       e.preventDefault();
-      win.webContents.send('staff-quit-request');
+      openStaffQuit();
     }
   });
 
   globalShortcut.register('CommandOrControl+Shift+Q', () => {
-    win.webContents.send('staff-quit-request');
+    openStaffQuit();
   });
 }
 
@@ -139,6 +185,11 @@ if (!gotLock) {
       const cfg = loadConfig();
       const expected = String(cfg.staffPassword ?? '').trim();
       return Boolean(expected && password === expected);
+    });
+    ipcMain.on('staff-quit-dismiss', () => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        dismissStaffQuitOverlay(mainWindow);
+      }
     });
     ipcMain.on('staff-quit-confirmed', () => {
       app.isQuitting = true;

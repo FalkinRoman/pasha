@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 type Props = {
   open: boolean;
@@ -9,7 +9,19 @@ export function StaffQuitModal({ open, onClose }: Props) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    if (!open) {
+      setPassword('');
+      setError('');
+    }
+  }, [open]);
+
   if (!open) return null;
+
+  const dismiss = () => {
+    window.stopkekKiosk?.dismissStaffQuit();
+    onClose();
+  };
 
   const submit = async () => {
     setError('');
@@ -22,11 +34,12 @@ export function StaffQuitModal({ open, onClose }: Props) {
   };
 
   return (
-    <div className="staff-modal-backdrop" onClick={onClose}>
+    <div className="staff-modal-backdrop" onClick={dismiss}>
       <div
         className="staff-modal"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
+        aria-modal="true"
         aria-label="Выход для персонала"
       >
         <h3>Выход для персонала</h3>
@@ -36,7 +49,10 @@ export function StaffQuitModal({ open, onClose }: Props) {
           className="staff-modal-input"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && void submit()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void submit();
+            if (e.key === 'Escape') dismiss();
+          }}
           autoFocus
         />
         {error && <p className="error">{error}</p>}
@@ -44,7 +60,7 @@ export function StaffQuitModal({ open, onClose }: Props) {
           <button type="button" className="btn" onClick={() => void submit()}>
             Выйти из программы
           </button>
-          <button type="button" className="btn btn-ghost" onClick={onClose}>
+          <button type="button" className="btn btn-ghost" onClick={dismiss}>
             Отмена
           </button>
         </div>

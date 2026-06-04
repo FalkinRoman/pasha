@@ -8,4 +8,5 @@ contextBridge.exposeInMainWorld('stopkekKiosk', {
   verifyStaffPassword: (password) =>
     ipcRenderer.invoke('verify-staff-password', password),
   confirmStaffQuit: () => ipcRenderer.send('staff-quit-confirmed'),
+  dismissStaffQuit: () => ipcRenderer.send('staff-quit-dismiss'),
 });

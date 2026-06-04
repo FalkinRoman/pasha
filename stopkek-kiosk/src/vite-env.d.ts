@@ -10,5 +10,6 @@ interface Window {
     setDisplayMode: (mode: 'overlay' | 'header') => Promise<void>;
     verifyStaffPassword: (password: string) => Promise<boolean>;
     confirmStaffQuit: () => void;
+    dismissStaffQuit: () => void;
   };
 }

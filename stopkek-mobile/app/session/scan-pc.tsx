@@ -1,6 +1,6 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Alert, Linking, StyleSheet, Text, View } from 'react-native';
 import { confirmPcQr } from '../../src/api/bookings';
 import { ApiError } from '../../src/api/client';
@@ -19,44 +19,76 @@ type QrPayload = {
   challengeId?: string;
 };
 
+type ScanGate = 'idle' | 'busy' | 'alert';
+
 export default function ScanPcScreen() {
   const booking = useAppSelector((s) => s.booking.activeBooking);
   const [permission, requestPermission] = useCameraPermissions();
-  const [busy, setBusy] = useState(false);
+  const [scanEnabled, setScanEnabled] = useState(true);
+  const [unlocking, setUnlocking] = useState(false);
+  const gateRef = useRef<ScanGate>('idle');
+  const lastPayloadRef = useRef('');
+
   const seatNum = booking?.seatNumbers[0];
 
-  const onScan = async (raw: string) => {
-    if (busy || !booking) return;
-    let data: QrPayload;
-    try {
-      data = JSON.parse(raw) as QrPayload;
-    } catch {
-      Alert.alert('Не тот QR', 'Наведите на QR на мониторе этого ПК');
-      return;
-    }
-    if (data.v !== 2 || !data.challengeId || data.type !== 'stopkek-unlock') {
-      Alert.alert('Не тот QR', 'Это не QR stopkek с монитора');
-      return;
-    }
-    if (seatNum && data.seat && data.seat !== seatNum) {
-      Alert.alert(
-        'Другой ПК',
-        `Ваша бронь — место #${seatNum}, на мониторе — #${data.seat}`
-      );
-      return;
-    }
+  const showAlert = useCallback((title: string, message: string, onOk?: () => void) => {
+    gateRef.current = 'alert';
+    setScanEnabled(false);
+    Alert.alert(title, message, [
+      {
+        text: 'OK',
+        onPress: () => {
+          gateRef.current = 'idle';
+          lastPayloadRef.current = '';
+          setScanEnabled(true);
+          onOk?.();
+        },
+      },
+    ]);
+  }, []);
 
-    setBusy(true);
-    try {
-      const res = await confirmPcQr(booking.id, data.challengeId);
-      Alert.alert('Готово', `ПК #${res.seatNumber} разблокирован`, [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
-    } catch (e) {
-      Alert.alert('Ошибка', e instanceof ApiError ? e.message : 'Не удалось');
-      setBusy(false);
-    }
-  };
+  const onScan = useCallback(
+    async (raw: string) => {
+      if (gateRef.current !== 'idle' || !booking) return;
+      if (raw === lastPayloadRef.current) return;
+
+      gateRef.current = 'busy';
+      lastPayloadRef.current = raw;
+      setScanEnabled(false);
+
+      let data: QrPayload;
+      try {
+        data = JSON.parse(raw) as QrPayload;
+      } catch {
+        showAlert('Не тот QR', 'Наведите на QR на мониторе этого ПК');
+        return;
+      }
+      if (data.v !== 2 || !data.challengeId || data.type !== 'stopkek-unlock') {
+        showAlert('Не тот QR', 'Это не QR stopkek с монитора');
+        return;
+      }
+      if (seatNum && data.seat && data.seat !== seatNum) {
+        showAlert(
+          'Другой ПК',
+          `Ваша бронь — место #${seatNum}, на мониторе — #${data.seat}`
+        );
+        return;
+      }
+
+      setUnlocking(true);
+      try {
+        const res = await confirmPcQr(booking.id, data.challengeId);
+        gateRef.current = 'alert';
+        Alert.alert('Готово', `ПК #${res.seatNumber} разблокирован`, [
+          { text: 'OK', onPress: () => router.back() },
+        ]);
+      } catch (e) {
+        showAlert('Ошибка', e instanceof ApiError ? e.message : 'Не удалось');
+        setUnlocking(false);
+      }
+    },
+    [booking, seatNum, showAlert]
+  );
 
   if (!booking) {
     return (
@@ -91,11 +123,13 @@ export default function ScanPcScreen() {
           style={styles.camera}
           facing="back"
           barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-          onBarcodeScanned={busy ? undefined : ({ data }) => onScan(data)}
+          onBarcodeScanned={
+            scanEnabled ? ({ data }) => void onScan(data) : undefined
+          }
         />
         <View style={styles.frame} />
       </View>
-      {busy && <Text style={[typography.caption, styles.center]}>Разблокируем…</Text>}
+      {unlocking && <Text style={[typography.caption, styles.center]}>Разблокируем…</Text>}
     </Screen>
   );
 }
