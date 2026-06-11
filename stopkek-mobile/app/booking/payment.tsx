@@ -1,6 +1,9 @@
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { PaymentPolicyNotice } from '../../src/components/legal/PaymentPolicyNotice';
+import { PAYMENT_POLICY_ACK, PAYMENT_POLICY_OFFER_URL } from '../../src/constants/paymentPolicy';
 import { payBooking } from '../../src/api/bookings';
 import { ApiError } from '../../src/api/client';
 import { fetchMe } from '../../src/api/users';
@@ -25,9 +28,14 @@ export default function PaymentScreen() {
   const seat = seats.find((s) => s.id === selectedSeatIds[0]);
   const [method, setMethod] = useState<'balance' | 'card'>('balance');
   const [loading, setLoading] = useState(false);
+  const [policyAccepted, setPolicyAccepted] = useState(false);
 
   const pay = async () => {
     if (!pendingBookingId) return;
+    if (!policyAccepted) {
+      Alert.alert('Условия оплаты', PAYMENT_POLICY_ACK);
+      return;
+    }
     setLoading(true);
     try {
       const booking = await payBooking(pendingBookingId);
@@ -74,10 +82,33 @@ export default function PaymentScreen() {
           onPress={() => router.push('/wallet/topup')}
         />
       )}
+      <PaymentPolicyNotice />
+      <Pressable style={styles.policyRow} onPress={() => setPolicyAccepted((v) => !v)}>
+        <Ionicons
+          name={policyAccepted ? 'checkbox' : 'square-outline'}
+          size={22}
+          color={policyAccepted ? colors.accent : colors.textSecondary}
+        />
+        <Text style={styles.policyText}>
+          {PAYMENT_POLICY_ACK}{' '}
+          <Text
+            style={styles.policyLink}
+            onPress={() => Linking.openURL(PAYMENT_POLICY_OFFER_URL)}
+          >
+            Оферта
+          </Text>
+        </Text>
+      </Pressable>
       <StopButton
         title="Оплатить"
         onPress={pay}
-        disabled={method !== 'balance' || balance < calculatedPrice || loading || !pendingBookingId}
+        disabled={
+          method !== 'balance' ||
+          balance < calculatedPrice ||
+          loading ||
+          !pendingBookingId ||
+          !policyAccepted
+        }
         style={{ marginTop: 'auto' }}
       />
     </Screen>
@@ -94,4 +125,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgCard,
   },
   methodActive: { borderColor: colors.accent, backgroundColor: '#1a1010' },
+  policyRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  policyText: { ...typography.caption, flex: 1, color: colors.textSecondary, lineHeight: 18 },
+  policyLink: { color: colors.accentBright, textDecorationLine: 'underline' },
 });

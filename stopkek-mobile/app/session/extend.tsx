@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { extendBooking, quoteBooking } from '../../src/api/bookings';
 import { ApiError } from '../../src/api/client';
+import { PaymentPolicyNotice } from '../../src/components/legal/PaymentPolicyNotice';
 import { Header } from '../../src/components/ui/Header';
 import { Screen } from '../../src/components/ui/Screen';
 import { StopButton } from '../../src/components/ui/StopButton';
@@ -105,6 +106,7 @@ export default function ExtendScreen() {
           </Pressable>
         );
       })}
+      <PaymentPolicyNotice compact />
       <StopButton
         title={`Оплатить ${formatMoney(payAmount)}`}
         onPress={pay}

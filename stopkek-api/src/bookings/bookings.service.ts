@@ -15,7 +15,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   DOOR_EARLY_MIN,
   NO_SHOW_GRACE_MIN,
-  REFUND_MIN_REMAINING_MIN,
   WALK_IN_START_MIN,
 } from './session.constants';
 
@@ -592,41 +591,10 @@ export class BookingsService {
     }
 
     const now = new Date();
-    const remainingMs = booking.endAt.getTime() - now.getTime();
-    const remainingMin = Math.floor(remainingMs / 60_000);
 
-    let refundKopecks = 0;
-    if (remainingMin >= REFUND_MIN_REMAINING_MIN) {
-      const slotMin = 30;
-      const unusedSlots = Math.floor(remainingMin / slotMin);
-      const pricePerMin = booking.totalPrice / booking.durationMinutes;
-      refundKopecks = Math.round(unusedSlots * slotMin * pricePerMin);
-      refundKopecks = Math.min(refundKopecks, booking.totalPrice);
-    }
-
-    await this.prisma.$transaction(async (tx) => {
-      if (refundKopecks > 0) {
-        const wallet = await tx.wallet.findUnique({ where: { userId } });
-        if (wallet) {
-          await tx.wallet.update({
-            where: { id: wallet.id },
-            data: { balance: { increment: refundKopecks } },
-          });
-          await tx.transaction.create({
-            data: {
-              walletId: wallet.id,
-              type: 'refund',
-              amount: refundKopecks,
-              description: 'Возврат за досрочное завершение',
-              externalId: `${bookingId}-end`,
-            },
-          });
-        }
-      }
-      await tx.booking.update({
-        where: { id: bookingId },
-        data: { endAt: now },
-      });
+    await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: { endAt: now },
     });
 
     await this.releaseBooking(bookingId, 'completed');
@@ -634,7 +602,7 @@ export class BookingsService {
     const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
     return {
       ok: true,
-      refundRub: Math.round(refundKopecks / 100),
+      refundRub: 0,
       balanceRub: Math.round((wallet?.balance ?? 0) / 100),
     };
   }

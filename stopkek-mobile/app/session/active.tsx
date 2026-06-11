@@ -16,6 +16,7 @@ import { setActiveBooking } from '../../src/store/bookingSlice';
 import { colors } from '../../src/theme/colors';
 import { spacing } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
+import { EARLY_END_WARNING } from '../../src/constants/paymentPolicy';
 import { formatDuration } from '../../src/utils/format';
 
 export default function ActiveSessionScreen() {
@@ -76,23 +77,16 @@ export default function ActiveSessionScreen() {
 
   const onFinish = () => {
     if (!booking) return;
-    Alert.alert(
-      'Завершить сеанс?',
-      'Неиспользованное время вернётся на баланс (от 30 мин)',
-      [
+    Alert.alert('Завершить сеанс?', EARLY_END_WARNING, [
         { text: 'Отмена', style: 'cancel' },
         {
           text: 'Завершить',
+          style: 'destructive',
           onPress: async () => {
             try {
-              const res = await endSession(booking.id);
+              await endSession(booking.id);
               dispatch(setActiveBooking(null));
-              Alert.alert(
-                'Сеанс завершён',
-                res.refundRub > 0
-                  ? `На баланс вернули ${res.refundRub} ₽`
-                  : 'Спасибо за визит'
-              );
+              Alert.alert('Сеанс завершён', 'Спасибо за визит');
               router.replace('/(tabs)/home');
             } catch (e) {
               Alert.alert('Ошибка', e instanceof ApiError ? e.message : 'Не удалось');

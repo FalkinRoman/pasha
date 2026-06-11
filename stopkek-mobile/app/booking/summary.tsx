@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { createBooking } from '../../src/api/bookings';
 import { ApiError } from '../../src/api/client';
+import { PaymentPolicyNotice } from '../../src/components/legal/PaymentPolicyNotice';
 import { Header } from '../../src/components/ui/Header';
 import { Screen } from '../../src/components/ui/Screen';
 import { StopButton } from '../../src/components/ui/StopButton';
@@ -109,6 +110,7 @@ export default function SummaryScreen() {
             <Text style={typography.h2}>К оплате</Text>
             <Text style={typography.h1}>{formatMoney(calculatedPrice)}</Text>
           </View>
+          <PaymentPolicyNotice />
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <StopButton
             title="Оплатить"
