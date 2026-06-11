@@ -1,5 +1,10 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { unlink } from 'fs/promises';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -17,7 +22,9 @@ export class UsersService {
       where: { id: userId },
       include: { wallet: true },
     });
-    if (!user) throw new NotFoundException('Пользователь не найден');
+    if (!user || user.deletedAt) {
+      throw new UnauthorizedException('Пользователь не найден');
+    }
     return this.toPublic(user);
   }
 
@@ -31,10 +38,17 @@ export class UsersService {
   }
 
   /**
-   * Полное удаление аккаунта и данных (152-ФЗ, App Store 5.1.1(v)).
-   * Связанные записи снимает Prisma onDelete: Cascade.
+   * Soft delete (App Store 5.1.1(v)): для пользователя аккаунт удалён,
+   * данные (транзакции, брони, фото верификации) сохраняются для отчётности
+   * и безопасности. Номер освобождается — повторная регистрация создаст
+   * нового пользователя с чистым профилем.
    */
   async deleteAccount(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || user.deletedAt) {
+      throw new NotFoundException('Пользователь не найден');
+    }
+
     const ongoing = await this.prisma.booking.findFirst({
       where: { userId, status: { in: ['paid', 'active', 'pending_payment'] } },
       select: { id: true },
@@ -45,19 +59,20 @@ export class UsersService {
       );
     }
 
-    const verifications = await this.prisma.identityVerification.findMany({
-      where: { userId },
-      select: { photoPath: true },
-    });
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          deletedAt: new Date(),
+          deletedPhone: user.phone,
+          // освобождаем номер для повторной регистрации (phone уникален)
+          phone: `deleted:${Date.now()}:${user.phone}`,
+        },
+      }),
+      this.prisma.pushToken.deleteMany({ where: { userId } }),
+    ]);
 
-    await this.prisma.user.delete({ where: { id: userId } });
-
-    for (const v of verifications) {
-      if (!v.photoPath) continue;
-      unlink(v.photoPath).catch(() => {});
-    }
-
-    this.logger.log(`account deleted userId=${userId}`);
+    this.logger.log(`account soft-deleted userId=${userId} phone=${user.phone}`);
     return { ok: true };
   }
 

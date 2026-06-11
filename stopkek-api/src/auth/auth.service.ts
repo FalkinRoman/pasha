@@ -302,7 +302,9 @@ export class AuthService {
       throw new UnauthorizedException('Неверный токен');
     }
     const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
-    if (!user) throw new UnauthorizedException('Пользователь не найден');
+    if (!user || user.deletedAt) {
+      throw new UnauthorizedException('Пользователь не найден');
+    }
     return this.issueTokens(user.id, user.phone);
   }
 

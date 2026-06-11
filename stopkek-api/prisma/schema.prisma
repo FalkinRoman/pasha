@@ -98,6 +98,10 @@ model User {
   notifySession     Boolean        @default(true)
   notifyRemind15    Boolean        @default(true)
   notifyPromo       Boolean        @default(false)
+  /// Soft delete: данные сохраняются, номер освобождается для новой регистрации
+  deletedAt         DateTime?
+  /// Исходный номер до удаления (для админки)
+  deletedPhone      String?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 

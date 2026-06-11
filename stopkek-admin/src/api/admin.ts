@@ -71,6 +71,8 @@ export type UserRow = {
   createdAt: string;
   identityStatus: string;
   identityVerified: boolean;
+  isDeleted?: boolean;
+  deletedAt?: string | null;
 };
 
 export type UserDetail = {
@@ -80,6 +82,8 @@ export type UserDetail = {
   balanceRub: number;
   identityStatus: string;
   identityVerified: boolean;
+  isDeleted?: boolean;
+  deletedAt?: string | null;
   verification: UserVerification | null;
   bookings: BookingRow[];
   transactions: {

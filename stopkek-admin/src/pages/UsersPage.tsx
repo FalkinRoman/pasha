@@ -153,18 +153,26 @@ export function UsersPage() {
               <tbody>
                 {rows.length === 0 && <TableEmptyRow colSpan={6} />}
                 {rows.map((u) => (
-                  <tr key={u.id} className={selectedId === u.id ? 'row-selected' : ''}>
+                  <tr
+                    key={u.id}
+                    className={selectedId === u.id ? 'row-selected' : ''}
+                    style={u.isDeleted ? { opacity: 0.55 } : undefined}
+                  >
                     <td>{u.phone}</td>
                     <td>{u.name}</td>
                     <td>
-                      <span
-                        className={identityBadgeClass(
-                          u.identityStatus,
-                          u.identityVerified
-                        )}
-                      >
-                        {IDENTITY_STATUS[u.identityStatus] ?? u.identityStatus}
-                      </span>
+                      {u.isDeleted ? (
+                        <span className="badge badge-rejected">Удалён</span>
+                      ) : (
+                        <span
+                          className={identityBadgeClass(
+                            u.identityStatus,
+                            u.identityVerified
+                          )}
+                        >
+                          {IDENTITY_STATUS[u.identityStatus] ?? u.identityStatus}
+                        </span>
+                      )}
                     </td>
                     <td>{u.balanceRub.toLocaleString('ru-RU')} ₽</td>
                     <td className="hide-mobile">{u.bookingsCount}</td>
@@ -188,6 +196,13 @@ export function UsersPage() {
           <div className="card user-detail">
             <h3>{detail.name}</h3>
             <p className="muted">{detail.phone}</p>
+            {detail.isDeleted ? (
+              <p>
+                <span className="badge badge-rejected">
+                  Аккаунт удалён{detail.deletedAt ? ` ${fmtDate(detail.deletedAt)}` : ''}
+                </span>
+              </p>
+            ) : null}
             <p>
               <span
                 className={identityBadgeClass(
@@ -240,6 +255,7 @@ export function UsersPage() {
               </p>
             )}
 
+            {detail.isDeleted ? null : (
             <div className="user-login-code-block">
               <h4>Код для входа</h4>
               <p className="muted" style={{ fontSize: 13 }}>
@@ -266,6 +282,7 @@ export function UsersPage() {
                 </div>
               ) : null}
             </div>
+            )}
 
             <form onSubmit={onAdjust} className="adjust-form">
               <h4>Корректировка баланса</h4>

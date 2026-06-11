@@ -383,6 +383,7 @@ export class AdminService {
         ? {
             OR: [
               { phone: { contains: q.replace(/\D/g, '') } },
+              { deletedPhone: { contains: q.replace(/\D/g, '') } },
               { name: { contains: q, mode: 'insensitive' } },
               { email: { contains: q, mode: 'insensitive' } },
             ],
@@ -395,7 +396,7 @@ export class AdminService {
 
     return users.map((u) => ({
       id: u.id,
-      phone: u.phone,
+      phone: u.deletedAt ? (u.deletedPhone ?? u.phone) : u.phone,
       name: u.name || 'Игрок',
       email: u.email,
       profileCompleted: u.profileCompleted,
@@ -404,6 +405,8 @@ export class AdminService {
       balanceRub: Math.round((u.wallet?.balance ?? 0) / 100),
       bookingsCount: u._count.bookings,
       createdAt: u.createdAt,
+      deletedAt: u.deletedAt,
+      isDeleted: Boolean(u.deletedAt),
     }));
   }
 
@@ -429,7 +432,7 @@ export class AdminService {
 
     return {
       id: u.id,
-      phone: u.phone,
+      phone: u.deletedAt ? (u.deletedPhone ?? u.phone) : u.phone,
       name: u.name || 'Игрок',
       email: u.email,
       profileCompleted: u.profileCompleted,
@@ -437,6 +440,8 @@ export class AdminService {
       identityVerified: IDENTITY_VERIFIED.includes(u.identityStatus),
       balanceRub: Math.round((u.wallet?.balance ?? 0) / 100),
       createdAt: u.createdAt,
+      deletedAt: u.deletedAt,
+      isDeleted: Boolean(u.deletedAt),
       verification: latest
         ? {
             id: latest.id,
@@ -488,7 +493,11 @@ export class AdminService {
       orderBy: { createdAt: 'desc' },
       take: 100,
       include: {
-        wallet: { include: { user: { select: { phone: true, name: true } } } },
+        wallet: {
+          include: {
+            user: { select: { phone: true, name: true, deletedAt: true, deletedPhone: true } },
+          },
+        },
       },
     });
     return list.map((t) => ({
@@ -497,7 +506,9 @@ export class AdminService {
       amountRub: t.amount / 100,
       description: t.description,
       createdAt: t.createdAt,
-      userPhone: t.wallet.user.phone,
+      userPhone: t.wallet.user.deletedAt
+        ? (t.wallet.user.deletedPhone ?? t.wallet.user.phone)
+        : t.wallet.user.phone,
       userName: t.wallet.user.name || 'Игрок',
     }));
   }
