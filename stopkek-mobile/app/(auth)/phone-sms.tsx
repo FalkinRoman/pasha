@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { LEGAL_URLS } from '../../src/constants/legal';
 import { Input } from '../../src/components/ui/Input';
 import { Screen } from '../../src/components/ui/Screen';
 import { StopButton } from '../../src/components/ui/StopButton';
@@ -55,6 +56,16 @@ export default function PhoneSmsScreen() {
         <Text style={typography.caption}>
           Основной способ — бесплатный входящий звонок. SMS — запасной вариант.
         </Text>
+        <Text style={[typography.caption, { marginTop: spacing.sm }]}>
+          Нажимая «Отправить SMS», вы соглашаетесь с{' '}
+          <Text style={styles.link} onPress={() => Linking.openURL(LEGAL_URLS.privacy)}>
+            политикой конфиденциальности
+          </Text>
+          {' '}и{' '}
+          <Text style={styles.link} onPress={() => Linking.openURL(LEGAL_URLS.terms)}>
+            пользовательским соглашением
+          </Text>
+        </Text>
       </View>
       <StopButton title="Отправить SMS" onPress={submit} style={styles.cta} />
       <Pressable style={styles.alt} onPress={() => router.back()}>
@@ -72,4 +83,5 @@ const styles = StyleSheet.create({
   cta: { marginTop: 'auto' },
   alt: { alignItems: 'center', paddingVertical: spacing.md },
   altText: { ...typography.body, color: colors.accentBright },
+  link: { color: colors.accentBright, textDecorationLine: 'underline' },
 });

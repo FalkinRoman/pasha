@@ -21,6 +21,10 @@ export async function fetchBookingHistory() {
   return apiFetch<Booking[]>('/bookings/history', { auth: true });
 }
 
+export async function fetchBookingById(bookingId: string) {
+  return apiFetch<Booking>(`/bookings/${bookingId}`, { auth: true });
+}
+
 export async function createBooking(
   seatId: string,
   durationHours: number,

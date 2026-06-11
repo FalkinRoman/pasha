@@ -19,10 +19,10 @@ export class WalletService {
     private readonly config: ConfigService
   ) {
     const isDev = this.config.get('NODE_ENV') !== 'production';
-    this.mockTopupAllowed =
-      !this.yookassa.enabled ||
-      this.config.get('WALLET_MOCK_TOPUP') === 'true' ||
-      isDev;
+    // В production mock-пополнение работает только при явном WALLET_MOCK_TOPUP=true
+    this.mockTopupAllowed = isDev
+      ? !this.yookassa.enabled || this.config.get('WALLET_MOCK_TOPUP') === 'true'
+      : this.config.get('WALLET_MOCK_TOPUP') === 'true';
   }
 
   getConfig() {
@@ -96,7 +96,7 @@ export class WalletService {
   /** Только если YooKassa не подключена или WALLET_MOCK_TOPUP */
   async mockTopup(userId: string, amountRub: number) {
     if (!this.mockTopupAllowed) {
-      throw new ForbiddenException('Тестовое пополнение отключено');
+      throw new ForbiddenException('Пополнение временно недоступно');
     }
 
     const kopecks = amountRub * 100;
@@ -116,7 +116,7 @@ export class WalletService {
       wallet.id,
       kopecks,
       payment.id,
-      'Тестовое пополнение'
+      'Пополнение баланса'
     );
 
     return {

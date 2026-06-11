@@ -37,3 +37,10 @@ export async function updateProfile(name: string) {
   });
   return mapUser(data);
 }
+
+export async function deleteAccount() {
+  return apiFetch<{ ok: boolean }>('/users/me', {
+    method: 'DELETE',
+    auth: true,
+  });
+}

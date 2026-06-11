@@ -49,7 +49,7 @@ export class YooKassaService {
         capture: true,
         confirmation: {
           type: 'redirect',
-          return_url: this.returnUrl,
+          return_url: `${this.returnUrl}${this.returnUrl.includes('?') ? '&' : '?'}paymentId=${params.paymentId}`,
         },
         description: 'Пополнение баланса stopkek',
         metadata: {

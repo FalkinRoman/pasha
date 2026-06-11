@@ -1,9 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { unlink } from 'fs/promises';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService
@@ -25,6 +28,37 @@ export class UsersService {
       include: { wallet: true },
     });
     return this.toPublic(user);
+  }
+
+  /**
+   * Полное удаление аккаунта и данных (152-ФЗ, App Store 5.1.1(v)).
+   * Связанные записи снимает Prisma onDelete: Cascade.
+   */
+  async deleteAccount(userId: string) {
+    const ongoing = await this.prisma.booking.findFirst({
+      where: { userId, status: { in: ['paid', 'active', 'pending_payment'] } },
+      select: { id: true },
+    });
+    if (ongoing) {
+      throw new BadRequestException(
+        'Сначала завершите или отмените активную бронь, затем удалите аккаунт'
+      );
+    }
+
+    const verifications = await this.prisma.identityVerification.findMany({
+      where: { userId },
+      select: { photoPath: true },
+    });
+
+    await this.prisma.user.delete({ where: { id: userId } });
+
+    for (const v of verifications) {
+      if (!v.photoPath) continue;
+      unlink(v.photoPath).catch(() => {});
+    }
+
+    this.logger.log(`account deleted userId=${userId}`);
+    return { ok: true };
   }
 
   registerPushToken(userId: string, token: string, platform: string) {

@@ -3,7 +3,7 @@ import { fetchActiveBooking } from '../api/bookings';
 import { fetchClub, fetchFloorMap } from '../api/club';
 import { ApiError, setAccessToken } from '../api/client';
 import { fetchMe } from '../api/users';
-import { loadStoredToken, saveToken } from '../storage/authStorage';
+import { loadStoredToken, saveTokens } from '../storage/authStorage';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { clearSessionAndRedirect } from '../api/session';
 import { loginSuccess, logout, setHydrated, setNeedsProfileSetup } from '../store/authSlice';
@@ -41,7 +41,7 @@ export function useAppBootstrap() {
         await refreshAppData(dispatch);
       } catch {
         setAccessToken(null);
-        await saveToken(null);
+        await saveTokens(null, null);
         dispatch(logout());
       } finally {
         dispatch(setHydrated());

@@ -1,13 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { setAccessToken } from '../../src/api/client';
+import { ApiError } from '../../src/api/client';
+import { deleteAccount } from '../../src/api/users';
 import { IdentityBadge } from '../../src/components/verification/IdentityBadge';
 import { Card } from '../../src/components/ui/Card';
 import { Screen } from '../../src/components/ui/Screen';
+import { LEGAL_URLS } from '../../src/constants/legal';
 import { useAppDispatch, useAppSelector } from '../../src/store/hooks';
 import { logout } from '../../src/store/authSlice';
-import { saveToken } from '../../src/storage/authStorage';
+import { saveTokens } from '../../src/storage/authStorage';
 import { colors } from '../../src/theme/colors';
 import { spacing } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
@@ -22,24 +26,58 @@ const MENU = [
   { icon: 'information-circle-outline' as const, label: 'О клубе', href: '/club/info' },
 ];
 
+const LEGAL_MENU = [
+  { label: 'Политика конфиденциальности', url: LEGAL_URLS.privacy },
+  { label: 'Пользовательское соглашение', url: LEGAL_URLS.terms },
+  { label: 'Публичная оферта', url: LEGAL_URLS.offer },
+];
+
 export default function ProfileScreen() {
   const dispatch = useAppDispatch();
   const user = useAppSelector((s) => s.auth.user);
+  const [deleting, setDeleting] = useState(false);
+
+  const clearSession = async () => {
+    setAccessToken(null);
+    await saveTokens(null, null);
+    dispatch(logout());
+    router.replace('/(auth)/phone');
+  };
 
   const onLogout = () => {
     Alert.alert('Выход', 'Выйти из аккаунта?', [
       { text: 'Отмена', style: 'cancel' },
-      {
-        text: 'Выйти',
-        style: 'destructive',
-        onPress: async () => {
-          setAccessToken(null);
-          await saveToken(null);
-          dispatch(logout());
-          router.replace('/(auth)/phone');
-        },
-      },
+      { text: 'Выйти', style: 'destructive', onPress: clearSession },
     ]);
+  };
+
+  const onDeleteAccount = () => {
+    Alert.alert(
+      'Удалить аккаунт?',
+      'Все данные — профиль, история броней, баланс и фото верификации — будут удалены безвозвратно. Остаток баланса не возвращается.',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Удалить',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              await deleteAccount();
+              await clearSession();
+              Alert.alert('Аккаунт удалён', 'Все данные удалены.');
+            } catch (e) {
+              Alert.alert(
+                'Не удалось удалить',
+                e instanceof ApiError ? e.message : 'Попробуйте позже'
+              );
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -80,8 +118,22 @@ export default function ProfileScreen() {
         ))}
       </View>
 
+      <View style={styles.legal}>
+        {LEGAL_MENU.map((item) => (
+          <Pressable key={item.url} onPress={() => Linking.openURL(item.url)}>
+            <Text style={styles.legalLink}>{item.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+
       <Pressable onPress={onLogout} style={styles.logout}>
         <Text style={{ color: colors.danger, ...typography.body }}>Выйти</Text>
+      </Pressable>
+
+      <Pressable onPress={onDeleteAccount} style={styles.deleteBtn} disabled={deleting}>
+        <Text style={styles.deleteText}>
+          {deleting ? 'Удаляем…' : 'Удалить аккаунт'}
+        </Text>
       </Pressable>
     </Screen>
   );
@@ -120,4 +172,12 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
   },
   logout: { alignItems: 'center', marginTop: spacing.xl, padding: spacing.md },
+  legal: { marginTop: spacing.lg, gap: spacing.sm, alignItems: 'center' },
+  legalLink: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    textDecorationLine: 'underline',
+  },
+  deleteBtn: { alignItems: 'center', padding: spacing.md, marginBottom: spacing.lg },
+  deleteText: { ...typography.caption, color: colors.textDisabled },
 });

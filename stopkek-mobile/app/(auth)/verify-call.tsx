@@ -9,7 +9,7 @@ import { AuthSupportHint } from '../../src/components/support/AuthSupportHint';
 import { CodeInput } from '../../src/components/auth/CodeInput';
 import { Screen } from '../../src/components/ui/Screen';
 import { StopButton } from '../../src/components/ui/StopButton';
-import { saveToken } from '../../src/storage/authStorage';
+import { saveTokens } from '../../src/storage/authStorage';
 import { useAppDispatch, useAppSelector } from '../../src/store/hooks';
 import { loginSuccess } from '../../src/store/authSlice';
 import { colors } from '../../src/theme/colors';
@@ -31,12 +31,13 @@ export default function VerifyCallScreen() {
   const pulseLoop = useRef<Animated.CompositeAnimation | null>(null);
 
   const finishLogin = async (
-    user: Parameters<typeof loginSuccess>[0]['payload']['user'],
+    user: Parameters<typeof loginSuccess>[0]['user'],
     accessToken: string,
-    needsProfileSetup: boolean
+    needsProfileSetup: boolean,
+    refreshToken?: string
   ) => {
     setAccessToken(accessToken);
-    await saveToken(accessToken);
+    await saveTokens(accessToken, refreshToken ?? null);
     dispatch(loginSuccess({ user, accessToken, needsProfileSetup }));
     if (needsProfileSetup) router.replace('/(auth)/setup-name');
     else router.replace('/(tabs)/home');
@@ -103,7 +104,7 @@ export default function VerifyCallScreen() {
     }
     try {
       const res = await verifyCall(phone, sessionId, value);
-      await finishLogin(res.user, res.accessToken, res.needsProfileSetup);
+      await finishLogin(res.user, res.accessToken, res.needsProfileSetup, res.refreshToken);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Неверные цифры');
       setCode('');
@@ -154,7 +155,7 @@ export default function VerifyCallScreen() {
             autoFocus
           />
           {error ? <Text style={styles.error}>{error}</Text> : null}
-          {devCode ? (
+          {__DEV__ && devCode ? (
             <Text style={[typography.caption, styles.demo]}>Dev-код: {devCode}</Text>
           ) : null}
         </>

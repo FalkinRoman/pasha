@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 
-export type JwtPayload = { sub: string; phone: string; typ?: 'user' };
+export type JwtPayload = { sub: string; phone: string; typ?: 'user' | 'refresh' };
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -12,11 +12,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: config.get<string>('JWT_SECRET'),
+      algorithms: ['HS256'],
     });
   }
 
   validate(payload: JwtPayload) {
-    if (payload.typ && payload.typ !== 'user') {
+    // refresh-токен не принимается как access
+    if (payload.typ !== 'user') {
       throw new UnauthorizedException('Недостаточно прав');
     }
     return { userId: payload.sub, phone: payload.phone };

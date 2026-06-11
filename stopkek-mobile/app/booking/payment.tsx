@@ -68,13 +68,6 @@ export default function PaymentScreen() {
           <Text style={[typography.caption, { color: colors.warning }]}>Недостаточно — пополните</Text>
         )}
       </Pressable>
-      <Pressable
-        style={[styles.method, method === 'card' && styles.methodActive]}
-        onPress={() => setMethod('card')}
-      >
-        <Text style={typography.body}>Карта / СБП</Text>
-        <Text style={typography.caption}>Скоро (YooKassa)</Text>
-      </Pressable>
       {method === 'balance' && balance < calculatedPrice && (
         <StopButton
           title="Пополнить баланс"

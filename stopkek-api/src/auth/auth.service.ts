@@ -9,6 +9,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { createHmac, randomInt, randomUUID, timingSafeEqual } from 'crypto';
+import { isRateLimited, rateLimitRetrySec } from '../common/rate-limit';
 import { PrismaService } from '../prisma/prisma.service';
 import { normalizeCallCode, SmsRuService } from '../smsru/smsru.service';
 import { CallRequestDto } from './dto/call-request.dto';
@@ -174,6 +175,15 @@ export class AuthService {
     const phone = normalizePhone(dto.phone);
     const code = normalizeCallCode(dto.code);
 
+    // Brute-force защита: на номер, поверх per-session attempts
+    if (isRateLimited(`otp-verify:${phone}`, 15, 15 * 60_000)) {
+      const retry = rateLimitRetrySec(`otp-verify:${phone}`, 15 * 60_000);
+      throw new HttpException(
+        { message: `Слишком много попыток. Повторите через ${Math.ceil(retry / 60)} мин`, retryAfterSec: retry },
+        HttpStatus.TOO_MANY_REQUESTS
+      );
+    }
+
     if (dto.sessionId) {
       const session = store.get(dto.sessionId);
       if (session && session.phone === phone) {
@@ -277,16 +287,40 @@ export class AuthService {
     };
   }
 
+  /** Обмен refresh-токена на новую пару */
+  async refresh(refreshToken: string) {
+    let payload: { sub: string; phone: string; typ?: string };
+    try {
+      payload = await this.jwt.verifyAsync(refreshToken, {
+        secret: this.config.get('JWT_SECRET'),
+        algorithms: ['HS256'],
+      });
+    } catch {
+      throw new UnauthorizedException('Сессия истекла, войдите снова');
+    }
+    if (payload.typ !== 'refresh') {
+      throw new UnauthorizedException('Неверный токен');
+    }
+    const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+    if (!user) throw new UnauthorizedException('Пользователь не найден');
+    return this.issueTokens(user.id, user.phone);
+  }
+
   private async issueTokens(userId: string, phone: string) {
-    const payload = { sub: userId, phone, typ: 'user' as const };
-    const accessToken = await this.jwt.signAsync(payload, {
-      secret: this.config.get('JWT_SECRET'),
-      expiresIn: this.config.get('JWT_ACCESS_TTL', '15m'),
-    });
-    const refreshToken = await this.jwt.signAsync(payload, {
-      secret: this.config.get('JWT_SECRET'),
-      expiresIn: this.config.get('JWT_REFRESH_TTL', '30d'),
-    });
+    const accessToken = await this.jwt.signAsync(
+      { sub: userId, phone, typ: 'user' as const },
+      {
+        secret: this.config.get('JWT_SECRET'),
+        expiresIn: this.config.get('JWT_ACCESS_TTL', '15m'),
+      }
+    );
+    const refreshToken = await this.jwt.signAsync(
+      { sub: userId, phone, typ: 'refresh' as const },
+      {
+        secret: this.config.get('JWT_SECRET'),
+        expiresIn: this.config.get('JWT_REFRESH_TTL', '30d'),
+      }
+    );
     return { accessToken, refreshToken, tokenType: 'Bearer' };
   }
 }

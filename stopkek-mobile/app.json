@@ -17,7 +17,8 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.stopkek.mobile",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Камера используется для фото с документом при верификации и для сканирования QR-кода на мониторе ПК"
       }
     },
     "android": {
@@ -41,7 +42,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Камера нужна для фото с паспортом при верификации",
+          "cameraPermission": "Камера используется для фото с документом при верификации и для сканирования QR-кода на мониторе ПК",
           "recordAudioAndroid": false
         }
       ],

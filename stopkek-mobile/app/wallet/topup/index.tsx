@@ -7,20 +7,20 @@ import {
   fetchWalletConfig,
   mockTopup,
   type WalletConfig,
-} from '../../src/api/wallet';
-import { fetchMe } from '../../src/api/users';
-import { ApiError } from '../../src/api/client';
-import { Card } from '../../src/components/ui/Card';
-import { Header } from '../../src/components/ui/Header';
-import { Input } from '../../src/components/ui/Input';
-import { Screen } from '../../src/components/ui/Screen';
-import { StopButton } from '../../src/components/ui/StopButton';
-import { useAppDispatch, useAppSelector } from '../../src/store/hooks';
-import { loginSuccess } from '../../src/store/authSlice';
-import { colors } from '../../src/theme/colors';
-import { radius, spacing } from '../../src/theme/spacing';
-import { typography } from '../../src/theme/typography';
-import { formatMoney } from '../../src/utils/format';
+} from '../../../src/api/wallet';
+import { fetchMe } from '../../../src/api/users';
+import { ApiError } from '../../../src/api/client';
+import { Card } from '../../../src/components/ui/Card';
+import { Header } from '../../../src/components/ui/Header';
+import { Input } from '../../../src/components/ui/Input';
+import { Screen } from '../../../src/components/ui/Screen';
+import { StopButton } from '../../../src/components/ui/StopButton';
+import { useAppDispatch, useAppSelector } from '../../../src/store/hooks';
+import { loginSuccess } from '../../../src/store/authSlice';
+import { colors } from '../../../src/theme/colors';
+import { radius, spacing } from '../../../src/theme/spacing';
+import { typography } from '../../../src/theme/typography';
+import { formatMoney } from '../../../src/utils/format';
 
 const PRESETS = [500, 1000, 2000, 5000];
 const MIN_AMOUNT = 100;

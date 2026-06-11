@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Patch, Post, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { NotificationPrefsDto } from './dto/notification-prefs.dto';
@@ -19,6 +19,12 @@ export class UsersController {
   @Patch('me')
   update(@CurrentUser() u: { userId: string }, @Body() dto: UpdateProfileDto) {
     return this.users.updateProfile(u.userId, dto.name);
+  }
+
+  /** Удаление аккаунта (App Store Guideline 5.1.1(v)) */
+  @Delete('me')
+  deleteAccount(@CurrentUser() u: { userId: string }) {
+    return this.users.deleteAccount(u.userId);
   }
 
   @Post('me/push-token')

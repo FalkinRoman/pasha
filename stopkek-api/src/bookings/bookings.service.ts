@@ -233,6 +233,15 @@ export class BookingsService {
     return list.map((b) => this.formatBooking(b));
   }
 
+  async getById(userId: string, bookingId: string) {
+    const booking = await this.prisma.booking.findFirst({
+      where: { id: bookingId, userId },
+      include: { seats: { include: { seat: { include: { zone: true } } } } },
+    });
+    if (!booking) throw new NotFoundException('Бронь не найдена');
+    return this.formatBooking(booking);
+  }
+
   async quote(seatId: string, durationHours: number, startAtIso?: string) {
     const seat = await this.prisma.seat.findUnique({
       where: { id: seatId },

@@ -29,6 +29,11 @@ export class BookingsController {
     return this.bookings.getHistory(u.userId);
   }
 
+  @Get(':id')
+  byId(@CurrentUser() u: { userId: string }, @Param('id') id: string) {
+    return this.bookings.getById(u.userId, id);
+  }
+
   @Post('quote')
   quote(@Body() dto: QuoteBookingDto) {
     return this.bookings.quote(dto.seatId, dto.durationHours, dto.startAt);

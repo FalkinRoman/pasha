@@ -55,6 +55,7 @@ export async function verifyCall(phone: string, sessionId: string, code: string)
   return {
     user: mapUser(data.user),
     accessToken: data.accessToken,
+    refreshToken: data.refreshToken,
     needsProfileSetup: data.needsProfileSetup,
   };
 }
@@ -74,6 +75,7 @@ export async function verifySms(phone: string, sessionId: string, code: string) 
   return {
     user: mapUser(data.user),
     accessToken: data.accessToken,
+    refreshToken: data.refreshToken,
     needsProfileSetup: data.needsProfileSetup,
   };
 }

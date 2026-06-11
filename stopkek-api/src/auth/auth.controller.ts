@@ -32,4 +32,9 @@ export class AuthController {
   verifySms(@Body() dto: CallVerifyDto) {
     return this.auth.verifySms(dto);
   }
+
+  @Post('refresh')
+  refresh(@Body() body: { refreshToken: string }) {
+    return this.auth.refresh(body?.refreshToken ?? '');
+  }
 }
