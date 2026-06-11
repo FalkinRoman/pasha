@@ -11,6 +11,17 @@ type CodeCallResponse = {
   status_text?: string;
 };
 
+type SmsSendResponse = {
+  status: string;
+  status_code?: number;
+  status_text?: string;
+  balance?: number;
+  sms?: Record<
+    string,
+    { status: string; status_code?: number; sms_id?: string; status_text?: string }
+  >;
+};
+
 @Injectable()
 export class SmsRuService {
   private readonly logger = new Logger(SmsRuService.name);
@@ -48,6 +59,32 @@ export class SmsRuService {
       code: normalizeCallCode(data.code),
       callId: String(data.call_id),
     };
+  }
+
+  /**
+   * Отправка OTP по SMS.
+   * https://sms.ru/api/send
+   */
+  async sendOtp(phoneDigits: string, code: string) {
+    const url = new URL('https://sms.ru/sms/send');
+    url.searchParams.set('api_id', this.apiId);
+    url.searchParams.set('to', phoneDigits);
+    url.searchParams.set('msg', `Код: ${code}`);
+    url.searchParams.set('json', '1');
+
+    const res = await fetch(url.toString());
+    const data = (await res.json()) as SmsSendResponse;
+    const sms = data.sms?.[phoneDigits];
+    if (data.status !== 'OK' || !sms || sms.status !== 'OK') {
+      this.logger.warn(`sms/send failed: ${JSON.stringify(data)}`);
+      throw new BadGatewayException(
+        sms?.status_text ?? data.status_text ?? 'SMS.ru sms/send error'
+      );
+    }
+    this.logger.log(
+      `sms/send OK phone=${phoneDigits} sms_id=${sms.sms_id} balance=${data.balance}`
+    );
+    return { ok: true, smsId: sms.sms_id };
   }
 }
 

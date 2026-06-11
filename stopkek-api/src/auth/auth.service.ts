@@ -10,7 +10,6 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { createHmac, randomInt, randomUUID, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { SmscService } from '../smsc/smsc.service';
 import { normalizeCallCode, SmsRuService } from '../smsru/smsru.service';
 import { CallRequestDto } from './dto/call-request.dto';
 import { CallVerifyDto } from './dto/call-verify.dto';
@@ -49,8 +48,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
-    private readonly smsRu: SmsRuService,
-    private readonly smsc: SmscService
+    private readonly smsRu: SmsRuService
   ) {
     const raw = this.config.get<string>('MOCK_CALL_CODES', '1234');
     this.mockCodes = new Set(raw.split(',').map((c) => c.trim()));
@@ -135,15 +133,15 @@ export class AuthService {
     const code = String(randomInt(1000, 10000));
     let devCode: string | undefined;
 
-    this.logger.log(`sms/request phone=${phone} smsc=${this.smsc.enabled}`);
+    this.logger.log(`sms/request phone=${phone} smsru=${this.smsRu.enabled}`);
 
-    if (this.smsc.enabled) {
-      await this.smsc.sendOtp(digits, code);
+    if (this.smsRu.enabled) {
+      await this.smsRu.sendOtp(digits, code);
     } else if (this.isDev) {
       devCode = code;
     } else {
       throw new ServiceUnavailableException(
-        'Вход по SMS временно недоступен. Настройте SMSC_LOGIN в API или используйте вход по звонку.'
+        'Вход по SMS временно недоступен. Используйте вход по звонку.'
       );
     }
 
