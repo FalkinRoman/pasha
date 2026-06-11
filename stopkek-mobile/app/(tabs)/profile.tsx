@@ -1,10 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { setAccessToken } from '../../src/api/client';
-import { ApiError } from '../../src/api/client';
-import { deleteAccount } from '../../src/api/users';
 import { IdentityBadge } from '../../src/components/verification/IdentityBadge';
 import { Card } from '../../src/components/ui/Card';
 import { Screen } from '../../src/components/ui/Screen';
@@ -35,7 +32,6 @@ const LEGAL_MENU = [
 export default function ProfileScreen() {
   const dispatch = useAppDispatch();
   const user = useAppSelector((s) => s.auth.user);
-  const [deleting, setDeleting] = useState(false);
 
   const clearSession = async () => {
     setAccessToken(null);
@@ -49,35 +45,6 @@ export default function ProfileScreen() {
       { text: 'Отмена', style: 'cancel' },
       { text: 'Выйти', style: 'destructive', onPress: clearSession },
     ]);
-  };
-
-  const onDeleteAccount = () => {
-    Alert.alert(
-      'Удалить аккаунт?',
-      'Все данные — профиль, история броней, баланс и фото верификации — будут удалены безвозвратно. Остаток баланса не возвращается.',
-      [
-        { text: 'Отмена', style: 'cancel' },
-        {
-          text: 'Удалить',
-          style: 'destructive',
-          onPress: async () => {
-            setDeleting(true);
-            try {
-              await deleteAccount();
-              await clearSession();
-              Alert.alert('Аккаунт удалён', 'Все данные удалены.');
-            } catch (e) {
-              Alert.alert(
-                'Не удалось удалить',
-                e instanceof ApiError ? e.message : 'Попробуйте позже'
-              );
-            } finally {
-              setDeleting(false);
-            }
-          },
-        },
-      ]
-    );
   };
 
   return (
@@ -129,12 +96,6 @@ export default function ProfileScreen() {
       <Pressable onPress={onLogout} style={styles.logout}>
         <Text style={{ color: colors.danger, ...typography.body }}>Выйти</Text>
       </Pressable>
-
-      <Pressable onPress={onDeleteAccount} style={styles.deleteBtn} disabled={deleting}>
-        <Text style={styles.deleteText}>
-          {deleting ? 'Удаляем…' : 'Удалить аккаунт'}
-        </Text>
-      </Pressable>
     </Screen>
   );
 }
@@ -178,6 +139,4 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textDecorationLine: 'underline',
   },
-  deleteBtn: { alignItems: 'center', padding: spacing.md, marginBottom: spacing.lg },
-  deleteText: { ...typography.caption, color: colors.textDisabled },
 });
