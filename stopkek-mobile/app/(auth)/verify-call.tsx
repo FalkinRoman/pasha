@@ -24,11 +24,13 @@ export default function VerifyCallScreen() {
   const [sessionId, setSessionId] = useState('');
   const [devCode, setDevCode] = useState<string | null>(null);
   const [calling, setCalling] = useState(true);
+  const [callTimeout, setCallTimeout] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const pulse = useRef(new Animated.Value(1)).current;
   const pulseLoop = useRef<Animated.CompositeAnimation | null>(null);
+  const callTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const finishLogin = async (
     user: Parameters<typeof loginSuccess>[0]['user'],
@@ -43,18 +45,28 @@ export default function VerifyCallScreen() {
     else router.replace('/(tabs)/home');
   };
 
-  const startCallFlow = async () => {
-    if (!phone) return;
+  const startCallFlow = async (targetPhone?: string) => {
+    const p = targetPhone ?? phone;
+    if (!p) {
+      setError('Номер не передан — вернитесь назад');
+      setCalling(false);
+      return;
+    }
     setCalling(true);
+    setCallTimeout(false);
     setCode('');
     setError('');
+    if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
     try {
-      const res = await requestCall(phone);
+      const res = await requestCall(p);
       setSessionId(res.sessionId);
       setDevCode(res.devCode ?? null);
       setCountdown(res.retryAfterSec ?? 15);
+      // Если за 20 секунд звонок не пришёл — показываем предупреждение
+      callTimeoutRef.current = setTimeout(() => setCallTimeout(true), 20_000);
       setTimeout(() => setCalling(false), 2500);
     } catch (e) {
+      if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
       if (e instanceof ApiError && e.status === 429 && e.body && typeof e.body === 'object') {
         const body = e.body as { message?: { retryAfterSec?: number; message?: string } | string };
         const nested = typeof body.message === 'object' ? body.message : null;
@@ -69,7 +81,18 @@ export default function VerifyCallScreen() {
   };
 
   useEffect(() => {
-    startCallFlow();
+    if (phone) {
+      startCallFlow(phone);
+    } else {
+      // phone ещё не попало в Redux — ждём 300мс и повторяем
+      const t = setTimeout(() => {
+        if (!phone) {
+          setError('Не удалось получить номер — вернитесь и попробуйте снова');
+          setCalling(false);
+        }
+      }, 1500);
+      return () => clearTimeout(t);
+    }
   }, [phone]);
 
   useEffect(() => {
@@ -112,7 +135,8 @@ export default function VerifyCallScreen() {
   };
 
   const resend = () => {
-    if (calling || countdown > 0) return;
+    if (calling || (countdown > 0 && !callTimeout)) return;
+    if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
     startCallFlow();
   };
 
@@ -164,11 +188,16 @@ export default function VerifyCallScreen() {
       {calling && (
         <View style={styles.waiting}>
           <Text style={typography.caption}>Звонок сбросится сам — это бесплатно</Text>
+          {callTimeout && (
+            <Text style={[typography.caption, styles.timeoutHint]}>
+              Звонок задерживается — нажмите «Позвонить снова» ниже или войдите по SMS
+            </Text>
+          )}
         </View>
       )}
 
       <View style={styles.footer}>
-        {countdown > 0 && !calling ? (
+        {countdown > 0 && !calling && !callTimeout ? (
           <Text style={[typography.caption, styles.center]}>
             Повторный звонок через {countdown} сек
           </Text>
@@ -212,6 +241,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1f1010',
   },
   error: { ...typography.caption, color: colors.danger, textAlign: 'center', marginTop: spacing.md },
+  timeoutHint: { color: colors.accentBright, textAlign: 'center', marginTop: spacing.sm },
   demo: { textAlign: 'center', marginTop: spacing.md, color: colors.textDisabled },
   waiting: { alignItems: 'center', paddingVertical: spacing.xl },
   footer: { marginTop: 'auto', gap: spacing.sm, paddingTop: spacing.xl },

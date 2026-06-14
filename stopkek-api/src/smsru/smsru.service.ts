@@ -26,9 +26,11 @@ type SmsSendResponse = {
 export class SmsRuService {
   private readonly logger = new Logger(SmsRuService.name);
   private readonly apiId: string;
+  private readonly senderId: string;
 
   constructor(private readonly config: ConfigService) {
     this.apiId = this.config.get<string>('SMSRU_API_ID', '');
+    this.senderId = this.config.get<string>('SMSRU_SENDER_ID', '');
   }
 
   get enabled() {
@@ -69,8 +71,11 @@ export class SmsRuService {
     const url = new URL('https://sms.ru/sms/send');
     url.searchParams.set('api_id', this.apiId);
     url.searchParams.set('to', phoneDigits);
-    url.searchParams.set('msg', `Код: ${code}`);
+    url.searchParams.set('msg', `Ваш код входа: ${code}`);
     url.searchParams.set('json', '1');
+    if (this.senderId) {
+      url.searchParams.set('from', this.senderId);
+    }
 
     const res = await fetch(url.toString());
     const data = (await res.json()) as SmsSendResponse;
