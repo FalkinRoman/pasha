@@ -66,30 +66,58 @@ export class SmsRuService {
   /**
    * Отправка OTP по SMS.
    * https://sms.ru/api/send
+   * Если оператор не подключён к именному отправителю (status_code=213) —
+   * автоматически повторяет без from (generic sender).
    */
   async sendOtp(phoneDigits: string, code: string) {
+    const result = await this.doSend(phoneDigits, code, this.senderId || undefined);
+
+    // 213 — оператор не подключён к отправителю; 207 — нет разрешения на отправителя
+    const smsCode = result.sms?.[phoneDigits]?.status_code;
+    if (this.senderId && (smsCode === 213 || smsCode === 207)) {
+      this.logger.warn(`sms/send sender not approved for operator (${smsCode}), retrying without from`);
+      return this.doSend(phoneDigits, code, undefined, true);
+    }
+
+    const sms = result.sms?.[phoneDigits];
+    if (result.status !== 'OK' || !sms || sms.status !== 'OK') {
+      this.logger.warn(`sms/send failed: ${JSON.stringify(result)}`);
+      throw new BadGatewayException(
+        sms?.status_text ?? result.status_text ?? 'SMS.ru sms/send error'
+      );
+    }
+    this.logger.log(`sms/send OK phone=${phoneDigits} sms_id=${sms.sms_id} balance=${result.balance}`);
+    return { ok: true, smsId: sms.sms_id };
+  }
+
+  private async doSend(
+    phoneDigits: string,
+    code: string,
+    senderId?: string,
+    throwOnError = false,
+  ): Promise<SmsSendResponse> {
     const url = new URL('https://sms.ru/sms/send');
     url.searchParams.set('api_id', this.apiId);
     url.searchParams.set('to', phoneDigits);
     url.searchParams.set('msg', `Ваш код входа: ${code}`);
     url.searchParams.set('json', '1');
-    if (this.senderId) {
-      url.searchParams.set('from', this.senderId);
-    }
+    if (senderId) url.searchParams.set('from', senderId);
 
     const res = await fetch(url.toString());
     const data = (await res.json()) as SmsSendResponse;
-    const sms = data.sms?.[phoneDigits];
-    if (data.status !== 'OK' || !sms || sms.status !== 'OK') {
-      this.logger.warn(`sms/send failed: ${JSON.stringify(data)}`);
-      throw new BadGatewayException(
-        sms?.status_text ?? data.status_text ?? 'SMS.ru sms/send error'
-      );
+
+    if (throwOnError) {
+      const sms = data.sms?.[phoneDigits];
+      if (data.status !== 'OK' || !sms || sms.status !== 'OK') {
+        this.logger.warn(`sms/send (no-sender) failed: ${JSON.stringify(data)}`);
+        throw new BadGatewayException(
+          sms?.status_text ?? data.status_text ?? 'SMS.ru sms/send error'
+        );
+      }
+      this.logger.log(`sms/send (no-sender) OK phone=${phoneDigits} sms_id=${sms.sms_id}`);
     }
-    this.logger.log(
-      `sms/send OK phone=${phoneDigits} sms_id=${sms.sms_id} balance=${data.balance}`
-    );
-    return { ok: true, smsId: sms.sms_id };
+
+    return data;
   }
 }
 
