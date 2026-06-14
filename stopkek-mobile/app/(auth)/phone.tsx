@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, StyleSheet, Text, View } from 'react-native';
 import { LEGAL_URLS } from '../../src/constants/legal';
 import { Input } from '../../src/components/ui/Input';
 import { Screen } from '../../src/components/ui/Screen';
@@ -65,9 +65,6 @@ export default function PhoneScreen() {
         </Text>
       </View>
       <StopButton title="Позвонить мне" onPress={submit} style={styles.cta} />
-      <Pressable style={styles.alt} onPress={() => router.push('/(auth)/phone-sms')}>
-        <Text style={styles.altText}>Другой способ входа</Text>
-      </Pressable>
       <AuthSupportHint />
     </Screen>
   );
@@ -79,6 +76,4 @@ const styles = StyleSheet.create({
   hint: { marginTop: spacing.md, marginBottom: spacing.lg },
   link: { color: colors.accentBright, textDecorationLine: 'underline' },
   cta: { marginTop: 'auto' },
-  alt: { alignItems: 'center', paddingVertical: spacing.md },
-  altText: { ...typography.body, color: colors.accentBright },
 });

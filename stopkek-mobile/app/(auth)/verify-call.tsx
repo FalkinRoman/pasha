@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, StyleSheet, Text, View } from 'react-native';
 import { requestCall, verifyCall } from '../../src/api/auth';
 import { ApiError } from '../../src/api/client';
 import { setAccessToken } from '../../src/api/client';
@@ -205,9 +205,6 @@ export default function VerifyCallScreen() {
           <StopButton title="Позвонить снова" variant="ghost" onPress={resend} disabled={calling} />
         )}
         <StopButton title="Изменить номер" variant="ghost" onPress={() => router.back()} />
-        <Pressable style={styles.alt} onPress={() => router.replace('/(auth)/phone-sms')}>
-          <Text style={styles.altText}>Войти по SMS</Text>
-        </Pressable>
         <AuthSupportHint />
       </View>
     </Screen>
@@ -245,6 +242,4 @@ const styles = StyleSheet.create({
   demo: { textAlign: 'center', marginTop: spacing.md, color: colors.textDisabled },
   waiting: { alignItems: 'center', paddingVertical: spacing.xl },
   footer: { marginTop: 'auto', gap: spacing.sm, paddingTop: spacing.xl },
-  alt: { alignItems: 'center', paddingVertical: spacing.xs },
-  altText: { ...typography.body, color: colors.accentBright, textAlign: 'center' },
 });
