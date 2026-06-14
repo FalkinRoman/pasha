@@ -82,7 +82,7 @@ export class SmsRuService {
     // 221 — аккаунту обязателен именной отправитель, но он не покрывает этого оператора
     if (smsCode === 204 || smsCode === 221) {
       this.logger.warn(`sms/send sender not approved for operator (${smsCode}), retrying without from`);
-      const retry = await this.doSend(phoneDigits, code, undefined, false);
+      const retry = await this.doSend(phoneDigits, code, undefined);
       const retrySms = retry.sms
         ? (retry.sms[phoneDigits] ?? Object.values(retry.sms)[0])
         : undefined;
