@@ -72,30 +72,43 @@ export class SmsRuService {
   async sendOtp(phoneDigits: string, code: string) {
     const result = await this.doSend(phoneDigits, code, this.senderId || undefined);
 
+    // Ищем запись в ответе по любому ключу (SMS.ru может вернуть номер в другом формате)
+    const smsEntry = result.sms
+      ? (result.sms[phoneDigits] ?? Object.values(result.sms)[0])
+      : undefined;
+    const smsCode = smsEntry?.status_code ?? result.status_code;
+
     // 204 — оператор не подключён к отправителю (а также запасному / по умолчанию)
-    // 221 — аккаунту нужен именной отправитель, но он не покрывает этого оператора
-    const smsCode = result.sms?.[phoneDigits]?.status_code;
-    if (this.senderId && (smsCode === 204 || smsCode === 221)) {
+    // 221 — аккаунту обязателен именной отправитель, но он не покрывает этого оператора
+    if (smsCode === 204 || smsCode === 221) {
       this.logger.warn(`sms/send sender not approved for operator (${smsCode}), retrying without from`);
-      return this.doSend(phoneDigits, code, undefined, true);
+      const retry = await this.doSend(phoneDigits, code, undefined, false);
+      const retrySms = retry.sms
+        ? (retry.sms[phoneDigits] ?? Object.values(retry.sms)[0])
+        : undefined;
+      if (retry.status === 'OK' && retrySms?.status === 'OK') {
+        this.logger.log(`sms/send (no-sender) OK phone=${phoneDigits} sms_id=${retrySms.sms_id}`);
+        return { ok: true, smsId: retrySms.sms_id };
+      }
+      // Второй запрос тоже не прошёл — именной отправитель обязателен для аккаунта
+      this.logger.warn(`sms/send (no-sender) also failed: ${JSON.stringify(retry)}`);
+      throw new BadGatewayException('SMS временно недоступен. Используйте вход по звонку.');
     }
 
-    const sms = result.sms?.[phoneDigits];
-    if (result.status !== 'OK' || !sms || sms.status !== 'OK') {
+    if (result.status !== 'OK' || !smsEntry || smsEntry.status !== 'OK') {
       this.logger.warn(`sms/send failed: ${JSON.stringify(result)}`);
       throw new BadGatewayException(
-        sms?.status_text ?? result.status_text ?? 'SMS.ru sms/send error'
+        smsEntry?.status_text ?? result.status_text ?? 'SMS.ru sms/send error'
       );
     }
-    this.logger.log(`sms/send OK phone=${phoneDigits} sms_id=${sms.sms_id} balance=${result.balance}`);
-    return { ok: true, smsId: sms.sms_id };
+    this.logger.log(`sms/send OK phone=${phoneDigits} sms_id=${smsEntry.sms_id} balance=${result.balance}`);
+    return { ok: true, smsId: smsEntry.sms_id };
   }
 
   private async doSend(
     phoneDigits: string,
     code: string,
     senderId?: string,
-    throwOnError = false,
   ): Promise<SmsSendResponse> {
     const url = new URL('https://sms.ru/sms/send');
     url.searchParams.set('api_id', this.apiId);
@@ -105,20 +118,7 @@ export class SmsRuService {
     if (senderId) url.searchParams.set('from', senderId);
 
     const res = await fetch(url.toString());
-    const data = (await res.json()) as SmsSendResponse;
-
-    if (throwOnError) {
-      const sms = data.sms?.[phoneDigits];
-      if (data.status !== 'OK' || !sms || sms.status !== 'OK') {
-        this.logger.warn(`sms/send (no-sender) failed: ${JSON.stringify(data)}`);
-        throw new BadGatewayException(
-          sms?.status_text ?? data.status_text ?? 'SMS.ru sms/send error'
-        );
-      }
-      this.logger.log(`sms/send (no-sender) OK phone=${phoneDigits} sms_id=${sms.sms_id}`);
-    }
-
-    return data;
+    return (await res.json()) as SmsSendResponse;
   }
 }
 
