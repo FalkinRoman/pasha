@@ -72,9 +72,10 @@ export class SmsRuService {
   async sendOtp(phoneDigits: string, code: string) {
     const result = await this.doSend(phoneDigits, code, this.senderId || undefined);
 
-    // 213 — оператор не подключён к отправителю; 207 — нет разрешения на отправителя
+    // 204 — оператор не подключён к отправителю (а также запасному / по умолчанию)
+    // 221 — аккаунту нужен именной отправитель, но он не покрывает этого оператора
     const smsCode = result.sms?.[phoneDigits]?.status_code;
-    if (this.senderId && (smsCode === 213 || smsCode === 207)) {
+    if (this.senderId && (smsCode === 204 || smsCode === 221)) {
       this.logger.warn(`sms/send sender not approved for operator (${smsCode}), retrying without from`);
       return this.doSend(phoneDigits, code, undefined, true);
     }
