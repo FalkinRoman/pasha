@@ -57,7 +57,7 @@ export class AuthService {
     this.hmacSecret = this.config.get<string>('JWT_SECRET', 'dev-secret');
     this.isDev = this.config.get('NODE_ENV') !== 'production';
     const cooldownSec = Number(
-      this.config.get('CALL_REQUEST_COOLDOWN_SEC', this.isDev ? 15 : 60)
+      this.config.get('CALL_REQUEST_COOLDOWN_SEC', this.isDev ? 10 : 20)
     );
     this.phoneCooldownMs = cooldownSec * 1000;
   }

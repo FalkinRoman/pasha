@@ -62,8 +62,8 @@ export default function VerifyCallScreen() {
       setSessionId(res.sessionId);
       setDevCode(res.devCode ?? null);
       setCountdown(res.retryAfterSec ?? 15);
-      // Если за 20 секунд звонок не пришёл — показываем предупреждение
-      callTimeoutRef.current = setTimeout(() => setCallTimeout(true), 20_000);
+      // Если за 12 секунд звонок не пришёл — показываем предупреждение
+      callTimeoutRef.current = setTimeout(() => setCallTimeout(true), 12_000);
       setTimeout(() => setCalling(false), 2500);
     } catch (e) {
       if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
