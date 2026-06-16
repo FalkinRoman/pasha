@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { StopLogo } from './StopLogo';
@@ -39,7 +39,7 @@ export function Layout() {
           type="button"
           className="menu-btn"
           aria-label="Меню"
-          onClick={() => setMenuOpen((o) => !o)}
+          onClick={() => setMenuOpen((o: boolean) => !o)}
         >
           <span />
           <span />
