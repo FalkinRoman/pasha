@@ -49,9 +49,6 @@ export default function ClubInfoScreen() {
           ))}
         </View>
       ) : null}
-      <Text style={[typography.bodySecondary, { marginTop: spacing.lg }]}>
-        Компьютерный клуб. Бронь через приложение, вход по звонку.
-      </Text>
     </Screen>
   );
 }
