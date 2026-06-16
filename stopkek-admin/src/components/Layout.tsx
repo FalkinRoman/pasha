@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { fetchDashboard } from '../api/admin';
 import { useAuth } from '../auth/AuthContext';
 import { StopLogo } from './StopLogo';
 import './Layout.css';
@@ -8,7 +7,6 @@ import './Layout.css';
 const nav = [
   { to: '/', label: 'Дашборд', end: true },
   { to: '/seats', label: 'Места и зоны' },
-  { to: '/verifications', label: 'Верификация' },
   { to: '/bookings', label: 'Брони' },
   { to: '/pricing', label: 'Тарифы' },
   { to: '/cell-control', label: 'Журнал доступа' },
@@ -21,20 +19,7 @@ const nav = [
 export function Layout() {
   const { admin, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [pendingVerifications, setPendingVerifications] = useState(0);
   const location = useLocation();
-
-  const loadPending = useCallback(() => {
-    fetchDashboard()
-      .then((d) => setPendingVerifications(d.pendingVerifications ?? 0))
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    loadPending();
-    const id = setInterval(loadPending, 10000);
-    return () => clearInterval(id);
-  }, [loadPending, location.pathname]);
 
   useEffect(() => {
     setMenuOpen(false);
@@ -88,9 +73,6 @@ export function Layout() {
               className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
             >
               <span className="nav-link-label">{item.label}</span>
-              {item.to === '/verifications' && pendingVerifications > 0 ? (
-                <span className="nav-badge">{pendingVerifications}</span>
-              ) : null}
             </NavLink>
           ))}
         </nav>

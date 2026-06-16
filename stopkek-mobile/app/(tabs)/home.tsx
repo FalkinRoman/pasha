@@ -1,12 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ApiError } from '../../src/api/client';
-import { fetchIdentityStatus } from '../../src/api/identity';
 import { clearSessionAndRedirect } from '../../src/api/session';
 import { fetchMe } from '../../src/api/users';
-import { VerificationStatusBanner } from '../../src/components/verification/VerificationStatusBanner';
 import { SessionCard } from '../../src/components/booking/SessionCard';
 import { Card } from '../../src/components/ui/Card';
 import { Screen } from '../../src/components/ui/Screen';
@@ -26,9 +24,6 @@ export default function HomeScreen() {
   const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
   const activeBooking = useAppSelector((s) => s.booking.activeBooking);
   const club = useAppSelector((s) => s.booking.club);
-  const [verifySeconds, setVerifySeconds] = useState<number | null>(null);
-  const identityPending = user?.identityStatus === 'pending';
-
   useFocusEffect(
     useCallback(() => {
       if (!isAuthenticated) return;
@@ -37,14 +32,6 @@ export default function HomeScreen() {
         try {
           const me = await fetchMe();
           dispatch(updateUser(me));
-
-          if (me.identityStatus !== 'pending') {
-            setVerifySeconds(null);
-            return;
-          }
-
-          const s = await fetchIdentityStatus();
-          setVerifySeconds(s.secondsUntilAutoApprove);
         } catch (e) {
           if (e instanceof ApiError && e.status === 401) {
             await clearSessionAndRedirect(dispatch);
@@ -53,7 +40,7 @@ export default function HomeScreen() {
       };
 
       poll();
-      const id = setInterval(poll, 4000);
+      const id = setInterval(poll, 10000);
       return () => clearInterval(id);
     }, [isAuthenticated, dispatch])
   );
@@ -67,10 +54,6 @@ export default function HomeScreen() {
         </View>
         <StopLogo size={44} />
       </View>
-
-      {identityPending ? (
-        <VerificationStatusBanner secondsLeft={verifySeconds} />
-      ) : null}
 
       <Pressable onPress={() => router.push('/wallet/topup')}>
         <Card style={styles.balance}>
