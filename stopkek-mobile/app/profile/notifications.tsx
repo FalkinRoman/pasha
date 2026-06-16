@@ -49,9 +49,6 @@ export default function NotificationsScreen() {
         <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.xl }} />
       ) : (
         <>
-          <Text style={[typography.bodySecondary, { marginBottom: spacing.md }]}>
-            Настройки сохраняются на сервере. Push работает на физическом устройстве.
-          </Text>
           {ROWS.map((r) => (
             <View key={r.key} style={styles.row}>
               <Text style={typography.body}>{r.label}</Text>
