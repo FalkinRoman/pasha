@@ -1,7 +1,8 @@
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { quoteBooking } from '../../src/api/bookings';
 import { Card } from '../../src/components/ui/Card';
 import { Header } from '../../src/components/ui/Header';
@@ -30,26 +31,6 @@ const TIME_PACKAGES = [
 const MIN_HOURS = 1;
 const MAX_HOURS = 12;
 
-function roundToNextSlot(d: Date) {
-  const x = new Date(d);
-  const m = x.getMinutes();
-  const add = m % 30 === 0 ? 0 : 30 - (m % 30);
-  x.setMinutes(m + add, 0, 0);
-  return x;
-}
-
-function buildTimeSlots(from: Date) {
-  const slots: Date[] = [];
-  let t = roundToNextSlot(from);
-  const end = new Date(t);
-  end.setHours(23, 30, 0, 0);
-  while (t.getTime() <= end.getTime()) {
-    slots.push(new Date(t));
-    t = new Date(t.getTime() + 30 * 60_000);
-  }
-  return slots;
-}
-
 function presetMeta(presets: PresetQuote[] | undefined, h: number) {
   return presets?.find((p) => p.hours === h);
 }
@@ -65,8 +46,12 @@ export default function TimeScreen() {
 
   const [startMode, setStartMode] = useState<'now' | 'pick'>('now');
   const [nowAnchor, setNowAnchor] = useState(() => new Date());
-  const timeSlots = useMemo(() => buildTimeSlots(new Date()), []);
-  const [pickedStart, setPickedStart] = useState(() => timeSlots[0] ?? new Date());
+  const [pickedStart, setPickedStart] = useState(() => {
+    const d = new Date();
+    d.setSeconds(0, 0);
+    d.setMinutes(d.getMinutes() + 1);
+    return d;
+  });
   const [customHoursText, setCustomHoursText] = useState(String(durationHours));
   const [useCustomHours, setUseCustomHours] = useState(!PRESETS.includes(durationHours));
   const [activePackage, setActivePackage] = useState<string | null>(null);
@@ -210,34 +195,31 @@ export default function TimeScreen() {
       </View>
 
       {startMode === 'pick' ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.slotsRow}
-        >
-          {timeSlots.map((slot) => {
-            const active = pickedStart.getTime() === slot.getTime();
-            const hour = slot.getHours();
-            const isNight = hour >= 23 || hour < 7;
-            return (
-              <Pressable
-                key={slot.toISOString()}
-                style={[styles.slotChip, active && styles.slotChipActive]}
-                onPress={() => setPickedStart(slot)}
-              >
-                <Text style={[typography.body, active && styles.slotTextActive]}>
-                  {formatTimeHM(slot)}
-                </Text>
-                <Text style={[typography.caption, active && styles.slotTextActive]}>
-                  {formatSessionDay(slot)}
-                </Text>
-                {isNight ? (
-                  <Text style={[styles.nightChip, active && styles.nightChipActive]}>ночь</Text>
-                ) : null}
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        <View style={styles.timePickerWrap}>
+          <DateTimePicker
+            value={pickedStart}
+            mode="time"
+            display={Platform.OS === 'ios' ? 'spinner' : 'spinner'}
+            is24Hour
+            minuteInterval={1}
+            textColor={colors.text}
+            accentColor={colors.accent}
+            themeVariant="dark"
+            onChange={(_e, date) => {
+              if (!date) return;
+              const now = new Date();
+              const d = new Date(date);
+              if (d < now) d.setDate(d.getDate() + 1);
+              d.setSeconds(0, 0);
+              setPickedStart(d);
+              setActivePackage(null);
+            }}
+            style={styles.timePicker}
+          />
+          <Text style={styles.timePickerLabel}>
+            {formatSessionDay(pickedStart)}, {formatTimeHM(pickedStart)}
+          </Text>
+        </View>
       ) : (
         <Text style={[typography.caption, styles.nowHint]}>
           Сеанс начнётся сразу после оплаты
@@ -452,29 +434,24 @@ const styles = StyleSheet.create({
   segmentText: { ...typography.body, color: colors.textSecondary },
   segmentTextActive: { color: '#fff', fontWeight: '600' },
   nowHint: { marginBottom: spacing.sm, color: colors.textDisabled },
-  slotsRow: { gap: spacing.sm, paddingBottom: spacing.xs },
-  slotChip: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
+  timePickerWrap: {
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+    backgroundColor: colors.bgMuted,
+    borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.bgMuted,
-    minWidth: 72,
-    alignItems: 'center',
+    paddingBottom: spacing.sm,
   },
-  slotChipActive: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accentMuted,
+  timePicker: {
+    width: '100%',
+    height: 160,
   },
-  slotTextActive: { color: colors.accentBright, fontWeight: '600' },
-  nightChip: {
+  timePickerLabel: {
     ...typography.caption,
-    fontSize: 10,
-    color: colors.accentBright,
+    color: colors.textSecondary,
     marginTop: 2,
   },
-  nightChipActive: { color: colors.accent },
   presets: {
     flexDirection: 'row',
     flexWrap: 'wrap',
