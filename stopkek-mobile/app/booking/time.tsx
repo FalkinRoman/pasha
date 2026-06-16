@@ -21,7 +21,12 @@ import {
   formatTimeHM,
 } from '../../src/utils/format';
 
-const PRESETS = [1, 2, 3, 4, 6, 8];
+const PRESETS = [1, 3, 6, 8];
+
+const TIME_PACKAGES = [
+  { id: 'night',   label: 'Пакет ночь',  window: '23:00–08:00', startHour: 23, durationHours: 9,  discountPct: 36 },
+  { id: 'morning', label: 'Пакет утро',  window: '10:00–16:00', startHour: 10, durationHours: 6,  discountPct: 26 },
+] as const;
 const MIN_HOURS = 1;
 const MAX_HOURS = 12;
 
@@ -64,6 +69,7 @@ export default function TimeScreen() {
   const [pickedStart, setPickedStart] = useState(() => timeSlots[0] ?? new Date());
   const [customHoursText, setCustomHoursText] = useState(String(durationHours));
   const [useCustomHours, setUseCustomHours] = useState(!PRESETS.includes(durationHours));
+  const [activePackage, setActivePackage] = useState<string | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
 
   const hours = useMemo(() => {
@@ -122,8 +128,22 @@ export default function TimeScreen() {
 
   const selectPreset = (h: number) => {
     setUseCustomHours(false);
+    setActivePackage(null);
     dispatch(setDuration(h));
     setCustomHoursText(String(h));
+  };
+
+  const selectTimePackage = (pkg: typeof TIME_PACKAGES[number]) => {
+    const today = new Date();
+    const start = new Date(today);
+    start.setHours(pkg.startHour, 0, 0, 0);
+    if (start < today) start.setDate(start.getDate() + 1);
+    setStartMode('pick');
+    setPickedStart(start);
+    setUseCustomHours(false);
+    setActivePackage(pkg.id);
+    dispatch(setDuration(pkg.durationHours));
+    setCustomHoursText(String(pkg.durationHours));
   };
 
   const onCustomHours = (text: string) => {
@@ -262,6 +282,39 @@ export default function TimeScreen() {
                   выгодно
                 </Text>
               ) : null}
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>Пакеты</Text>
+      <View style={styles.packages}>
+        {TIME_PACKAGES.map((pkg) => {
+          const active = activePackage === pkg.id;
+          const approxPrice = Math.round(pricePerHour * pkg.durationHours * (1 - pkg.discountPct / 100));
+          return (
+            <Pressable
+              key={pkg.id}
+              style={[styles.packageCard, active && styles.packageCardActive]}
+              onPress={() => selectTimePackage(pkg)}
+            >
+              <View style={styles.packageDiscountBadge}>
+                <Text style={[styles.packageDiscountText, active && styles.packageDiscountTextActive]}>
+                  −{pkg.discountPct}%
+                </Text>
+              </View>
+              <View style={styles.packageInfo}>
+                <Text style={[typography.body, active && styles.presetTextActive]}>{pkg.label}</Text>
+                <Text style={[styles.packageWindow, active && styles.packageWindowActive]}>{pkg.window}</Text>
+              </View>
+              <View style={styles.packagePriceCol}>
+                <Text style={[typography.h3, active && styles.presetTextActive]}>
+                  {formatMoney(approxPrice)}
+                </Text>
+                <Text style={[styles.packageDuration, active && styles.packageWindowActive]}>
+                  {pkg.durationHours} ч
+                </Text>
+              </View>
             </Pressable>
           );
         })}
@@ -472,6 +525,45 @@ const styles = StyleSheet.create({
   badgeActive: { backgroundColor: 'rgba(255,255,255,0.25)' },
   badgeText: { fontSize: 10, fontWeight: '700', color: colors.accentBright },
   badgeTextActive: { color: '#fff' },
+  packages: {
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  packageCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bgMuted,
+    position: 'relative',
+  },
+  packageCardActive: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  packageDiscountBadge: {
+    backgroundColor: colors.accentMuted,
+    borderRadius: radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minWidth: 44,
+    alignItems: 'center',
+  },
+  packageDiscountText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.accentBright,
+  },
+  packageDiscountTextActive: { color: '#fff' },
+  packageInfo: { flex: 1, gap: 2 },
+  packageWindow: { ...typography.caption, color: colors.textSecondary },
+  packageWindowActive: { color: 'rgba(255,255,255,0.75)' },
+  packagePriceCol: { alignItems: 'flex-end', gap: 2 },
+  packageDuration: { ...typography.caption, color: colors.textSecondary },
   customCard: { marginBottom: spacing.lg },
   stepperRow: {
     flexDirection: 'row',

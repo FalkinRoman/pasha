@@ -22,19 +22,13 @@ export class PricingService {
     durationHours: number,
     startAt: Date
   ): Promise<QuoteResponse> {
-    const [packages, night] = await Promise.all([
+    const [packages, timeWindows] = await Promise.all([
       this.loadPackages(clubId, zoneId),
-      this.loadNight(clubId, zoneId),
+      this.loadTimeWindows(clubId, zoneId),
     ]);
-    const breakdown = this.calculate(
-      pricePerHour,
-      durationHours,
-      startAt,
-      packages,
-      night
-    );
+    const breakdown = this.calculate(pricePerHour, durationHours, startAt, packages, timeWindows);
     const presets = PRESET_HOURS.map((h) => {
-      const p = this.calculate(pricePerHour, h, startAt, packages, night);
+      const p = this.calculate(pricePerHour, h, startAt, packages, timeWindows);
       return {
         hours: h,
         basePriceRub: Math.round(p.basePriceKopecks / 100),
@@ -72,7 +66,7 @@ export class PricingService {
     durationHours: number,
     startAt: Date,
     packages: DurationPackage[],
-    night: NightPricing | null
+    timeWindows: NightPricing[]
   ): PriceBreakdown {
     const durationMinutes = Math.round(durationHours * 60);
     const endAt = new Date(startAt.getTime() + durationMinutes * 60_000);
@@ -84,40 +78,35 @@ export class PricingService {
       packageDiscount = Math.round((basePriceKopecks * pkg.discountPercent) / 100);
     }
 
-    const nightMinutes = night?.active
-      ? this.countNightMinutes(startAt, endAt, night.startHour, night.endHour)
-      : 0;
-    let nightDiscount = 0;
-    if (night?.active && night.discountPercent > 0 && nightMinutes > 0) {
-      nightDiscount = Math.round(
-        (nightMinutes / 60) * pricePerHour * 100 * (night.discountPercent / 100)
-      );
-    }
-
     const discounts: PricingDiscountLine[] = [];
     if (packageDiscount > 0 && pkg) {
-      discounts.push({
-        type: 'package',
-        label: pkg.label,
-        amountKopecks: packageDiscount,
-      });
+      discounts.push({ type: 'package', label: pkg.label, amountKopecks: packageDiscount });
     }
-    if (nightDiscount > 0 && night) {
-      const nightH = Math.round((nightMinutes / 60) * 10) / 10;
+
+    let totalWindowMinutes = 0;
+    let totalWindowDiscount = 0;
+    for (const win of timeWindows) {
+      if (!win.active || win.discountPercent <= 0) continue;
+      const mins = this.countNightMinutes(startAt, endAt, win.startHour, win.endHour);
+      if (mins <= 0) continue;
+      const discount = Math.round((mins / 60) * pricePerHour * 100 * (win.discountPercent / 100));
+      totalWindowMinutes += mins;
+      totalWindowDiscount += discount;
+      const h = Math.round((mins / 60) * 10) / 10;
       discounts.push({
         type: 'night',
-        label: `Ночной тариф (${this.formatNightWindow(night.startHour, night.endHour)}, ${nightH} ч)`,
-        amountKopecks: nightDiscount,
+        label: `${this.timeWindowLabel(win.startHour)} (${this.formatNightWindow(win.startHour, win.endHour)}, ${h} ч)`,
+        amountKopecks: discount,
       });
     }
 
-    const discountAmountKopecks = packageDiscount + nightDiscount;
+    const discountAmountKopecks = packageDiscount + totalWindowDiscount;
     const totalPriceKopecks = Math.max(0, basePriceKopecks - discountAmountKopecks);
 
     return {
       pricePerHour,
       durationHours,
-      nightMinutes,
+      nightMinutes: totalWindowMinutes,
       basePriceKopecks,
       discountAmountKopecks,
       totalPriceKopecks,
@@ -177,13 +166,19 @@ export class PricingService {
     return zoned.length ? zoned : global;
   }
 
-  private async loadNight(clubId: string, zoneId: string) {
-    const zoned = await this.prisma.nightPricing.findFirst({
+  private async loadTimeWindows(clubId: string, zoneId: string): Promise<NightPricing[]> {
+    const zoned = await this.prisma.nightPricing.findMany({
       where: { clubId, zoneId, active: true },
     });
-    if (zoned) return zoned;
-    return this.prisma.nightPricing.findFirst({
+    if (zoned.length) return zoned;
+    return this.prisma.nightPricing.findMany({
       where: { clubId, zoneId: null, active: true },
     });
+  }
+
+  private timeWindowLabel(startHour: number): string {
+    if (startHour >= 21 || startHour <= 5) return 'Ночной тариф';
+    if (startHour >= 6 && startHour <= 12) return 'Утренний тариф';
+    return 'Дневной тариф';
   }
 }

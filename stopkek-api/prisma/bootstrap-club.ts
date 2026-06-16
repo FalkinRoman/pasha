@@ -55,18 +55,21 @@ async function main() {
   }
 
   const packages = [
-    { minHours: 3, discountPercent: 10, label: 'Пакет 3 ч', badge: '−10%', sortOrder: 0 },
-    { minHours: 4, discountPercent: 15, label: 'Пакет 4 ч', badge: '−15%', recommended: true, sortOrder: 1 },
-    { minHours: 6, discountPercent: 20, label: 'Пакет 6 ч', badge: '−20%', sortOrder: 2 },
-    { minHours: 8, discountPercent: 25, label: 'Пакет 8 ч', badge: '−25%', sortOrder: 3 },
+    { minHours: 3, discountPercent: 7,  label: 'Пакет 3 ч', badge: '−7%',  sortOrder: 0 },
+    { minHours: 6, discountPercent: 13, label: 'Пакет 6 ч', badge: '−13%', sortOrder: 1 },
+    { minHours: 8, discountPercent: 16, label: 'Пакет 8 ч', badge: '−16%', recommended: true, sortOrder: 2 },
   ];
   for (const p of packages) {
-    await prisma.durationPackage.create({
-      data: { clubId: club.id, ...p },
-    });
+    await prisma.durationPackage.create({ data: { clubId: club.id, ...p } });
   }
+
+  // Ночной тариф 23:00–08:00 (-36%)
   await prisma.nightPricing.create({
-    data: { clubId: club.id, startHour: 23, endHour: 7, discountPercent: 20 },
+    data: { clubId: club.id, startHour: 23, endHour: 8, discountPercent: 36 },
+  });
+  // Утренний тариф 10:00–16:00 (-26%)
+  await prisma.nightPricing.create({
+    data: { clubId: club.id, startHour: 10, endHour: 16, discountPercent: 26 },
   });
 
   console.log('Клуб создан:', club.name, '— 4 соло-капсулы, тарифы по умолчанию.');
