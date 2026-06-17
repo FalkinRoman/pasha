@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { endSeatSession, fetchState, KioskConfig, KioskState } from './api';
 import { QrPanel } from './QrPanel';
 import { SessionHeader } from './SessionHeader';
-import { StaffQuitModal } from './StaffQuitModal';
+import { StaffPinPad } from './StaffPinPad';
 
 function formatMs(ms: number) {
   const t = Math.max(0, Math.floor(ms / 1000));
@@ -106,7 +106,7 @@ export function App() {
   };
 
   if (staffQuitOpen) {
-    return <StaffQuitModal open onClose={closeStaffQuit} />;
+    return <StaffPinPad open onClose={closeStaffQuit} />;
   }
 
   if (!cfg) {
@@ -152,6 +152,14 @@ export function App() {
 
   return (
     <div className="app overlay-mode">
+      <button
+        type="button"
+        className="overlay-staff-btn"
+        onClick={() => setStaffQuitOpen(true)}
+        title="Персонал"
+      >
+        ×
+      </button>
       <div className="logo">STOPKEK</div>
       <p className="seat-badge">ПК #{seatNum}</p>
       <div className="card card-wide">

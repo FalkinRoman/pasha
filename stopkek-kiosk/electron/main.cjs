@@ -7,6 +7,7 @@ const {
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { execSync } = require('child_process');
 
 const HEADER_HEIGHT = 72;
 
@@ -14,13 +15,86 @@ const DEFAULT_CONFIG = {
   apiUrl: 'https://stopkek.site/api',
   seatNumber: 1,
   kioskKey: 'stopkek-kiosk-prod-2026',
-  staffPassword: 'stopkek-staff',
+  staffPassword: '12345678',
 };
 
 let mainWindow = null;
 let displayMode = 'overlay';
 let staffQuitOpen = false;
 let displayModeBeforeStaffQuit = 'overlay';
+
+// Шорткаты, которые блокируем в overlay-режиме
+const OVERLAY_BLOCK_SHORTCUTS = [
+  'Super+D',            // Показать рабочий стол
+  'Super+Tab',          // Task View (Win+Tab)
+  'Super+M',            // Свернуть все окна
+  'Super+E',            // Проводник
+  'Super+R',            // Диалог "Выполнить"
+  'Super+L',            // Блокировка экрана
+  'Super+X',            // Меню быстрого доступа
+  'Super+I',            // Параметры Windows
+  'Super+A',            // Центр уведомлений
+  'Ctrl+Shift+Escape',  // Диспетчер задач
+  'Alt+F4',             // Закрыть приложение
+];
+
+function regAdd(key, name, type, value) {
+  execSync(
+    `reg add "${key}" /v ${name} /t ${type} /d ${value} /f`,
+    { stdio: 'ignore', windowsHide: true }
+  );
+}
+
+function regDel(key, name) {
+  try {
+    execSync(
+      `reg delete "${key}" /v ${name} /f`,
+      { stdio: 'ignore', windowsHide: true }
+    );
+  } catch {}
+}
+
+// Заблокировать системные шорткаты через реестр (только Windows)
+function disableSystemShortcuts() {
+  if (process.platform !== 'win32') return;
+  try {
+    // Диспетчер задач
+    regAdd(
+      'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System',
+      'DisableTaskMgr', 'REG_DWORD', '1'
+    );
+    // Все Win+* шорткаты (Win+D, Win+Tab, Win+E, Win+R, Win+L и т.д.)
+    regAdd(
+      'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer',
+      'NoWinKeys', 'REG_DWORD', '1'
+    );
+  } catch {}
+}
+
+// Вернуть всё обратно при выходе
+function enableSystemShortcuts() {
+  if (process.platform !== 'win32') return;
+  regDel(
+    'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System',
+    'DisableTaskMgr'
+  );
+  regDel(
+    'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer',
+    'NoWinKeys'
+  );
+}
+
+function registerOverlayBlockShortcuts() {
+  OVERLAY_BLOCK_SHORTCUTS.forEach((key) => {
+    try { globalShortcut.register(key, () => {}); } catch {}
+  });
+}
+
+function unregisterOverlayBlockShortcuts() {
+  OVERLAY_BLOCK_SHORTCUTS.forEach((key) => {
+    try { globalShortcut.unregister(key); } catch {}
+  });
+}
 
 function resolveConfigPath() {
   const besideExe = path.join(path.dirname(process.execPath), 'config.json');
@@ -43,6 +117,8 @@ function primaryBounds() {
 function applyHeaderMode(win) {
   const { width } = primaryBounds();
   displayMode = 'header';
+  unregisterOverlayBlockShortcuts();
+  enableSystemShortcuts();
   win.setKiosk(false);
   win.setFullScreen(false);
   win.setAlwaysOnTop(true, 'screen-saver');
@@ -66,6 +142,8 @@ function applyHeaderMode(win) {
 function applyOverlayMode(win) {
   const b = primaryBounds();
   displayMode = 'overlay';
+  registerOverlayBlockShortcuts();
+  disableSystemShortcuts();
   win.setResizable(false);
   win.setMovable(false);
   win.setSkipTaskbar(true);
@@ -147,6 +225,32 @@ function createWindow() {
     win.webContents.send('display-mode', displayMode);
   });
 
+  // Блокировать все клавиатурные события в overlay-режиме (Chromium-уровень)
+  win.webContents.on('before-input-event', (event, input) => {
+    if (displayMode === 'overlay' && !staffQuitOpen) {
+      // Пропускаем только Ctrl+Shift+Q для персонала (globalShortcut перехватит его раньше,
+      // но на всякий случай не глушим)
+      const isStaffShortcut =
+        (input.control || input.meta) && input.shift && input.key.toLowerCase() === 'q';
+      if (!isStaffShortcut) {
+        event.preventDefault();
+      }
+    }
+  });
+
+  // Steal focus: если окно теряет фокус в overlay-режиме — немедленно забираем обратно
+  win.on('blur', () => {
+    if (displayMode === 'overlay' && !staffQuitOpen) {
+      setTimeout(() => {
+        if (!win.isDestroyed() && displayMode === 'overlay' && !staffQuitOpen) {
+          win.show();
+          win.setAlwaysOnTop(true, 'screen-saver');
+          win.focus();
+        }
+      }, 50);
+    }
+  });
+
   if (process.env.VITE_DEV_SERVER_URL) {
     win.loadURL('http://127.0.0.1:5174');
   } else {
@@ -192,6 +296,7 @@ if (!gotLock) {
       }
     });
     ipcMain.on('staff-quit-confirmed', () => {
+      enableSystemShortcuts();
       app.isQuitting = true;
       app.exit(0);
     });
@@ -199,6 +304,7 @@ if (!gotLock) {
 }
 
 app.on('will-quit', () => {
+  enableSystemShortcuts();
   globalShortcut.unregisterAll();
 });
 
