@@ -54,6 +54,18 @@ function regDel(key, name) {
   } catch {}
 }
 
+// ☆ НОВОЕ: Убить все дочерние процессы (при выходе)
+function killChildProcesses() {
+  if (process.platform !== 'win32') return;
+  try {
+    // Убить все дочерние процессы текущего приложения
+    execSync(
+      `taskkill /F /IM "stopkek Kiosk 0.1.0.exe" /T`,
+      { stdio: 'ignore', windowsHide: true }
+    );
+  } catch {}
+}
+
 // Заблокировать системные шорткаты через реестр (только Windows)
 function disableSystemShortcuts() {
   if (process.platform !== 'win32') return;
@@ -228,13 +240,25 @@ function createWindow() {
   // Блокировать все клавиатурные события в overlay-режиме (Chromium-уровень)
   win.webContents.on('before-input-event', (event, input) => {
     if (displayMode === 'overlay' && !staffQuitOpen) {
-      // Пропускаем только Ctrl+Shift+Q для персонала (globalShortcut перехватит его раньше,
-      // но на всякий случай не глушим)
+      // Пропускаем только Ctrl+Shift+Q для персонала
       const isStaffShortcut =
         (input.control || input.meta) && input.shift && input.key.toLowerCase() === 'q';
       if (!isStaffShortcut) {
         event.preventDefault();
+        return;
       }
+    }
+
+    // ☆ НОВОЕ: Блокировать Alt+F4 везде (не только в overlay)
+    if (input.alt && input.key.toLowerCase() === 'f4') {
+      event.preventDefault();
+      return;
+    }
+
+    // ☆ НОВОЕ: Блокировать Alt+Tab везде
+    if (input.alt && input.key.toLowerCase() === 'tab') {
+      event.preventDefault();
+      return;
     }
   });
 
@@ -248,6 +272,25 @@ function createWindow() {
           win.focus();
         }
       }, 50);
+    }
+  });
+
+  // ☆ НОВОЕ: Перехватывать попытку скрыть окно (minimize)
+  win.on('minimize', (e) => {
+    if (displayMode === 'overlay' && !staffQuitOpen) {
+      e.preventDefault();
+      win.show();
+      win.focus();
+    }
+  });
+
+  // ☆ НОВОЕ: Дополнительная защита от скрытия окна
+  win.on('hide', () => {
+    if (displayMode === 'overlay' && !staffQuitOpen && !win.isDestroyed()) {
+      setTimeout(() => {
+        win.show();
+        win.focus();
+      }, 100);
     }
   });
 
@@ -296,14 +339,24 @@ if (!gotLock) {
       }
     });
     ipcMain.on('staff-quit-confirmed', () => {
+      // ☆ НОВОЕ: Убить все дочерние процессы перед выходом
+      killChildProcesses();
+
       enableSystemShortcuts();
       app.isQuitting = true;
-      app.exit(0);
+
+      // Дать время на завершение процессов
+      setTimeout(() => {
+        app.exit(0);
+      }, 500);
     });
   });
 }
 
 app.on('will-quit', () => {
+  // ☆ НОВОЕ: Убить все дочерние процессы при выходе приложения
+  killChildProcesses();
+
   enableSystemShortcuts();
   globalShortcut.unregisterAll();
 });

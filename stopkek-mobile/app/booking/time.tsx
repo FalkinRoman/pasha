@@ -1,8 +1,14 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { quoteBooking } from '../../src/api/bookings';
 import { Card } from '../../src/components/ui/Card';
 import { Header } from '../../src/components/ui/Header';
@@ -13,144 +19,114 @@ import { setDuration, setPriceQuote, setStartAt } from '../../src/store/bookingS
 import { colors } from '../../src/theme/colors';
 import { radius, spacing } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
-import { PresetQuote } from '../../src/types';
-import {
-  formatDurationHours,
-  formatMoney,
-  formatSessionDateLine,
-  formatSessionDay,
-  formatTimeHM,
-} from '../../src/utils/format';
+import { formatDurationHours, formatMoney, formatSessionDay, formatTimeHM } from '../../src/utils/format';
 
-const PRESETS = [1, 3, 6, 8];
-
-const TIME_PACKAGES = [
-  { id: 'night',   label: 'Пакет ночь',  window: '23:00–08:00', startHour: 23, durationHours: 9,  discountPct: 36 },
-  { id: 'morning', label: 'Пакет утро',  window: '10:00–16:00', startHour: 10, durationHours: 6,  discountPct: 26 },
+// ─── Пресеты с фиксированными скидками ───────────────────────────────────────
+const PRESETS = [
+  { hours: 1, discountPct: 0  },
+  { hours: 3, discountPct: 7  },
+  { hours: 6, discountPct: 13 },
+  { hours: 8, discountPct: 16 },
 ] as const;
-const MIN_HOURS = 1;
-const MAX_HOURS = 12;
 
-function presetMeta(presets: PresetQuote[] | undefined, h: number) {
-  return presets?.find((p) => p.hours === h);
+// ─── Пакеты ───────────────────────────────────────────────────────────────────
+const PACKAGES = [
+  { id: 'night',   label: 'Пакет ночь', window: '23:00–08:00', startHour: 23, hours: 9, discountPct: 36 },
+  { id: 'morning', label: 'Пакет утро', window: '10:00–16:00', startHour: 10, hours: 6, discountPct: 26 },
+] as const;
+
+function floorToMinute(d: Date) {
+  const r = new Date(d);
+  r.setSeconds(0, 0);
+  return r;
 }
 
 export default function TimeScreen() {
   const dispatch = useAppDispatch();
-  const { selectedSeatIds, seats, zones, durationHours, priceQuote } = useAppSelector(
-    (s) => s.booking
-  );
+  const { selectedSeatIds, seats, zones, durationHours } = useAppSelector((s) => s.booking);
   const seat = seats.find((s) => s.id === selectedSeatIds[0]);
   const zone = zones.find((z) => z.id === seat?.zoneId);
   const pricePerHour = zone?.pricePerHour ?? 150;
 
-  const [startMode, setStartMode] = useState<'now' | 'pick'>('now');
-  const [nowAnchor, setNowAnchor] = useState(() => new Date());
-  const [pickedStart, setPickedStart] = useState(() => {
-    const d = new Date();
-    d.setSeconds(0, 0);
-    d.setMinutes(d.getMinutes() + 1);
-    return d;
-  });
-  const [customHoursText, setCustomHoursText] = useState(String(durationHours));
-  const [useCustomHours, setUseCustomHours] = useState(!PRESETS.includes(durationHours));
   const [activePackage, setActivePackage] = useState<string | null>(null);
-  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [pickedDate, setPickedDate]       = useState<Date>(() => floorToMinute(new Date()));
+  const [quoteLoading, setQuoteLoading]   = useState(false);
 
-  const hours = useMemo(() => {
-    const n = parseInt(customHoursText.replace(/\D/g, ''), 10);
-    if (!n || n < MIN_HOURS) return MIN_HOURS;
-    if (n > MAX_HOURS) return MAX_HOURS;
-    return n;
-  }, [customHoursText]);
+  const minDate = useMemo(() => floorToMinute(new Date()), []);
 
-  const effectiveHours = useCustomHours ? hours : durationHours;
-  const startDate = startMode === 'now' ? nowAnchor : pickedStart;
-
-  useEffect(() => {
-    if (startMode === 'now') setNowAnchor(new Date());
-  }, [startMode]);
+  // ── Эффективное начало ────────────────────────────────────────────────────
+  const startDate = useMemo(() => {
+    const pkg = PACKAGES.find((p) => p.id === activePackage);
+    if (!pkg) return pickedDate;
+    const d = new Date(pickedDate);
+    d.setHours(pkg.startHour, 0, 0, 0);
+    if (d < new Date()) d.setDate(d.getDate() + 1);
+    return d;
+  }, [pickedDate, activePackage]);
 
   const endDate = useMemo(
-    () => new Date(startDate.getTime() + effectiveHours * 3600_000),
-    [startDate, effectiveHours]
+    () => new Date(startDate.getTime() + durationHours * 3_600_000),
+    [startDate, durationHours]
   );
-
-  const hoursError =
-    hours < MIN_HOURS || hours > MAX_HOURS ? `От ${MIN_HOURS} до ${MAX_HOURS} ч` : '';
 
   const startAtIso = startDate.toISOString();
 
   useEffect(() => {
-    if (!seat?.id || hoursError) return;
+    if (!seat?.id) return;
     let cancelled = false;
     setQuoteLoading(true);
-    quoteBooking(seat.id, effectiveHours, startAtIso)
-      .then((q) => {
-        if (!cancelled) {
-          dispatch(setPriceQuote(q));
-          dispatch(setDuration(effectiveHours));
-          dispatch(setStartAt(startAtIso));
-        }
-      })
-      .catch(() => {
-        if (!cancelled) dispatch(setPriceQuote(null));
-      })
-      .finally(() => {
-        if (!cancelled) setQuoteLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [seat?.id, effectiveHours, startAtIso, hoursError, dispatch]);
+    quoteBooking(seat.id, durationHours, startAtIso)
+      .then((q) => { if (!cancelled) { dispatch(setPriceQuote(q)); dispatch(setStartAt(startAtIso)); } })
+      .catch(() => { if (!cancelled) dispatch(setPriceQuote(null)); })
+      .finally(() => { if (!cancelled) setQuoteLoading(false); });
+    return () => { cancelled = true; };
+  }, [seat?.id, durationHours, startAtIso, dispatch]);
 
-  const totalPrice = priceQuote?.totalPriceRub ?? pricePerHour * effectiveHours;
-  const basePrice = priceQuote?.basePriceRub ?? pricePerHour * effectiveHours;
-  const hasDiscount = (priceQuote?.discountRub ?? 0) > 0;
-  const nightMinutes = priceQuote?.nightMinutes ?? 0;
-  const nightShare =
-    effectiveHours > 0 ? Math.min(100, Math.round((nightMinutes / (effectiveHours * 60)) * 100)) : 0;
+  // ── Ценообразование ───────────────────────────────────────────────────────
+  const pkg = PACKAGES.find((p) => p.id === activePackage) ?? null;
 
+  const calcPrice = (h: number, discPct: number) => ({
+    original:    pricePerHour * h,
+    discounted:  Math.round(pricePerHour * h * (1 - discPct / 100)),
+    saving:      Math.round(pricePerHour * h * discPct / 100),
+    hasDiscount: discPct > 0,
+  });
+
+  const summaryPricing = pkg
+    ? calcPrice(pkg.hours, pkg.discountPct)
+    : calcPrice(durationHours, PRESETS.find((p) => p.hours === durationHours)?.discountPct ?? 0);
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
   const selectPreset = (h: number) => {
-    setUseCustomHours(false);
     setActivePackage(null);
     dispatch(setDuration(h));
-    setCustomHoursText(String(h));
   };
 
-  const selectTimePackage = (pkg: typeof TIME_PACKAGES[number]) => {
-    const today = new Date();
-    const start = new Date(today);
-    start.setHours(pkg.startHour, 0, 0, 0);
-    if (start < today) start.setDate(start.getDate() + 1);
-    setStartMode('pick');
-    setPickedStart(start);
-    setUseCustomHours(false);
-    setActivePackage(pkg.id);
-    dispatch(setDuration(pkg.durationHours));
-    setCustomHoursText(String(pkg.durationHours));
+  const selectPackage = (p: typeof PACKAGES[number]) => {
+    const isActive = activePackage === p.id;
+    setActivePackage(isActive ? null : p.id);
+    dispatch(setDuration(isActive ? durationHours : p.hours));
   };
 
-  const onCustomHours = (text: string) => {
-    setUseCustomHours(true);
-    setCustomHoursText(text.replace(/\D/g, ''));
+  const onDateChange = (_: unknown, date?: Date) => {
+    if (!date) return;
+    const d = new Date(date);
+    if (d < new Date()) {
+      // Если выбранное время уже прошло — ставим сейчас
+      setPickedDate(floorToMinute(new Date()));
+    } else {
+      setPickedDate(floorToMinute(d));
+    }
+    setActivePackage(null);
   };
 
-  const stepHours = (delta: number) => {
-    setUseCustomHours(true);
-    const next = Math.min(MAX_HOURS, Math.max(MIN_HOURS, hours + delta));
-    setCustomHoursText(String(next));
-  };
-
-  const next = () => {
-    if (hoursError || quoteLoading) return;
-    router.push('/booking/summary');
-  };
+  const next = () => { if (!quoteLoading) router.push('/booking/summary'); };
 
   return (
     <Screen scroll>
       <Header title="Время сеанса" back />
 
+      {/* Место */}
       <Card style={styles.seatCard}>
         <View style={styles.seatRow}>
           <View style={styles.seatBadge}>
@@ -164,137 +140,78 @@ export default function TimeScreen() {
         </View>
       </Card>
 
-      <Text style={styles.sectionTitle}>Когда начать</Text>
-      <View style={styles.segment}>
-        <Pressable
-          style={[styles.segmentBtn, startMode === 'now' && styles.segmentActive]}
-          onPress={() => setStartMode('now')}
-        >
-          <Ionicons
-            name="flash"
-            size={16}
-            color={startMode === 'now' ? '#fff' : colors.textSecondary}
-          />
-          <Text style={[styles.segmentText, startMode === 'now' && styles.segmentTextActive]}>
-            Сейчас
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.segmentBtn, startMode === 'pick' && styles.segmentActive]}
-          onPress={() => setStartMode('pick')}
-        >
-          <Ionicons
-            name="time-outline"
-            size={16}
-            color={startMode === 'pick' ? '#fff' : colors.textSecondary}
-          />
-          <Text style={[styles.segmentText, startMode === 'pick' && styles.segmentTextActive]}>
-            По расписанию
-          </Text>
-        </Pressable>
-      </View>
-
-      {startMode === 'pick' ? (
-        <View style={styles.timePickerWrap}>
-          <DateTimePicker
-            value={pickedStart}
-            mode="time"
-            display={Platform.OS === 'ios' ? 'spinner' : 'spinner'}
-            is24Hour
-            minuteInterval={1}
-            textColor={colors.text}
-            accentColor={colors.accent}
-            themeVariant="dark"
-            onChange={(_e, date) => {
-              if (!date) return;
-              const now = new Date();
-              const d = new Date(date);
-              if (d < now) d.setDate(d.getDate() + 1);
-              d.setSeconds(0, 0);
-              setPickedStart(d);
-              setActivePackage(null);
-            }}
-            style={styles.timePicker}
-          />
-          <Text style={styles.timePickerLabel}>
-            {formatSessionDay(pickedStart)}, {formatTimeHM(pickedStart)}
-          </Text>
-        </View>
-      ) : (
-        <Text style={[typography.caption, styles.nowHint]}>
-          Сеанс начнётся сразу после оплаты
-        </Text>
-      )}
-
-      <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>Сколько играть</Text>
+      {/* ── Сколько играть ── */}
+      <Text style={styles.sectionTitle}>Сколько играть</Text>
       <View style={styles.presets}>
-        {PRESETS.map((h) => {
-          const meta = presetMeta(priceQuote?.presets, h);
-          const active = !useCustomHours && durationHours === h;
-          const recommended = meta?.recommended;
+        {PRESETS.map(({ hours, discountPct }) => {
+          const active   = !activePackage && durationHours === hours;
+          const pricing  = calcPrice(hours, discountPct);
           return (
             <Pressable
-              key={h}
-              style={[
-                styles.preset,
-                active && styles.presetActive,
-                recommended && !active && styles.presetRecommended,
-              ]}
-              onPress={() => selectPreset(h)}
+              key={hours}
+              style={[styles.preset, active && styles.presetActive]}
+              onPress={() => selectPreset(hours)}
             >
-              {meta?.badge ? (
-                <View style={[styles.badge, active && styles.badgeActive]}>
-                  <Text style={[styles.badgeText, active && styles.badgeTextActive]}>
-                    {meta.badge}
+              {discountPct > 0 && (
+                <View style={[styles.discBadge, active && styles.discBadgeActive]}>
+                  <Text style={[styles.discBadgeText, active && styles.discBadgeTextActive]}>
+                    −{discountPct}%
                   </Text>
                 </View>
-              ) : null}
-              <Text style={[typography.body, active && styles.presetTextActive]}>{h} ч</Text>
-              {meta ? (
-                <Text style={[styles.presetPrice, active && styles.presetTextActive]}>
-                  {formatMoney(meta.totalPriceRub)}
-                </Text>
+              )}
+              <Text style={[styles.presetHours, active && styles.presetTextActive]}>
+                {hours} ч
+              </Text>
+              {pricing.hasDiscount ? (
+                <>
+                  <Text style={[styles.presetOrigPrice, active && styles.presetOrigPriceActive]}>
+                    {formatMoney(pricing.original)}
+                  </Text>
+                  <Text style={[styles.presetDiscPrice, active && styles.presetTextActive]}>
+                    {formatMoney(pricing.discounted)}
+                  </Text>
+                </>
               ) : (
-                <Text style={[styles.presetPrice, active && styles.presetTextActive]}>
-                  {formatMoney(pricePerHour * h)}
+                <Text style={[styles.presetDiscPrice, active && styles.presetTextActive]}>
+                  {formatMoney(pricing.original)}
                 </Text>
               )}
-              {recommended ? (
-                <Text style={[styles.recommendedLabel, active && styles.presetTextActive]}>
-                  выгодно
-                </Text>
-              ) : null}
             </Pressable>
           );
         })}
       </View>
 
+      {/* ── Пакеты ── */}
       <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>Пакеты</Text>
       <View style={styles.packages}>
-        {TIME_PACKAGES.map((pkg) => {
-          const active = activePackage === pkg.id;
-          const approxPrice = Math.round(pricePerHour * pkg.durationHours * (1 - pkg.discountPct / 100));
+        {PACKAGES.map((p) => {
+          const active   = activePackage === p.id;
+          const pricing  = calcPrice(p.hours, p.discountPct);
           return (
             <Pressable
-              key={pkg.id}
+              key={p.id}
               style={[styles.packageCard, active && styles.packageCardActive]}
-              onPress={() => selectTimePackage(pkg)}
+              onPress={() => selectPackage(p)}
             >
-              <View style={styles.packageDiscountBadge}>
-                <Text style={[styles.packageDiscountText, active && styles.packageDiscountTextActive]}>
-                  −{pkg.discountPct}%
+              <View style={[styles.pkgDiscBadge, active && styles.pkgDiscBadgeActive]}>
+                <Text style={[styles.pkgDiscText, active && styles.pkgDiscTextActive]}>
+                  −{p.discountPct}%
                 </Text>
               </View>
-              <View style={styles.packageInfo}>
-                <Text style={[typography.body, active && styles.presetTextActive]}>{pkg.label}</Text>
-                <Text style={[styles.packageWindow, active && styles.packageWindowActive]}>{pkg.window}</Text>
-              </View>
-              <View style={styles.packagePriceCol}>
-                <Text style={[typography.h3, active && styles.presetTextActive]}>
-                  {formatMoney(approxPrice)}
+              <View style={styles.pkgInfo}>
+                <Text style={[typography.body, { fontWeight: '700' }, active && styles.pkgTextActive]}>
+                  {p.label}
                 </Text>
-                <Text style={[styles.packageDuration, active && styles.packageWindowActive]}>
-                  {pkg.durationHours} ч
+                <Text style={[styles.pkgWindow, active && styles.pkgWindowActive]}>
+                  {p.window} · {p.hours} ч
+                </Text>
+              </View>
+              <View style={styles.pkgPriceCol}>
+                <Text style={[styles.pkgOrigPrice, active && styles.pkgOrigPriceActive]}>
+                  {formatMoney(pricing.original)}
+                </Text>
+                <Text style={[styles.pkgDiscPrice, active && styles.pkgDiscPriceActive]}>
+                  {formatMoney(pricing.discounted)}
                 </Text>
               </View>
             </Pressable>
@@ -302,92 +219,63 @@ export default function TimeScreen() {
         })}
       </View>
 
-      <Card style={styles.customCard}>
-        <Text style={typography.caption}>Своя длительность</Text>
-        <View style={styles.stepperRow}>
-          <Pressable style={styles.stepBtn} onPress={() => stepHours(-1)}>
-            <Ionicons name="remove" size={22} color={colors.text} />
-          </Pressable>
-          <TextInput
-            style={styles.hoursInput}
-            value={customHoursText}
-            onChangeText={onCustomHours}
-            keyboardType="number-pad"
-            maxLength={2}
-            selectTextOnFocus
-          />
-          <Pressable style={styles.stepBtn} onPress={() => stepHours(1)}>
-            <Ionicons name="add" size={22} color={colors.text} />
-          </Pressable>
-          <Text style={typography.body}>часов</Text>
+      {/* ── Дата и время (крутилка) ── */}
+      <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>Начало сеанса</Text>
+      <Card style={styles.pickerCard}>
+        {/* Метка над крутилкой */}
+        <View style={styles.pickerLabel}>
+          <Text style={styles.pickerLabelDay}>{formatSessionDay(startDate)}</Text>
+          <Text style={styles.pickerLabelTime}>{formatTimeHM(startDate)}</Text>
         </View>
-        {hoursError ? <Text style={styles.error}>{hoursError}</Text> : null}
+
+        <DateTimePicker
+          value={activePackage ? startDate : pickedDate}
+          mode="datetime"
+          display={Platform.OS === 'ios' ? 'spinner' : 'spinner'}
+          is24Hour
+          minimumDate={minDate}
+          textColor={colors.text}
+          accentColor={colors.accent}
+          themeVariant="dark"
+          onChange={onDateChange}
+          style={styles.picker}
+        />
       </Card>
 
-      <Card accent style={styles.timelineCard}>
-        <View style={styles.timelineHeader}>
-          <View style={styles.timelineCol}>
-            <Text style={typography.caption}>Начало</Text>
-            <Text style={styles.timelineTime}>{formatTimeHM(startDate)}</Text>
-            <Text style={typography.caption}>{formatSessionDateLine(startDate)}</Text>
-          </View>
-          <Ionicons name="arrow-forward" size={20} color={colors.textSecondary} />
-          <View style={[styles.timelineCol, styles.timelineColEnd]}>
-            <Text style={typography.caption}>Конец</Text>
-            <Text style={styles.timelineTime}>{formatTimeHM(endDate)}</Text>
-            <Text style={typography.caption}>{formatSessionDateLine(endDate)}</Text>
-          </View>
-        </View>
-
-        <View style={styles.barTrack}>
-          {nightShare > 0 && nightShare < 100 ? (
-            <View style={[styles.barNight, { width: `${nightShare}%` }]} />
-          ) : null}
-          <View
-            style={[
-              styles.barFill,
-              nightShare >= 100 && styles.barFillNight,
-              nightShare > 0 && nightShare < 100 && { width: `${100 - nightShare}%`, marginLeft: `${nightShare}%` },
-            ]}
-          />
-          <View style={styles.barDotStart} />
-          <View style={styles.barDotEnd} />
-        </View>
-        {nightMinutes > 0 ? (
-          <Text style={styles.nightHint}>
-            <Ionicons name="moon-outline" size={14} color={colors.accentBright} /> Ночной тариф:{' '}
-            {Math.round(nightMinutes / 60 * 10) / 10} ч
-          </Text>
-        ) : null}
-
+      {/* ── Итог ── */}
+      <Card accent style={styles.summaryCard}>
         <View style={styles.summaryRow}>
-          <Text style={typography.body}>{formatDurationHours(effectiveHours)}</Text>
+          <View style={{ flex: 1, gap: 4 }}>
+            <Text style={[typography.caption, { color: colors.textSecondary }]}>
+              {formatSessionDay(startDate)} · {formatTimeHM(startDate)} — {formatTimeHM(endDate)}
+            </Text>
+            <Text style={typography.body}>
+              {formatDurationHours(durationHours)}
+              {pkg ? `  ·  ${pkg.label}` : ''}
+            </Text>
+            {summaryPricing.hasDiscount && (
+              <Text style={styles.summaryDiscount}>
+                Скидка {pkg?.discountPct ?? PRESETS.find((p) => p.hours === durationHours)?.discountPct}%
+                {' '}·{' '}экономия {formatMoney(summaryPricing.saving)}
+              </Text>
+            )}
+          </View>
           <View style={styles.priceCol}>
-            {hasDiscount ? (
-              <Text style={styles.basePrice}>{formatMoney(basePrice)}</Text>
-            ) : null}
+            {summaryPricing.hasDiscount && (
+              <Text style={styles.origPriceLabel}>{formatMoney(summaryPricing.original)}</Text>
+            )}
             <View style={styles.priceRow}>
-              {quoteLoading ? <ActivityIndicator size="small" color={colors.accent} /> : null}
-              <Text style={typography.h3}>{formatMoney(totalPrice)}</Text>
+              {quoteLoading && <ActivityIndicator size="small" color={colors.accent} />}
+              <Text style={typography.h2}>{formatMoney(summaryPricing.discounted)}</Text>
             </View>
           </View>
         </View>
-
-        {priceQuote?.discounts.map((d, i) => (
-          <Text key={i} style={styles.discountLine}>
-            {d.label}: −{formatMoney(Math.round(d.amountKopecks / 100))}
-          </Text>
-        ))}
-
-        <Text style={[typography.caption, styles.tariff]}>
-          Тариф {zone?.name} · {formatMoney(pricePerHour)}/ч
-        </Text>
       </Card>
 
       <StopButton
         title="Продолжить"
         onPress={next}
-        disabled={Boolean(hoursError) || quoteLoading}
+        disabled={quoteLoading}
         style={styles.cta}
       />
     </Screen>
@@ -396,263 +284,83 @@ export default function TimeScreen() {
 
 const styles = StyleSheet.create({
   seatCard: { marginBottom: spacing.lg },
-  seatRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  seatRow:  { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   seatBadge: {
-    width: 48,
-    height: 48,
-    borderRadius: radius.md,
-    backgroundColor: colors.accentMuted,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 48, height: 48, borderRadius: radius.md,
+    backgroundColor: colors.accentMuted, borderWidth: 1, borderColor: colors.accent,
+    alignItems: 'center', justifyContent: 'center',
   },
-  seatNum: { ...typography.h3, color: colors.accent },
+  seatNum:  { ...typography.h3, color: colors.accent },
   seatInfo: { flex: 1, minWidth: 0, gap: 2 },
   sectionTitle: { ...typography.caption, marginBottom: spacing.sm, color: colors.textSecondary },
-  segment: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  segmentBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs,
-    paddingVertical: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.bgMuted,
-  },
-  segmentActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  segmentText: { ...typography.body, color: colors.textSecondary },
-  segmentTextActive: { color: '#fff', fontWeight: '600' },
-  nowHint: { marginBottom: spacing.sm, color: colors.textDisabled },
-  timePickerWrap: {
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-    backgroundColor: colors.bgMuted,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingBottom: spacing.sm,
-  },
-  timePicker: {
-    width: '100%',
-    height: 160,
-  },
-  timePickerLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  presets: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
+
+  /* Presets */
+  presets: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
   preset: {
-    width: '30%',
-    flexGrow: 1,
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-    paddingTop: spacing.lg,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.bgMuted,
-    position: 'relative',
-    minHeight: 72,
+    width: '22%', flexGrow: 1, alignItems: 'center',
+    paddingVertical: spacing.md, paddingTop: spacing.xl ?? 24,
+    borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.bgMuted, position: 'relative', minHeight: 96,
+    gap: 2,
   },
-  presetRecommended: {
-    borderColor: colors.accent,
+  presetActive:          { backgroundColor: colors.accent, borderColor: colors.accent },
+  presetTextActive:      { color: '#fff' },
+  presetHours:           { ...typography.body, fontWeight: '700' },
+  presetOrigPrice:       { ...typography.caption, color: colors.textDisabled, textDecorationLine: 'line-through', fontSize: 11 },
+  presetOrigPriceActive: { color: 'rgba(255,255,255,0.5)' },
+  presetDiscPrice:       { ...typography.caption, fontWeight: '600', color: colors.text },
+  discBadge: {
+    position: 'absolute', top: 5, right: 5,
+    backgroundColor: colors.accentMuted, borderRadius: radius.sm,
+    paddingHorizontal: 5, paddingVertical: 2,
   },
-  presetActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  presetTextActive: { color: '#fff', fontWeight: '600' },
-  presetPrice: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  recommendedLabel: {
-    ...typography.caption,
-    fontSize: 10,
-    color: colors.accentBright,
-    marginTop: 2,
-  },
-  badge: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    backgroundColor: colors.accentMuted,
-    borderRadius: radius.sm,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  badgeActive: { backgroundColor: 'rgba(255,255,255,0.25)' },
-  badgeText: { fontSize: 10, fontWeight: '700', color: colors.accentBright },
-  badgeTextActive: { color: '#fff' },
-  packages: {
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
+  discBadgeActive:     { backgroundColor: 'rgba(255,255,255,0.25)' },
+  discBadgeText:       { fontSize: 9, fontWeight: '800', color: colors.accentBright },
+  discBadgeTextActive: { color: '#fff' },
+
+  /* Packages */
+  packages: { gap: spacing.sm, marginBottom: spacing.md },
   packageCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    paddingVertical: spacing.md, paddingHorizontal: spacing.md,
+    borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
     backgroundColor: colors.bgMuted,
-    position: 'relative',
   },
-  packageCardActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
+  packageCardActive:   { backgroundColor: colors.accent, borderColor: colors.accent },
+  pkgDiscBadge:        {
+    backgroundColor: colors.accentMuted, borderRadius: radius.sm,
+    paddingHorizontal: 8, paddingVertical: 5, minWidth: 50, alignItems: 'center',
   },
-  packageDiscountBadge: {
-    backgroundColor: colors.accentMuted,
-    borderRadius: radius.sm,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    minWidth: 44,
-    alignItems: 'center',
+  pkgDiscBadgeActive:  { backgroundColor: 'rgba(255,255,255,0.2)' },
+  pkgDiscText:         { fontSize: 14, fontWeight: '800', color: colors.accentBright },
+  pkgDiscTextActive:   { color: '#fff' },
+  pkgInfo:             { flex: 1, gap: 2 },
+  pkgWindow:           { ...typography.caption, color: colors.textSecondary },
+  pkgWindowActive:     { color: 'rgba(255,255,255,0.75)' },
+  pkgTextActive:       { color: '#fff' },
+  pkgPriceCol:         { alignItems: 'flex-end', gap: 3 },
+  pkgOrigPrice:        { ...typography.caption, color: colors.textDisabled, textDecorationLine: 'line-through' },
+  pkgOrigPriceActive:  { color: 'rgba(255,255,255,0.5)' },
+  pkgDiscPrice:        { ...typography.body, fontWeight: '700', color: colors.text },
+  pkgDiscPriceActive:  { color: '#fff' },
+
+  /* Date picker */
+  pickerCard: { marginBottom: spacing.md, alignItems: 'center', paddingBottom: spacing.md },
+  pickerLabel: {
+    flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm,
+    marginBottom: spacing.sm, paddingTop: spacing.xs,
   },
-  packageDiscountText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.accentBright,
-  },
-  packageDiscountTextActive: { color: '#fff' },
-  packageInfo: { flex: 1, gap: 2 },
-  packageWindow: { ...typography.caption, color: colors.textSecondary },
-  packageWindowActive: { color: 'rgba(255,255,255,0.75)' },
-  packagePriceCol: { alignItems: 'flex-end', gap: 2 },
-  packageDuration: { ...typography.caption, color: colors.textSecondary },
-  customCard: { marginBottom: spacing.lg },
-  stepperRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    marginTop: spacing.sm,
-  },
-  stepBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.bgElevated,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  hoursInput: {
-    minWidth: 56,
-    textAlign: 'center',
-    ...typography.h1,
-    fontSize: 32,
-    color: colors.text,
-    paddingVertical: spacing.xs,
-  },
-  error: { ...typography.caption, color: colors.danger, marginTop: spacing.sm },
-  timelineCard: { marginBottom: spacing.lg },
-  timelineHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: spacing.lg,
-  },
-  timelineCol: { flex: 1, gap: 2 },
-  timelineColEnd: { alignItems: 'flex-end' },
-  timelineTime: { ...typography.h2, marginVertical: 2 },
-  barTrack: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.border,
-    marginBottom: spacing.sm,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  barFill: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    borderRadius: 3,
-    backgroundColor: colors.accent,
-    width: '100%',
-  },
-  barFillNight: {
-    backgroundColor: '#4a3f8c',
-  },
-  barNight: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    backgroundColor: '#4a3f8c',
-    borderRadius: 3,
-  },
-  barDotStart: {
-    position: 'absolute',
-    left: 0,
-    top: -4,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: colors.accentBright,
-    borderWidth: 2,
-    borderColor: colors.bg,
-    zIndex: 1,
-  },
-  barDotEnd: {
-    position: 'absolute',
-    right: 0,
-    top: -4,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: colors.accentBright,
-    borderWidth: 2,
-    borderColor: colors.bg,
-    zIndex: 1,
-  },
-  nightHint: {
-    ...typography.caption,
-    color: colors.accentBright,
-    marginBottom: spacing.md,
-    textAlign: 'center',
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  priceCol: { alignItems: 'flex-end' },
-  priceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  basePrice: {
-    ...typography.caption,
-    color: colors.textDisabled,
-    textDecorationLine: 'line-through',
-  },
-  discountLine: {
-    ...typography.caption,
-    color: colors.accentBright,
-    textAlign: 'center',
-    marginTop: spacing.xs,
-  },
-  tariff: { marginTop: spacing.xs, color: colors.textSecondary, textAlign: 'center' },
+  pickerLabelDay:  { ...typography.body, fontWeight: '700', color: colors.text },
+  pickerLabelTime: { ...typography.h2, color: colors.accent },
+  picker:          { width: '100%', height: 180 },
+
+  /* Summary */
+  summaryCard:       { marginTop: spacing.sm, marginBottom: spacing.md },
+  summaryRow:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.md },
+  priceCol:          { alignItems: 'flex-end' },
+  priceRow:          { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  origPriceLabel:    { ...typography.caption, color: colors.textDisabled, textDecorationLine: 'line-through' },
+  summaryDiscount:   { fontSize: 11, fontWeight: '700', color: colors.accentBright },
+
   cta: { marginTop: 'auto' },
 });
