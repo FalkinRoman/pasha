@@ -8,6 +8,7 @@ interface BookingState {
   selectedSeatIds: string[];
   startAt: string | null;
   durationHours: number;
+  activePackageId: string | null;
   calculatedPrice: number;
   priceQuote: BookingPriceQuote | null;
   pendingBookingId: string | null;
@@ -20,7 +21,8 @@ const initialState: BookingState = {
   club: null,
   selectedSeatIds: [],
   startAt: null,
-  durationHours: 2,
+  durationHours: 1,
+  activePackageId: null,
   calculatedPrice: 0,
   priceQuote: null,
   pendingBookingId: null,
@@ -44,6 +46,9 @@ const bookingSlice = createSlice({
     setDuration(state, action: PayloadAction<number>) {
       state.durationHours = action.payload;
     },
+    setActivePackageId(state, action: PayloadAction<string | null>) {
+      state.activePackageId = action.payload;
+    },
     setStartAt(state, action: PayloadAction<string>) {
       state.startAt = action.payload;
     },
@@ -52,15 +57,13 @@ const bookingSlice = createSlice({
     },
     setPriceQuote(state, action: PayloadAction<BookingPriceQuote | null>) {
       state.priceQuote = action.payload;
-      if (action.payload) {
-        state.calculatedPrice = action.payload.totalPriceRub;
-      }
     },
     setPendingBookingId(state, action: PayloadAction<string | null>) {
       state.pendingBookingId = action.payload;
     },
     clearDraft(state) {
       state.selectedSeatIds = [];
+      state.activePackageId = null;
       state.calculatedPrice = 0;
       state.priceQuote = null;
       state.pendingBookingId = null;
@@ -90,6 +93,7 @@ const bookingSlice = createSlice({
 export const {
   toggleSeat,
   setDuration,
+  setActivePackageId,
   setStartAt,
   setCalculatedPrice,
   setPriceQuote,

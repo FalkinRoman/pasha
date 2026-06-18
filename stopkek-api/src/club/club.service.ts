@@ -150,14 +150,17 @@ export class ClubService {
   async getFloorMap() {
     await this.bookings.syncSeatStates();
 
-    const club = await this.prisma.club.findFirst({
-      include: {
-        zones: {
-          orderBy: { sortOrder: 'asc' },
-          include: { seats: { orderBy: { number: 'asc' } } },
+    const [statuses, club] = await Promise.all([
+      this.bookings.getFloorMapSeatStatuses(),
+      this.prisma.club.findFirst({
+        include: {
+          zones: {
+            orderBy: { sortOrder: 'asc' },
+            include: { seats: { orderBy: { number: 'asc' } } },
+          },
         },
-      },
-    });
+      }),
+    ]);
     if (!club) throw new NotFoundException('Клуб не найден');
 
     return {
@@ -184,7 +187,7 @@ export class ClubService {
           y: s.y,
           w: s.w,
           h: s.h,
-          status: s.status,
+          status: statuses.get(s.id) ?? s.status,
         }))
       ),
     };

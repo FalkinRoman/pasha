@@ -9,84 +9,72 @@ import {
   View,
 } from 'react-native';
 import { quoteBooking } from '../../src/api/bookings';
+import {
+  BOOKING_PACKAGES,
+  BOOKING_PRESETS,
+  calcBookingPrice,
+  getBookingSummaryPricing,
+  resolveBookingStartDate,
+} from '../../src/constants/bookingPricing';
 import { Card } from '../../src/components/ui/Card';
 import { Header } from '../../src/components/ui/Header';
 import { Screen } from '../../src/components/ui/Screen';
 import { StopButton } from '../../src/components/ui/StopButton';
 import { useAppDispatch, useAppSelector } from '../../src/store/hooks';
-import { setDuration, setPriceQuote, setStartAt } from '../../src/store/bookingSlice';
+import { setActivePackageId, setCalculatedPrice, setDuration, setPriceQuote, setStartAt } from '../../src/store/bookingSlice';
 import { colors } from '../../src/theme/colors';
 import { radius, spacing } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
 import { formatDurationHours, formatMoney, formatSessionDay, formatSessionRange, formatTimeHM } from '../../src/utils/format';
 
-// ─── Пресеты ─────────────────────────────────────────────────────────────────
-const PRESETS = [
-  { hours: 1, discountPct: 0  },
-  { hours: 3, discountPct: 7  },
-  { hours: 6, discountPct: 13 },
-  { hours: 8, discountPct: 16 },
-] as const;
 
-// ─── Пакеты ───────────────────────────────────────────────────────────────────
-const PACKAGES = [
-  { id: 'night',   label: 'Пакет ночь', window: '23:00–08:00', startHour: 23, hours: 9,  discountPct: 36 },
-  { id: 'morning', label: 'Пакет утро', window: '10:00–16:00', startHour: 10, hours: 6,  discountPct: 26 },
-] as const;
-
-
-
-// ─── Главный экран ────────────────────────────────────────────────────────────
 export default function TimeScreen() {
   const dispatch = useAppDispatch();
-  const { selectedSeatIds, seats, zones, durationHours } = useAppSelector((s) => s.booking);
+  const { selectedSeatIds, seats, zones, durationHours, activePackageId } = useAppSelector((s) => s.booking);
   const seat         = seats.find((s) => s.id === selectedSeatIds[0]);
   const zone         = zones.find((z) => z.id === seat?.zoneId);
   const pricePerHour = zone?.pricePerHour ?? 150;
 
-  const [activePackage, setActivePackage] = useState<string | null>(null);
-  const [pickedDate,    setPickedDate]    = useState(() => { const d = new Date(); d.setSeconds(0,0); return d; });
-  const [quoteLoading,  setQuoteLoading]  = useState(false);
+  const [pickedDate,   setPickedDate]   = useState(() => { const d = new Date(); d.setSeconds(0,0); return d; });
+  const [quoteLoading, setQuoteLoading] = useState(false);
 
-  const startDate = useMemo(() => {
-    const pkg = PACKAGES.find((p) => p.id === activePackage);
-    if (!pkg) return pickedDate;
-    const d = new Date(pickedDate);
-    d.setHours(pkg.startHour, 0, 0, 0);
-    if (d < new Date()) d.setDate(d.getDate() + 1);
-    return d;
-  }, [pickedDate, activePackage]);
+  const startDate = useMemo(
+    () => resolveBookingStartDate(pickedDate, activePackageId),
+    [pickedDate, activePackageId]
+  );
 
   const endDate    = useMemo(() => new Date(startDate.getTime() + durationHours * 3_600_000), [startDate, durationHours]);
   const startAtIso = startDate.toISOString();
+  const summaryPricing = useMemo(
+    () => getBookingSummaryPricing(pricePerHour, durationHours, activePackageId),
+    [pricePerHour, durationHours, activePackageId]
+  );
+  const pkg = summaryPricing.pkg;
+
+  useEffect(() => {
+    dispatch(setCalculatedPrice(summaryPricing.discounted));
+    dispatch(setStartAt(startAtIso));
+  }, [summaryPricing.discounted, startAtIso, dispatch]);
 
   useEffect(() => {
     if (!seat?.id) return;
     let cancelled = false;
     setQuoteLoading(true);
     quoteBooking(seat.id, durationHours, startAtIso)
-      .then((q) => { if (!cancelled) { dispatch(setPriceQuote(q)); dispatch(setStartAt(startAtIso)); } })
+      .then((q) => { if (!cancelled) dispatch(setPriceQuote(q)); })
       .catch(() => { if (!cancelled) dispatch(setPriceQuote(null)); })
       .finally(() => { if (!cancelled) setQuoteLoading(false); });
     return () => { cancelled = true; };
   }, [seat?.id, durationHours, startAtIso, dispatch]);
 
-  const calcPrice = (h: number, discPct: number) => ({
-    original:    pricePerHour * h,
-    discounted:  Math.round(pricePerHour * h * (1 - discPct / 100)),
-    hasDiscount: discPct > 0,
-  });
+  const selectPreset = (h: number) => {
+    dispatch(setActivePackageId(null));
+    dispatch(setDuration(h));
+  };
 
-  const pkg = PACKAGES.find((p) => p.id === activePackage) ?? null;
-  const summaryPricing = pkg
-    ? calcPrice(pkg.hours, pkg.discountPct)
-    : calcPrice(durationHours, PRESETS.find((p) => p.hours === durationHours)?.discountPct ?? 0);
-
-  const selectPreset = (h: number) => { setActivePackage(null); dispatch(setDuration(h)); };
-
-  const selectPackage = (p: typeof PACKAGES[number]) => {
-    const isActive = activePackage === p.id;
-    setActivePackage(isActive ? null : p.id);
+  const selectPackage = (p: typeof BOOKING_PACKAGES[number]) => {
+    const isActive = activePackageId === p.id;
+    dispatch(setActivePackageId(isActive ? null : p.id));
     dispatch(setDuration(isActive ? durationHours : p.hours));
   };
 
@@ -123,7 +111,7 @@ export default function TimeScreen() {
           accentColor={colors.accent}
           themeVariant="dark"
           onChange={(_: unknown, date?: Date) => {
-            if (date) { const d = new Date(date); d.setSeconds(0, 0); setPickedDate(d); setActivePackage(null); }
+            if (date) { const d = new Date(date); d.setSeconds(0, 0); setPickedDate(d); dispatch(setActivePackageId(null)); }
           }}
           style={styles.picker}
         />
@@ -132,9 +120,9 @@ export default function TimeScreen() {
       {/* Сколько играть */}
       <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>Сколько играть</Text>
       <View style={styles.presets}>
-        {PRESETS.map(({ hours, discountPct }) => {
-          const active  = !activePackage && durationHours === hours;
-          const pricing = calcPrice(hours, discountPct);
+        {BOOKING_PRESETS.map(({ hours, discountPct }) => {
+          const active  = !activePackageId && durationHours === hours;
+          const pricing = calcBookingPrice(pricePerHour, hours, discountPct);
           return (
             <Pressable key={hours} style={[styles.preset, active && styles.presetActive]} onPress={() => selectPreset(hours)}>
               {discountPct > 0 && (
@@ -159,9 +147,9 @@ export default function TimeScreen() {
       {/* Пакеты */}
       <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>Пакеты</Text>
       <View style={styles.packages}>
-        {PACKAGES.map((p) => {
-          const active  = activePackage === p.id;
-          const pricing = calcPrice(p.hours, p.discountPct);
+        {BOOKING_PACKAGES.map((p) => {
+          const active  = activePackageId === p.id;
+          const pricing = calcBookingPrice(pricePerHour, p.hours, p.discountPct);
           return (
             <Pressable key={p.id} style={[styles.packageCard, active && styles.packageCardActive]} onPress={() => selectPackage(p)}>
               <View style={[styles.pkgDiscBadge, active && styles.pkgDiscBadgeActive]}>

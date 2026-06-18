@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { BookingStatus, SessionPhase } from '@prisma/client';
+import { BookingStatus, SeatStatus, SessionPhase } from '@prisma/client';
 import { mkdirSync } from 'fs';
 import { join } from 'path';
 import { LockerLogService } from '../locker/locker-log.service';
@@ -69,6 +69,114 @@ export class BookingsService {
   private inDoorWindow(startAt: Date, endAt: Date, now = new Date()) {
     const t = now.getTime();
     return t >= this.doorWindowStart(startAt).getTime() && t < endAt.getTime();
+  }
+
+
+  /** Есть ли бронь, пересекающаяся с выбранным слотом */
+  async assertSeatAvailableForSlot(
+    seatId: string,
+    startAt: Date,
+    endAt: Date,
+    excludeBookingId?: string
+  ) {
+    const conflicts = await this.prisma.booking.findMany({
+      where: {
+        status: { in: ['pending_payment', 'paid', 'active'] },
+        startAt: { lt: endAt },
+        endAt: { gt: startAt },
+        seats: { some: { seatId } },
+        ...(excludeBookingId ? { id: { not: excludeBookingId } } : {}),
+      },
+      select: { id: true },
+    });
+    if (conflicts.length > 0) {
+      throw new BadRequestException('Место занято на выбранное время');
+    }
+  }
+
+  /** Визуальный статус места с учётом времени (не только флага в БД) */
+  resolveDisplayStatus(
+    dbStatus: SeatStatus,
+    bookings: { status: BookingStatus; startAt: Date; endAt: Date }[],
+    now = new Date()
+  ): SeatStatus {
+    if (dbStatus === 'repair') return 'repair';
+
+    if (bookings.some((b) => b.status === 'active' && now < b.endAt)) {
+      return 'occupied';
+    }
+
+    if (
+      bookings.some(
+        (b) =>
+          (b.status === 'paid' || b.status === 'pending_payment') &&
+          this.inDoorWindow(b.startAt, b.endAt, now)
+      )
+    ) {
+      return 'reserved';
+    }
+
+    return 'free';
+  }
+
+  private async recomputeSeatDbStatus(seatId: string) {
+    const seat = await this.prisma.seat.findUnique({ where: { id: seatId } });
+    if (!seat || seat.status === 'repair') return;
+
+    const now = new Date();
+    const bookings = await this.prisma.booking.findMany({
+      where: {
+        status: { in: ['pending_payment', 'paid', 'active'] },
+        endAt: { gt: now },
+        seats: { some: { seatId } },
+      },
+      select: { status: true, startAt: true, endAt: true },
+    });
+
+    const next = this.resolveDisplayStatus(seat.status, bookings, now);
+    if (seat.status !== next) {
+      await this.prisma.seat.update({
+        where: { id: seatId },
+        data: { status: next },
+      });
+    }
+  }
+
+  async getFloorMapSeatStatuses(): Promise<Map<string, SeatStatus>> {
+    const now = new Date();
+    const [seats, bookings] = await Promise.all([
+      this.prisma.seat.findMany(),
+      this.prisma.booking.findMany({
+        where: {
+          status: { in: ['pending_payment', 'paid', 'active'] },
+          endAt: { gt: now },
+        },
+        select: {
+          status: true,
+          startAt: true,
+          endAt: true,
+          seats: { select: { seatId: true } },
+        },
+      }),
+    ]);
+
+    const bySeat = new Map<string, { status: BookingStatus; startAt: Date; endAt: Date }[]>();
+    for (const b of bookings) {
+      for (const { seatId } of b.seats) {
+        const list = bySeat.get(seatId) ?? [];
+        list.push({ status: b.status, startAt: b.startAt, endAt: b.endAt });
+        bySeat.set(seatId, list);
+      }
+    }
+
+    const result = new Map<string, SeatStatus>();
+    for (const seat of seats) {
+      result.set(
+        seat.id,
+        this.resolveDisplayStatus(seat.status, bySeat.get(seat.id) ?? [], now)
+      );
+    }
+    return result;
   }
 
   private normalizePhase(
@@ -163,6 +271,14 @@ export class BookingsService {
     for (const b of dueStart) {
       await this.activateScheduledIfDue(b.id);
     }
+
+    const seats = await this.prisma.seat.findMany({
+      where: { status: { not: 'repair' } },
+      select: { id: true },
+    });
+    for (const { id } of seats) {
+      await this.recomputeSeatDbStatus(id);
+    }
   }
 
   async syncSeatStatesForKiosk() {
@@ -252,6 +368,8 @@ export class BookingsService {
     if (Number.isNaN(startAt.getTime())) {
       throw new BadRequestException('Некорректное время начала');
     }
+    const endAt = new Date(startAt.getTime() + Math.round(durationHours * 60) * 60_000);
+    await this.assertSeatAvailableForSlot(seatId, startAt, endAt);
     return this.pricing.quoteForSeat(
       seat.zoneId,
       seat.zone.clubId,
@@ -280,12 +398,6 @@ export class BookingsService {
     if (seat.status === 'repair') {
       throw new BadRequestException('Место на обслуживании');
     }
-    if (seat.status !== 'free') {
-      throw new BadRequestException('Место уже занято или забронировано');
-    }
-
-    const current = await this.getActive(userId);
-    if (current) throw new BadRequestException('Уже есть активный сеанс или бронь');
 
     const startAt = startAtIso ? new Date(startAtIso) : new Date();
     if (Number.isNaN(startAt.getTime())) {
@@ -297,6 +409,12 @@ export class BookingsService {
     }
     const durationMinutes = Math.round(durationHours * 60);
     const endAt = new Date(startAt.getTime() + durationMinutes * 60_000);
+
+    await this.assertSeatAvailableForSlot(seatId, startAt, endAt);
+
+    const current = await this.getActive(userId);
+    if (current) throw new BadRequestException('Уже есть активный сеанс или бронь');
+
     const price = await this.pricing.quoteForSeat(
       seat.zoneId,
       seat.zone.clubId,
@@ -305,29 +423,25 @@ export class BookingsService {
       startAt
     );
 
-    const booking = await this.prisma.$transaction(async (tx) => {
-      await tx.seat.update({
-        where: { id: seatId },
-        data: { status: 'reserved' },
-      });
-      return tx.booking.create({
-        data: {
-          userId,
-          status: 'pending_payment',
-          sessionPhase: 'awaiting_arrival',
-          startAt,
-          endAt,
-          durationMinutes,
-          basePrice: price.basePriceKopecks,
-          discountAmount: price.discountAmountKopecks,
-          totalPrice: price.totalPriceKopecks,
-          seats: {
-            create: { seatId, seatNumber: seat.number },
-          },
+    const booking = await this.prisma.booking.create({
+      data: {
+        userId,
+        status: 'pending_payment',
+        sessionPhase: 'awaiting_arrival',
+        startAt,
+        endAt,
+        durationMinutes,
+        basePrice: price.basePriceKopecks,
+        discountAmount: price.discountAmountKopecks,
+        totalPrice: price.totalPriceKopecks,
+        seats: {
+          create: { seatId, seatNumber: seat.number },
         },
-        include: { seats: { include: { seat: { include: { zone: true } } } } },
-      });
+      },
+      include: { seats: { include: { seat: { include: { zone: true } } } } },
     });
+
+    await this.recomputeSeatDbStatus(seatId);
 
     return this.formatBooking(booking);
   }
@@ -355,9 +469,13 @@ export class BookingsService {
 
     const seat = booking.seats[0]?.seat;
     if (!seat) throw new BadRequestException('Нет места в брони');
-    if (seat.status !== 'reserved') {
-      throw new BadRequestException('Место больше недоступно');
-    }
+
+    await this.assertSeatAvailableForSlot(
+      seat.id,
+      booking.startAt,
+      booking.endAt,
+      bookingId
+    );
 
     const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
     if (!wallet || wallet.balance < booking.totalPrice) {
@@ -411,7 +529,7 @@ export class BookingsService {
       }
 
       const phase: SessionPhase = inWindow ? 'arrival' : 'awaiting_arrival';
-      return tx.booking.update({
+      const paid = await tx.booking.update({
         where: { id: bookingId },
         data: {
           status: 'paid',
@@ -419,7 +537,12 @@ export class BookingsService {
         },
         include: { seats: { include: { seat: { include: { zone: true } } } } },
       });
+      return paid;
     });
+
+    for (const s of updated.seats) {
+      await this.recomputeSeatDbStatus(s.seatId);
+    }
 
     if (updated.status === 'active') {
       const seatNum = updated.seats[0]?.seatNumber ?? 0;
@@ -625,13 +748,11 @@ export class BookingsService {
         where: { id: bookingId },
         data: { status },
       });
-      for (const s of booking.seats) {
-        await tx.seat.update({
-          where: { id: s.seatId },
-          data: { status: 'free' },
-        });
-      }
     });
+
+    for (const s of booking.seats) {
+      await this.recomputeSeatDbStatus(s.seatId);
+    }
   }
 
   formatBooking(booking: {
