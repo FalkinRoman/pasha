@@ -45,6 +45,34 @@ export function formatTimeHM(d: Date) {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+const WEEKDAYS = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
+const MONTHS_GENITIVE = [
+  'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
+];
+
+export function formatPickerDay(d: Date) {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diff = Math.round((day.getTime() - today.getTime()) / 86400000);
+  if (diff === 0) return 'Сегодня';
+  if (diff === 1) return 'Завтра';
+  return `${WEEKDAYS[d.getDay()]}, ${d.getDate()} ${MONTHS_GENITIVE[d.getMonth()]}`;
+}
+
+export function formatSessionRange(start: Date, end: Date) {
+  const sameDay = start.toDateString() === end.toDateString();
+  if (sameDay) {
+    return `${formatTimeHM(start)} — ${formatTimeHM(end)} · ${formatPickerDay(start)}`;
+  }
+  return `${formatTimeHM(start)} · ${formatPickerDay(start)} — ${formatTimeHM(end)} · ${formatPickerDay(end)}`;
+}
+
+export function formatSessionDateTime(d: Date) {
+  return `${formatTimeHM(d)} · ${formatPickerDay(d)}`;
+}
+
 export function formatSessionDay(d: Date) {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());

@@ -18,7 +18,9 @@
       "bundleIdentifier": "com.stopkek.mobile",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSCameraUsageDescription": "Камера используется для фото с документом при верификации и для сканирования QR-кода на мониторе ПК"
+        "NSCameraUsageDescription": "Камера используется для фото с документом при верификации и для сканирования QR-кода на мониторе ПК",
+        "CFBundleDevelopmentRegion": "ru",
+        "CFBundleLocalizations": ["ru"]
       }
     },
     "android": {
@@ -30,7 +32,12 @@
       "edgeToEdgeEnabled": true,
       "permissions": [
         "android.permission.CAMERA"
-      ]
+      ],
+      "locales": {
+        "ru": {
+          "app_name": "СТОПкек"
+        }
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png",

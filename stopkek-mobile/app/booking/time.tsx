@@ -3,7 +3,6 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -19,9 +18,9 @@ import { setDuration, setPriceQuote, setStartAt } from '../../src/store/bookingS
 import { colors } from '../../src/theme/colors';
 import { radius, spacing } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
-import { formatDurationHours, formatMoney, formatSessionDay, formatTimeHM } from '../../src/utils/format';
+import { formatDurationHours, formatMoney, formatSessionDay, formatSessionRange, formatTimeHM } from '../../src/utils/format';
 
-// ─── Пресеты с фиксированными скидками ───────────────────────────────────────
+// ─── Пресеты ─────────────────────────────────────────────────────────────────
 const PRESETS = [
   { hours: 1, discountPct: 0  },
   { hours: 3, discountPct: 7  },
@@ -31,30 +30,24 @@ const PRESETS = [
 
 // ─── Пакеты ───────────────────────────────────────────────────────────────────
 const PACKAGES = [
-  { id: 'night',   label: 'Пакет ночь', window: '23:00–08:00', startHour: 23, hours: 9, discountPct: 36 },
-  { id: 'morning', label: 'Пакет утро', window: '10:00–16:00', startHour: 10, hours: 6, discountPct: 26 },
+  { id: 'night',   label: 'Пакет ночь', window: '23:00–08:00', startHour: 23, hours: 9,  discountPct: 36 },
+  { id: 'morning', label: 'Пакет утро', window: '10:00–16:00', startHour: 10, hours: 6,  discountPct: 26 },
 ] as const;
 
-function floorToMinute(d: Date) {
-  const r = new Date(d);
-  r.setSeconds(0, 0);
-  return r;
-}
 
+
+// ─── Главный экран ────────────────────────────────────────────────────────────
 export default function TimeScreen() {
   const dispatch = useAppDispatch();
   const { selectedSeatIds, seats, zones, durationHours } = useAppSelector((s) => s.booking);
-  const seat = seats.find((s) => s.id === selectedSeatIds[0]);
-  const zone = zones.find((z) => z.id === seat?.zoneId);
+  const seat         = seats.find((s) => s.id === selectedSeatIds[0]);
+  const zone         = zones.find((z) => z.id === seat?.zoneId);
   const pricePerHour = zone?.pricePerHour ?? 150;
 
   const [activePackage, setActivePackage] = useState<string | null>(null);
-  const [pickedDate, setPickedDate]       = useState<Date>(() => floorToMinute(new Date()));
-  const [quoteLoading, setQuoteLoading]   = useState(false);
+  const [pickedDate,    setPickedDate]    = useState(() => { const d = new Date(); d.setSeconds(0,0); return d; });
+  const [quoteLoading,  setQuoteLoading]  = useState(false);
 
-  const minDate = useMemo(() => floorToMinute(new Date()), []);
-
-  // ── Эффективное начало ────────────────────────────────────────────────────
   const startDate = useMemo(() => {
     const pkg = PACKAGES.find((p) => p.id === activePackage);
     if (!pkg) return pickedDate;
@@ -64,11 +57,7 @@ export default function TimeScreen() {
     return d;
   }, [pickedDate, activePackage]);
 
-  const endDate = useMemo(
-    () => new Date(startDate.getTime() + durationHours * 3_600_000),
-    [startDate, durationHours]
-  );
-
+  const endDate    = useMemo(() => new Date(startDate.getTime() + durationHours * 3_600_000), [startDate, durationHours]);
   const startAtIso = startDate.toISOString();
 
   useEffect(() => {
@@ -82,45 +71,24 @@ export default function TimeScreen() {
     return () => { cancelled = true; };
   }, [seat?.id, durationHours, startAtIso, dispatch]);
 
-  // ── Ценообразование ───────────────────────────────────────────────────────
-  const pkg = PACKAGES.find((p) => p.id === activePackage) ?? null;
-
   const calcPrice = (h: number, discPct: number) => ({
     original:    pricePerHour * h,
     discounted:  Math.round(pricePerHour * h * (1 - discPct / 100)),
-    saving:      Math.round(pricePerHour * h * discPct / 100),
     hasDiscount: discPct > 0,
   });
 
+  const pkg = PACKAGES.find((p) => p.id === activePackage) ?? null;
   const summaryPricing = pkg
     ? calcPrice(pkg.hours, pkg.discountPct)
     : calcPrice(durationHours, PRESETS.find((p) => p.hours === durationHours)?.discountPct ?? 0);
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
-  const selectPreset = (h: number) => {
-    setActivePackage(null);
-    dispatch(setDuration(h));
-  };
+  const selectPreset = (h: number) => { setActivePackage(null); dispatch(setDuration(h)); };
 
   const selectPackage = (p: typeof PACKAGES[number]) => {
     const isActive = activePackage === p.id;
     setActivePackage(isActive ? null : p.id);
     dispatch(setDuration(isActive ? durationHours : p.hours));
   };
-
-  const onDateChange = (_: unknown, date?: Date) => {
-    if (!date) return;
-    const d = new Date(date);
-    if (d < new Date()) {
-      // Если выбранное время уже прошло — ставим сейчас
-      setPickedDate(floorToMinute(new Date()));
-    } else {
-      setPickedDate(floorToMinute(d));
-    }
-    setActivePackage(null);
-  };
-
-  const next = () => { if (!quoteLoading) router.push('/booking/summary'); };
 
   return (
     <Screen scroll>
@@ -140,109 +108,80 @@ export default function TimeScreen() {
         </View>
       </Card>
 
-      {/* ── Сколько играть ── */}
-      <Text style={styles.sectionTitle}>Сколько играть</Text>
-      <View style={styles.presets}>
-        {PRESETS.map(({ hours, discountPct }) => {
-          const active   = !activePackage && durationHours === hours;
-          const pricing  = calcPrice(hours, discountPct);
-          return (
-            <Pressable
-              key={hours}
-              style={[styles.preset, active && styles.presetActive]}
-              onPress={() => selectPreset(hours)}
-            >
-              {discountPct > 0 && (
-                <View style={[styles.discBadge, active && styles.discBadgeActive]}>
-                  <Text style={[styles.discBadgeText, active && styles.discBadgeTextActive]}>
-                    −{discountPct}%
-                  </Text>
-                </View>
-              )}
-              <Text style={[styles.presetHours, active && styles.presetTextActive]}>
-                {hours} ч
-              </Text>
-              {pricing.hasDiscount ? (
-                <>
-                  <Text style={[styles.presetOrigPrice, active && styles.presetOrigPriceActive]}>
-                    {formatMoney(pricing.original)}
-                  </Text>
-                  <Text style={[styles.presetDiscPrice, active && styles.presetTextActive]}>
-                    {formatMoney(pricing.discounted)}
-                  </Text>
-                </>
-              ) : (
-                <Text style={[styles.presetDiscPrice, active && styles.presetTextActive]}>
-                  {formatMoney(pricing.original)}
-                </Text>
-              )}
-            </Pressable>
-          );
-        })}
-      </View>
-
-      {/* ── Пакеты ── */}
-      <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>Пакеты</Text>
-      <View style={styles.packages}>
-        {PACKAGES.map((p) => {
-          const active   = activePackage === p.id;
-          const pricing  = calcPrice(p.hours, p.discountPct);
-          return (
-            <Pressable
-              key={p.id}
-              style={[styles.packageCard, active && styles.packageCardActive]}
-              onPress={() => selectPackage(p)}
-            >
-              <View style={[styles.pkgDiscBadge, active && styles.pkgDiscBadgeActive]}>
-                <Text style={[styles.pkgDiscText, active && styles.pkgDiscTextActive]}>
-                  −{p.discountPct}%
-                </Text>
-              </View>
-              <View style={styles.pkgInfo}>
-                <Text style={[typography.body, { fontWeight: '700' }, active && styles.pkgTextActive]}>
-                  {p.label}
-                </Text>
-                <Text style={[styles.pkgWindow, active && styles.pkgWindowActive]}>
-                  {p.window} · {p.hours} ч
-                </Text>
-              </View>
-              <View style={styles.pkgPriceCol}>
-                <Text style={[styles.pkgOrigPrice, active && styles.pkgOrigPriceActive]}>
-                  {formatMoney(pricing.original)}
-                </Text>
-                <Text style={[styles.pkgDiscPrice, active && styles.pkgDiscPriceActive]}>
-                  {formatMoney(pricing.discounted)}
-                </Text>
-              </View>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      {/* ── Дата и время (крутилка) ── */}
-      <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>Начало сеанса</Text>
+      {/* Начало сеанса */}
+      <Text style={styles.sectionTitle}>Начало сеанса</Text>
       <Card style={styles.pickerCard}>
-        {/* Метка над крутилкой */}
-        <View style={styles.pickerLabel}>
-          <Text style={styles.pickerLabelDay}>{formatSessionDay(startDate)}</Text>
-          <Text style={styles.pickerLabelTime}>{formatTimeHM(startDate)}</Text>
-        </View>
-
+        <Text style={styles.pickerHint}>{formatSessionRange(startDate, endDate)}</Text>
         <DateTimePicker
-          value={activePackage ? startDate : pickedDate}
+          value={pickedDate}
           mode="datetime"
-          display={Platform.OS === 'ios' ? 'spinner' : 'spinner'}
+          display="spinner"
+          locale="ru_RU"
           is24Hour
-          minimumDate={minDate}
+          minuteInterval={1}
           textColor={colors.text}
           accentColor={colors.accent}
           themeVariant="dark"
-          onChange={onDateChange}
+          onChange={(_: unknown, date?: Date) => {
+            if (date) { const d = new Date(date); d.setSeconds(0, 0); setPickedDate(d); setActivePackage(null); }
+          }}
           style={styles.picker}
         />
       </Card>
 
-      {/* ── Итог ── */}
+      {/* Сколько играть */}
+      <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>Сколько играть</Text>
+      <View style={styles.presets}>
+        {PRESETS.map(({ hours, discountPct }) => {
+          const active  = !activePackage && durationHours === hours;
+          const pricing = calcPrice(hours, discountPct);
+          return (
+            <Pressable key={hours} style={[styles.preset, active && styles.presetActive]} onPress={() => selectPreset(hours)}>
+              {discountPct > 0 && (
+                <View style={[styles.discBadge, active && styles.discBadgeActive]}>
+                  <Text style={[styles.discBadgeText, active && styles.discBadgeTextActive]}>−{discountPct}%</Text>
+                </View>
+              )}
+              <Text style={[styles.presetHours, active && styles.presetTextActive]}>{hours} ч</Text>
+              {pricing.hasDiscount ? (
+                <>
+                  <Text style={[styles.presetOrigPrice, active && styles.presetOrigPriceActive]}>{formatMoney(pricing.original)}</Text>
+                  <Text style={[styles.presetDiscPrice, active && styles.presetTextActive]}>{formatMoney(pricing.discounted)}</Text>
+                </>
+              ) : (
+                <Text style={[styles.presetDiscPrice, active && styles.presetTextActive]}>{formatMoney(pricing.original)}</Text>
+              )}
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Пакеты */}
+      <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>Пакеты</Text>
+      <View style={styles.packages}>
+        {PACKAGES.map((p) => {
+          const active  = activePackage === p.id;
+          const pricing = calcPrice(p.hours, p.discountPct);
+          return (
+            <Pressable key={p.id} style={[styles.packageCard, active && styles.packageCardActive]} onPress={() => selectPackage(p)}>
+              <View style={[styles.pkgDiscBadge, active && styles.pkgDiscBadgeActive]}>
+                <Text style={[styles.pkgDiscText, active && styles.pkgDiscTextActive]}>−{p.discountPct}%</Text>
+              </View>
+              <View style={styles.pkgInfo}>
+                <Text style={[typography.body, { fontWeight: '700' }, active && styles.pkgTextActive]}>{p.label}</Text>
+                <Text style={[styles.pkgWindow, active && styles.pkgWindowActive]}>{p.window} · {p.hours} ч</Text>
+              </View>
+              <View style={styles.pkgPriceCol}>
+                <Text style={[styles.pkgOrigPrice, active && styles.pkgOrigPriceActive]}>{formatMoney(pricing.original)}</Text>
+                <Text style={[styles.pkgDiscPrice, active && styles.pkgDiscPriceActive]}>{formatMoney(pricing.discounted)}</Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Итог */}
+      <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>Итог</Text>
       <Card accent style={styles.summaryCard}>
         <View style={styles.summaryRow}>
           <View style={{ flex: 1, gap: 4 }}>
@@ -250,15 +189,8 @@ export default function TimeScreen() {
               {formatSessionDay(startDate)} · {formatTimeHM(startDate)} — {formatTimeHM(endDate)}
             </Text>
             <Text style={typography.body}>
-              {formatDurationHours(durationHours)}
-              {pkg ? `  ·  ${pkg.label}` : ''}
+              {formatDurationHours(durationHours)}{pkg ? `  ·  ${pkg.label}` : ''}
             </Text>
-            {summaryPricing.hasDiscount && (
-              <Text style={styles.summaryDiscount}>
-                Скидка {pkg?.discountPct ?? PRESETS.find((p) => p.hours === durationHours)?.discountPct}%
-                {' '}·{' '}экономия {formatMoney(summaryPricing.saving)}
-              </Text>
-            )}
           </View>
           <View style={styles.priceCol}>
             {summaryPricing.hasDiscount && (
@@ -272,12 +204,7 @@ export default function TimeScreen() {
         </View>
       </Card>
 
-      <StopButton
-        title="Продолжить"
-        onPress={next}
-        disabled={quoteLoading}
-        style={styles.cta}
-      />
+      <StopButton title="Продолжить" onPress={() => { if (!quoteLoading) router.push('/booking/summary'); }} disabled={quoteLoading} style={styles.cta} />
     </Screen>
   );
 }
@@ -294,14 +221,12 @@ const styles = StyleSheet.create({
   seatInfo: { flex: 1, minWidth: 0, gap: 2 },
   sectionTitle: { ...typography.caption, marginBottom: spacing.sm, color: colors.textSecondary },
 
-  /* Presets */
   presets: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
   preset: {
     width: '22%', flexGrow: 1, alignItems: 'center',
-    paddingVertical: spacing.md, paddingTop: spacing.xl ?? 24,
+    paddingVertical: spacing.md, paddingTop: 20,
     borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
-    backgroundColor: colors.bgMuted, position: 'relative', minHeight: 96,
-    gap: 2,
+    backgroundColor: colors.bgMuted, position: 'relative', minHeight: 90, gap: 2,
   },
   presetActive:          { backgroundColor: colors.accent, borderColor: colors.accent },
   presetTextActive:      { color: '#fff' },
@@ -318,7 +243,6 @@ const styles = StyleSheet.create({
   discBadgeText:       { fontSize: 9, fontWeight: '800', color: colors.accentBright },
   discBadgeTextActive: { color: '#fff' },
 
-  /* Packages */
   packages: { gap: spacing.sm, marginBottom: spacing.md },
   packageCard: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
@@ -326,41 +250,39 @@ const styles = StyleSheet.create({
     borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
     backgroundColor: colors.bgMuted,
   },
-  packageCardActive:   { backgroundColor: colors.accent, borderColor: colors.accent },
-  pkgDiscBadge:        {
+  packageCardActive:  { backgroundColor: colors.accent, borderColor: colors.accent },
+  pkgDiscBadge:       {
     backgroundColor: colors.accentMuted, borderRadius: radius.sm,
     paddingHorizontal: 8, paddingVertical: 5, minWidth: 50, alignItems: 'center',
   },
-  pkgDiscBadgeActive:  { backgroundColor: 'rgba(255,255,255,0.2)' },
-  pkgDiscText:         { fontSize: 14, fontWeight: '800', color: colors.accentBright },
-  pkgDiscTextActive:   { color: '#fff' },
-  pkgInfo:             { flex: 1, gap: 2 },
-  pkgWindow:           { ...typography.caption, color: colors.textSecondary },
-  pkgWindowActive:     { color: 'rgba(255,255,255,0.75)' },
-  pkgTextActive:       { color: '#fff' },
-  pkgPriceCol:         { alignItems: 'flex-end', gap: 3 },
-  pkgOrigPrice:        { ...typography.caption, color: colors.textDisabled, textDecorationLine: 'line-through' },
-  pkgOrigPriceActive:  { color: 'rgba(255,255,255,0.5)' },
-  pkgDiscPrice:        { ...typography.body, fontWeight: '700', color: colors.text },
-  pkgDiscPriceActive:  { color: '#fff' },
+  pkgDiscBadgeActive: { backgroundColor: 'rgba(255,255,255,0.2)' },
+  pkgDiscText:        { fontSize: 14, fontWeight: '800', color: colors.accentBright },
+  pkgDiscTextActive:  { color: '#fff' },
+  pkgInfo:            { flex: 1, gap: 2 },
+  pkgWindow:          { ...typography.caption, color: colors.textSecondary },
+  pkgWindowActive:    { color: 'rgba(255,255,255,0.75)' },
+  pkgTextActive:      { color: '#fff' },
+  pkgPriceCol:        { alignItems: 'flex-end', gap: 3 },
+  pkgOrigPrice:       { ...typography.caption, color: colors.textDisabled, textDecorationLine: 'line-through' },
+  pkgOrigPriceActive: { color: 'rgba(255,255,255,0.5)' },
+  pkgDiscPrice:       { ...typography.body, fontWeight: '700', color: colors.text },
+  pkgDiscPriceActive: { color: '#fff' },
 
-  /* Date picker */
   pickerCard: { marginBottom: spacing.md, alignItems: 'center', paddingBottom: spacing.md },
-  pickerLabel: {
-    flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm,
-    marginBottom: spacing.sm, paddingTop: spacing.xs,
+  pickerHint: {
+    ...typography.body,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+    paddingTop: spacing.xs,
   },
-  pickerLabelDay:  { ...typography.body, fontWeight: '700', color: colors.text },
-  pickerLabelTime: { ...typography.h2, color: colors.accent },
   picker:          { width: '100%', height: 180 },
 
-  /* Summary */
-  summaryCard:       { marginTop: spacing.sm, marginBottom: spacing.md },
-  summaryRow:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.md },
-  priceCol:          { alignItems: 'flex-end' },
-  priceRow:          { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  origPriceLabel:    { ...typography.caption, color: colors.textDisabled, textDecorationLine: 'line-through' },
-  summaryDiscount:   { fontSize: 11, fontWeight: '700', color: colors.accentBright },
+  summaryCard:    { marginBottom: spacing.md },
+  summaryRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.md },
+  priceCol:       { alignItems: 'flex-end' },
+  priceRow:       { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  origPriceLabel: { ...typography.caption, color: colors.textDisabled, textDecorationLine: 'line-through' },
 
   cta: { marginTop: 'auto' },
 });
