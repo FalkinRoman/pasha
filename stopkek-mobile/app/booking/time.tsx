@@ -6,15 +6,18 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { quoteBooking } from '../../src/api/bookings';
 import {
-  BOOKING_MAX_DAYS_AHEAD,
+  BOOKING_MAX_HOURS,
+  BOOKING_MIN_HOURS,
   BOOKING_PACKAGES,
   BOOKING_PRESETS,
   calcBookingPrice,
   getBookingSummaryPricing,
+  getTierDiscountForHours,
   resolveBookingStartDate,
 } from '../../src/constants/bookingPricing';
 import { Card } from '../../src/components/ui/Card';
@@ -39,6 +42,30 @@ export default function TimeScreen() {
   const [pickedDate,   setPickedDate]   = useState(() => { const d = new Date(); d.setSeconds(0,0); return d; });
   const [quoteLoading, setQuoteLoading] = useState(false);
 
+  const [useCustom, setUseCustom] = useState(
+    () => !activePackageId && !BOOKING_PRESETS.some((p) => p.hours === durationHours)
+  );
+  const [customHoursText, setCustomHoursText] = useState(() => String(durationHours));
+  const customActive = useCustom && !activePackageId;
+
+  const customHours = useMemo(() => {
+    const n = parseInt(customHoursText.replace(/\D/g, ''), 10);
+    if (!n || n < BOOKING_MIN_HOURS) return BOOKING_MIN_HOURS;
+    if (n > BOOKING_MAX_HOURS) return BOOKING_MAX_HOURS;
+    return n;
+  }, [customHoursText]);
+
+  const hoursError = useMemo(() => {
+    if (!customActive) return '';
+    const n = parseInt(customHoursText.replace(/\D/g, ''), 10);
+    if (!n || n < BOOKING_MIN_HOURS || n > BOOKING_MAX_HOURS) {
+      return `От ${BOOKING_MIN_HOURS} до ${BOOKING_MAX_HOURS} ч`;
+    }
+    return '';
+  }, [customHoursText, customActive]);
+
+  const effectiveHours = customActive ? customHours : durationHours;
+
   const minDate = useMemo(() => { const d = new Date(); d.setSeconds(0, 0); return d; }, []);
   const maxDate = useMemo(() => maxBookingDate(), []);
 
@@ -47,11 +74,11 @@ export default function TimeScreen() {
     [pickedDate, activePackageId]
   );
 
-  const endDate    = useMemo(() => new Date(startDate.getTime() + durationHours * 3_600_000), [startDate, durationHours]);
+  const endDate    = useMemo(() => new Date(startDate.getTime() + effectiveHours * 3_600_000), [startDate, effectiveHours]);
   const startAtIso = startDate.toISOString();
   const summaryPricing = useMemo(
-    () => getBookingSummaryPricing(pricePerHour, durationHours, activePackageId),
-    [pricePerHour, durationHours, activePackageId]
+    () => getBookingSummaryPricing(pricePerHour, effectiveHours, activePackageId),
+    [pricePerHour, effectiveHours, activePackageId]
   );
   const pkg = summaryPricing.pkg;
 
@@ -61,26 +88,61 @@ export default function TimeScreen() {
   }, [summaryPricing.discounted, startAtIso, dispatch]);
 
   useEffect(() => {
-    if (!seat?.id) return;
+    if (!seat?.id || hoursError) return;
     let cancelled = false;
     setQuoteLoading(true);
-    quoteBooking(seat.id, durationHours, startAtIso)
+    quoteBooking(seat.id, effectiveHours, startAtIso)
       .then((q) => { if (!cancelled) dispatch(setPriceQuote(q)); })
       .catch(() => { if (!cancelled) dispatch(setPriceQuote(null)); })
       .finally(() => { if (!cancelled) setQuoteLoading(false); });
     return () => { cancelled = true; };
-  }, [seat?.id, durationHours, startAtIso, dispatch]);
+  }, [seat?.id, effectiveHours, startAtIso, hoursError, dispatch]);
 
   const selectPreset = (h: number) => {
+    setUseCustom(false);
     dispatch(setActivePackageId(null));
     dispatch(setDuration(h));
+    setCustomHoursText(String(h));
   };
 
   const selectPackage = (p: typeof BOOKING_PACKAGES[number]) => {
     const isActive = activePackageId === p.id;
+    setUseCustom(false);
     dispatch(setActivePackageId(isActive ? null : p.id));
-    dispatch(setDuration(isActive ? durationHours : p.hours));
+    const next = isActive ? effectiveHours : p.hours;
+    dispatch(setDuration(next));
+    setCustomHoursText(String(next));
   };
+
+  const activateCustom = () => {
+    setUseCustom(true);
+    dispatch(setActivePackageId(null));
+    dispatch(setDuration(customHours));
+    setCustomHoursText(String(customHours));
+  };
+
+  const onCustomHours = (text: string) => {
+    setUseCustom(true);
+    dispatch(setActivePackageId(null));
+    const digits = text.replace(/\D/g, '');
+    setCustomHoursText(digits);
+    const n = parseInt(digits, 10);
+    if (n >= BOOKING_MIN_HOURS && n <= BOOKING_MAX_HOURS) dispatch(setDuration(n));
+  };
+
+  const stepCustomHours = (delta: number) => {
+    setUseCustom(true);
+    dispatch(setActivePackageId(null));
+    const next = Math.min(BOOKING_MAX_HOURS, Math.max(BOOKING_MIN_HOURS, customHours + delta));
+    setCustomHoursText(String(next));
+    dispatch(setDuration(next));
+  };
+
+  const customPricing = useMemo(
+    () => calcBookingPrice(pricePerHour, customHours, getTierDiscountForHours(customHours)),
+    [pricePerHour, customHours]
+  );
+  const customDiscount = getTierDiscountForHours(customHours);
 
   return (
     <Screen scroll>
@@ -129,33 +191,79 @@ export default function TimeScreen() {
         />
       </Card>
 
-      <Text style={styles.bookingLimit}>Бронь доступна на {BOOKING_MAX_DAYS_AHEAD} дней вперёд</Text>
-
       {/* Сколько играть */}
       <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>Сколько играть</Text>
-      <View style={styles.presets}>
-        {BOOKING_PRESETS.map(({ hours, discountPct }) => {
-          const active  = !activePackageId && durationHours === hours;
-          const pricing = calcBookingPrice(pricePerHour, hours, discountPct);
-          return (
-            <Pressable key={hours} style={[styles.preset, active && styles.presetActive]} onPress={() => selectPreset(hours)}>
-              {discountPct > 0 && (
-                <View style={[styles.discBadge, active && styles.discBadgeActive]}>
-                  <Text style={[styles.discBadgeText, active && styles.discBadgeTextActive]}>−{discountPct}%</Text>
-                </View>
-              )}
-              <Text style={[styles.presetHours, active && styles.presetTextActive]}>{hours} ч</Text>
-              {pricing.hasDiscount ? (
-                <>
-                  <Text style={[styles.presetOrigPrice, active && styles.presetOrigPriceActive]}>{formatMoney(pricing.original)}</Text>
-                  <Text style={[styles.presetDiscPrice, active && styles.presetTextActive]}>{formatMoney(pricing.discounted)}</Text>
-                </>
-              ) : (
-                <Text style={[styles.presetDiscPrice, active && styles.presetTextActive]}>{formatMoney(pricing.original)}</Text>
-              )}
+      <View style={styles.presetsBlock}>
+        <View style={styles.presets}>
+          {BOOKING_PRESETS.map(({ hours, discountPct }) => {
+            const active  = !activePackageId && !customActive && durationHours === hours;
+            const pricing = calcBookingPrice(pricePerHour, hours, discountPct);
+            return (
+              <Pressable key={hours} style={[styles.preset, active && styles.presetActive]} onPress={() => selectPreset(hours)}>
+                {discountPct > 0 && (
+                  <View style={[styles.discBadge, active && styles.discBadgeActive]}>
+                    <Text style={[styles.discBadgeText, active && styles.discBadgeTextActive]}>−{discountPct}%</Text>
+                  </View>
+                )}
+                <Text style={[styles.presetHours, active && styles.presetTextActive]}>{hours} ч</Text>
+                {pricing.hasDiscount ? (
+                  <>
+                    <Text style={[styles.presetOrigPrice, active && styles.presetOrigPriceActive]}>{formatMoney(pricing.original)}</Text>
+                    <Text style={[styles.presetDiscPrice, active && styles.presetTextActive]}>{formatMoney(pricing.discounted)}</Text>
+                  </>
+                ) : (
+                  <Text style={[styles.presetDiscPrice, active && styles.presetTextActive]}>{formatMoney(pricing.original)}</Text>
+                )}
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <Pressable
+          style={[styles.customRow, customActive && styles.presetActive]}
+          onPress={activateCustom}
+        >
+          <Text style={[styles.customTag, customActive && styles.presetTextActive]}>своё</Text>
+          <View style={[styles.customControls, customActive && styles.customControlsActive]}>
+            <Pressable
+              style={[styles.customBtn, customActive && styles.customBtnActive]}
+              onPress={() => stepCustomHours(-1)}
+              hitSlop={4}
+            >
+              <Text style={[styles.customBtnText, customActive && styles.presetTextActive]}>−</Text>
             </Pressable>
-          );
-        })}
+            <View style={[styles.customValueWrap, customActive && styles.customValueWrapActive]}>
+              <TextInput
+                style={[styles.customInput, customActive && styles.presetTextActive]}
+                value={customHoursText}
+                onChangeText={onCustomHours}
+                onFocus={activateCustom}
+                keyboardType="number-pad"
+                maxLength={2}
+                selectTextOnFocus
+              />
+              <Text style={[styles.customUnit, customActive && styles.presetTextActive]}>ч</Text>
+            </View>
+            <Pressable
+              style={[styles.customBtn, customActive && styles.customBtnActive]}
+              onPress={() => stepCustomHours(1)}
+              hitSlop={4}
+            >
+              <Text style={[styles.customBtnText, customActive && styles.presetTextActive]}>+</Text>
+            </Pressable>
+          </View>
+          <View style={styles.customPriceWrap}>
+            {customActive && customDiscount > 0 && (
+              <View style={[styles.discBadgeInline, customActive && styles.discBadgeActive]}>
+                <Text style={[styles.discBadgeText, customActive && styles.discBadgeTextActive]}>−{customDiscount}%</Text>
+              </View>
+            )}
+            <Text style={[styles.customPrice, customActive && styles.presetTextActive]}>
+              {formatMoney(customPricing.discounted)}
+            </Text>
+          </View>
+        </Pressable>
+        {customActive && hoursError ? <Text style={styles.customError}>{hoursError}</Text> : null}
       </View>
 
       {/* Пакеты */}
@@ -191,7 +299,7 @@ export default function TimeScreen() {
               {formatSessionDay(startDate)} · {formatTimeHM(startDate)} — {formatTimeHM(endDate)}
             </Text>
             <Text style={typography.body}>
-              {formatDurationHours(durationHours)}{pkg ? `  ·  ${pkg.label}` : ''}
+              {formatDurationHours(effectiveHours)}{pkg ? `  ·  ${pkg.label}` : ''}
             </Text>
           </View>
           <View style={styles.priceCol}>
@@ -206,7 +314,12 @@ export default function TimeScreen() {
         </View>
       </Card>
 
-      <StopButton title="Продолжить" onPress={() => { if (!quoteLoading) router.push('/booking/summary'); }} disabled={quoteLoading} style={styles.cta} />
+      <StopButton
+        title="Продолжить"
+        onPress={() => { if (!quoteLoading && !(customActive && hoursError)) router.push('/booking/summary'); }}
+        disabled={quoteLoading || (customActive && Boolean(hoursError))}
+        style={styles.cta}
+      />
     </Screen>
   );
 }
@@ -223,7 +336,102 @@ const styles = StyleSheet.create({
   seatInfo: { flex: 1, minWidth: 0, gap: 2 },
   sectionTitle: { ...typography.caption, marginBottom: spacing.sm, color: colors.textSecondary },
 
-  presets: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
+  presetsBlock: { marginBottom: spacing.md, gap: spacing.sm },
+  presets: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  customRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 64,
+    gap: spacing.md,
+    paddingVertical: 12,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bgMuted,
+  },
+  customTag: {
+    ...typography.caption,
+    fontWeight: '700',
+    fontSize: 12,
+    color: colors.textSecondary,
+    width: 38,
+  },
+  customControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 44,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bgElevated,
+    overflow: 'hidden',
+  },
+  customControlsActive: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderColor: 'rgba(255,255,255,0.28)',
+  },
+  customBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  customBtnActive: { backgroundColor: 'rgba(255,255,255,0.1)' },
+  customBtnText: {
+    fontSize: 22,
+    fontWeight: '500',
+    color: colors.text,
+    lineHeight: 24,
+  },
+  customValueWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 56,
+    height: 44,
+    paddingHorizontal: spacing.xs,
+    gap: 3,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: colors.border,
+  },
+  customValueWrapActive: { borderColor: 'rgba(255,255,255,0.28)' },
+  customInput: {
+    width: 26,
+    height: 44,
+    textAlign: 'center',
+    ...typography.body,
+    fontWeight: '700',
+    fontSize: 17,
+    lineHeight: 22,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    color: colors.text,
+  },
+  customUnit: {
+    ...typography.body,
+    fontWeight: '700',
+    fontSize: 17,
+    lineHeight: 22,
+    color: colors.textSecondary,
+  },
+  customPriceWrap: {
+    marginLeft: 'auto',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    minWidth: 76,
+    justifyContent: 'flex-end',
+  },
+  discBadgeInline: {
+    backgroundColor: colors.accentMuted,
+    borderRadius: radius.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+  },
+  customPrice: { ...typography.caption, fontWeight: '600', fontSize: 13, color: colors.text },
+  customError: { ...typography.caption, color: colors.danger, textAlign: 'center' },
   preset: {
     width: '22%', flexGrow: 1, alignItems: 'center',
     paddingVertical: spacing.md, paddingTop: 20,
@@ -279,7 +487,6 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xs,
   },
   picker:          { width: '100%', height: 180 },
-  bookingLimit:    { ...typography.caption, color: colors.textDisabled, textAlign: 'center', marginBottom: spacing.md },
 
   summaryCard:    { marginBottom: spacing.md },
   summaryRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.md },
