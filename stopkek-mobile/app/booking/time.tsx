@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { quoteBooking } from '../../src/api/bookings';
 import {
+  BOOKING_MAX_DAYS_AHEAD,
   BOOKING_PACKAGES,
   BOOKING_PRESETS,
   calcBookingPrice,
@@ -25,7 +26,7 @@ import { setActivePackageId, setCalculatedPrice, setDuration, setPriceQuote, set
 import { colors } from '../../src/theme/colors';
 import { radius, spacing } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
-import { formatDurationHours, formatMoney, formatSessionDay, formatSessionRange, formatTimeHM } from '../../src/utils/format';
+import { formatDurationHours, formatMoney, formatSessionDay, formatSessionRange, formatTimeHM, maxBookingDate } from '../../src/utils/format';
 
 
 export default function TimeScreen() {
@@ -37,6 +38,9 @@ export default function TimeScreen() {
 
   const [pickedDate,   setPickedDate]   = useState(() => { const d = new Date(); d.setSeconds(0,0); return d; });
   const [quoteLoading, setQuoteLoading] = useState(false);
+
+  const minDate = useMemo(() => { const d = new Date(); d.setSeconds(0, 0); return d; }, []);
+  const maxDate = useMemo(() => maxBookingDate(), []);
 
   const startDate = useMemo(
     () => resolveBookingStartDate(pickedDate, activePackageId),
@@ -107,15 +111,25 @@ export default function TimeScreen() {
           locale="ru_RU"
           is24Hour
           minuteInterval={1}
+          minimumDate={minDate}
+          maximumDate={maxDate}
           textColor={colors.text}
           accentColor={colors.accent}
           themeVariant="dark"
           onChange={(_: unknown, date?: Date) => {
-            if (date) { const d = new Date(date); d.setSeconds(0, 0); setPickedDate(d); dispatch(setActivePackageId(null)); }
+            if (!date) return;
+            const d = new Date(date);
+            d.setSeconds(0, 0);
+            if (d < minDate) { setPickedDate(minDate); dispatch(setActivePackageId(null)); return; }
+            if (d > maxDate) { setPickedDate(maxDate); dispatch(setActivePackageId(null)); return; }
+            setPickedDate(d);
+            dispatch(setActivePackageId(null));
           }}
           style={styles.picker}
         />
       </Card>
+
+      <Text style={styles.bookingLimit}>Бронь доступна на {BOOKING_MAX_DAYS_AHEAD} дней вперёд</Text>
 
       {/* Сколько играть */}
       <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>Сколько играть</Text>
@@ -265,6 +279,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xs,
   },
   picker:          { width: '100%', height: 180 },
+  bookingLimit:    { ...typography.caption, color: colors.textDisabled, textAlign: 'center', marginBottom: spacing.md },
 
   summaryCard:    { marginBottom: spacing.md },
   summaryRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.md },

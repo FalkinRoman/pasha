@@ -1,4 +1,5 @@
-/** За сколько минут до startAt открывается доступ в клуб */
+export const BOOKING_MAX_DAYS_AHEAD = 7;
+
 export const DOOR_EARLY_MIN = 15;
 
 /** startAt в пределах N мин от «сейчас» = бронь «сейчас», таймер сразу после оплаты */

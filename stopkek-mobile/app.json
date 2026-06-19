@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "СТОПкек",
+    "name": "стопКЕК",
     "slug": "stopkek-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -20,7 +20,8 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Камера используется для фото с документом при верификации и для сканирования QR-кода на мониторе ПК",
         "CFBundleDevelopmentRegion": "ru",
-        "CFBundleLocalizations": ["ru"]
+        "CFBundleLocalizations": ["ru"],
+        "CFBundleDisplayName": "стопКЕК"
       }
     },
     "android": {
@@ -35,7 +36,7 @@
       ],
       "locales": {
         "ru": {
-          "app_name": "СТОПкек"
+          "app_name": "стопКЕК"
         }
       }
     },

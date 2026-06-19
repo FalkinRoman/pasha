@@ -1,3 +1,5 @@
+import { BOOKING_MAX_DAYS_AHEAD } from '../constants/bookingPricing';
+
 export function formatPhone(raw: string): string {
   const d = raw.replace(/\D/g, '');
   if (d.length <= 1) return '+7';
@@ -19,6 +21,39 @@ export function formatDuration(ms: number): string {
   const s = totalSec % 60;
   if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function dayWord(n: number) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'день';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'дня';
+  return 'дней';
+}
+
+/** Таймер обратного отсчёта: дни + часы для длинных интервалов */
+export function formatCountdown(ms: number): string {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const d = Math.floor(totalSec / 86400);
+  const h = Math.floor((totalSec % 86400) / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+
+  if (d > 0) {
+    const parts = [`${d} ${dayWord(d)}`];
+    if (h > 0) parts.push(`${h} ч`);
+    if (m > 0 && d < 2) parts.push(`${m} мин`);
+    return parts.join(' ');
+  }
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+export function maxBookingDate(from = new Date()) {
+  const d = new Date(from);
+  d.setDate(d.getDate() + BOOKING_MAX_DAYS_AHEAD);
+  d.setSeconds(0, 0);
+  return d;
 }
 
 export function formatMoney(n: number): string {

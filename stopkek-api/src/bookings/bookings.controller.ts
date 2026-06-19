@@ -56,7 +56,7 @@ export class BookingsController {
 
   @Delete(':id')
   cancel(@CurrentUser() u: { userId: string }, @Param('id') id: string) {
-    return this.bookings.cancelPending(u.userId, id);
+    return this.bookings.cancelBooking(u.userId, id);
   }
 
   @Post(':id/door')

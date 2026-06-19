@@ -5,6 +5,8 @@ export const BOOKING_PRESETS = [
   { hours: 8, discountPct: 16 },
 ] as const;
 
+export const BOOKING_MAX_DAYS_AHEAD = 7;
+
 export const BOOKING_PACKAGES = [
   { id: 'night', label: 'Пакет ночь', window: '23:00–08:00', startHour: 23, hours: 9, discountPct: 36 },
   { id: 'morning', label: 'Пакет утро', window: '10:00–16:00', startHour: 10, hours: 6, discountPct: 26 },

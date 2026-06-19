@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Booking } from '../../types';
-import { formatDuration, formatMoney } from '../../utils/format';
+import { formatCountdown, formatMoney } from '../../utils/format';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
@@ -53,7 +53,7 @@ export function SessionCard({ booking }: Props) {
         <Ionicons name="game-controller" size={32} color={colors.accent} />
       </View>
       <Text style={[typography.timer, urgent && { color: colors.warning }]}>
-        {formatDuration(remaining)}
+        {formatCountdown(remaining)}
       </Text>
       <Text style={typography.caption}>{timerCaption}</Text>
       <View style={styles.actions}>

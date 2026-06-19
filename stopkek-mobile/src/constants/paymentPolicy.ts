@@ -12,4 +12,8 @@ export const PAYMENT_POLICY_ACK =
 export const EARLY_END_WARNING =
   'Оставшееся оплаченное время сгорает без возврата на баланс. Чтобы играть дольше — нажмите «Продлить».';
 
+/** Отмена оплаченной брони */
+export const CANCEL_BOOKING_WARNING =
+  'Бронь будет отменена. Оплаченные деньги на баланс не возвращаются.';
+
 export const PAYMENT_POLICY_OFFER_URL = LEGAL_URLS.offer;

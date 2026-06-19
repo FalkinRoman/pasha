@@ -3,6 +3,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import {
+  cancelBooking,
   endSession,
   fetchActiveBooking,
   openSessionDoor,
@@ -16,8 +17,8 @@ import { setActiveBooking } from '../../src/store/bookingSlice';
 import { colors } from '../../src/theme/colors';
 import { spacing } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
-import { EARLY_END_WARNING } from '../../src/constants/paymentPolicy';
-import { formatDuration } from '../../src/utils/format';
+import { CANCEL_BOOKING_WARNING, EARLY_END_WARNING } from '../../src/constants/paymentPolicy';
+import { formatCountdown } from '../../src/utils/format';
 
 export default function ActiveSessionScreen() {
   const dispatch = useAppDispatch();
@@ -41,14 +42,9 @@ export default function ActiveSessionScreen() {
 
   useEffect(() => {
     if (!booking) return;
-    const mode = booking.timerMode ?? 'until_end';
     const base =
       booking.displayRemainingMs ??
       (booking.durationMinutes ?? 60) * 60_000;
-    if (mode !== 'playing' && mode !== 'until_end') {
-      setRemaining(base);
-      return;
-    }
     const loadedAt = Date.now();
     const tick = () => setRemaining(Math.max(0, base - (Date.now() - loadedAt)));
     tick();
@@ -78,29 +74,52 @@ export default function ActiveSessionScreen() {
   const onFinish = () => {
     if (!booking) return;
     Alert.alert('Завершить сеанс?', EARLY_END_WARNING, [
-        { text: 'Отмена', style: 'cancel' },
-        {
-          text: 'Завершить',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await endSession(booking.id);
-              dispatch(setActiveBooking(null));
-              Alert.alert('Сеанс завершён', 'Спасибо за визит');
-              router.replace('/(tabs)/home');
-            } catch (e) {
-              Alert.alert('Ошибка', e instanceof ApiError ? e.message : 'Не удалось');
-            }
-          },
+      { text: 'Отмена', style: 'cancel' },
+      {
+        text: 'Завершить',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await endSession(booking.id);
+            dispatch(setActiveBooking(null));
+            Alert.alert('Сеанс завершён', 'Спасибо за визит');
+            router.replace('/(tabs)/home');
+          } catch (e) {
+            Alert.alert('Ошибка', e instanceof ApiError ? e.message : 'Не удалось');
+          }
         },
-      ]
-    );
+      },
+    ]);
+  };
+
+  const onCancelBooking = () => {
+    if (!booking) return;
+    Alert.alert('Отменить бронь?', CANCEL_BOOKING_WARNING, [
+      { text: 'Назад', style: 'cancel' },
+      {
+        text: 'Отменить бронь',
+        style: 'destructive',
+        onPress: async () => {
+          setLoading(true);
+          try {
+            await cancelBooking(booking.id);
+            dispatch(setActiveBooking(null));
+            Alert.alert('Бронь отменена', 'Деньги на баланс не возвращаются');
+            router.replace('/(tabs)/home');
+          } catch (e) {
+            Alert.alert('Ошибка', e instanceof ApiError ? e.message : 'Не удалось отменить');
+          } finally {
+            setLoading(false);
+          }
+        },
+      },
+    ]);
   };
 
   if (!booking) {
     return (
       <Screen>
-        <Header title="Сеанс" back />
+        <Header title="Управление" back />
         <Text style={typography.bodySecondary}>Нет активного сеанса</Text>
         <StopButton title="На главную" onPress={() => router.replace('/(tabs)/home')} />
       </Screen>
@@ -110,6 +129,7 @@ export default function ActiveSessionScreen() {
   const isPlaying = booking.gameRunning ?? (phase === 'playing' && booking.status === 'active');
   const waiting =
     phase === 'awaiting_arrival' || (booking.status === 'paid' && !booking.doorWindowOpen);
+  const canCancel = booking.status === 'paid';
 
   const timerLabel =
     booking.timerLabel ??
@@ -117,7 +137,7 @@ export default function ActiveSessionScreen() {
 
   return (
     <Screen scroll>
-      <Header title="Сеанс" back />
+      <Header title="Управление" back />
       <View style={styles.timerWrap}>
         {isPlaying && (
           <View style={styles.playingBadge}>
@@ -131,7 +151,7 @@ export default function ActiveSessionScreen() {
             remaining < 900000 && isPlaying && { color: colors.warning },
           ]}
         >
-          {formatDuration(remaining)}
+          {formatCountdown(remaining)}
         </Text>
         <Text style={typography.caption}>{timerLabel}</Text>
       </View>
@@ -177,6 +197,21 @@ export default function ActiveSessionScreen() {
           />
         </View>
       )}
+
+      {canCancel && (
+        <StopButton
+          title="Отменить бронь"
+          variant="ghost"
+          onPress={onCancelBooking}
+          disabled={loading}
+          style={styles.cancelBtn}
+        />
+      )}
+      {canCancel && (
+        <Text style={styles.cancelHint}>
+          При отмене деньги на баланс не возвращаются
+        </Text>
+      )}
     </Screen>
   );
 }
@@ -193,4 +228,11 @@ const styles = StyleSheet.create({
   hint: { textAlign: 'center', marginTop: spacing.lg },
   action: { marginTop: spacing.sm },
   row: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xl },
+  cancelBtn: { marginTop: spacing.xl },
+  cancelHint: {
+    ...typography.caption,
+    color: colors.textDisabled,
+    textAlign: 'center',
+    marginTop: spacing.xs,
+  },
 });

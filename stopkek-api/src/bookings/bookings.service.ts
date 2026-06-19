@@ -16,6 +16,7 @@ import {
   DOOR_EARLY_MIN,
   NO_SHOW_GRACE_MIN,
   WALK_IN_START_MIN,
+  BOOKING_MAX_DAYS_AHEAD,
 } from './session.constants';
 
 const PENDING_MS_DEFAULT = 15 * 60 * 1000;
@@ -177,6 +178,14 @@ export class BookingsService {
       );
     }
     return result;
+  }
+
+  private assertStartWithinBookingWindow(startAt: Date) {
+    const now = new Date();
+    const maxStart = new Date(now.getTime() + BOOKING_MAX_DAYS_AHEAD * 86_400_000);
+    if (startAt.getTime() > maxStart.getTime()) {
+      throw new BadRequestException(`Бронь доступна максимум на ${BOOKING_MAX_DAYS_AHEAD} дней вперёд`);
+    }
   }
 
   private normalizePhase(
@@ -369,6 +378,7 @@ export class BookingsService {
       throw new BadRequestException('Некорректное время начала');
     }
     const endAt = new Date(startAt.getTime() + Math.round(durationHours * 60) * 60_000);
+    this.assertStartWithinBookingWindow(startAt);
     await this.assertSeatAvailableForSlot(seatId, startAt, endAt);
     return this.pricing.quoteForSeat(
       seat.zoneId,
@@ -410,6 +420,7 @@ export class BookingsService {
     const durationMinutes = Math.round(durationHours * 60);
     const endAt = new Date(startAt.getTime() + durationMinutes * 60_000);
 
+    this.assertStartWithinBookingWindow(startAt);
     await this.assertSeatAvailableForSlot(seatId, startAt, endAt);
 
     const current = await this.getActive(userId);
@@ -446,13 +457,28 @@ export class BookingsService {
     return this.formatBooking(booking);
   }
 
-  async cancelPending(userId: string, bookingId: string) {
+  async cancelBooking(userId: string, bookingId: string) {
     const booking = await this.prisma.booking.findFirst({
-      where: { id: bookingId, userId, status: 'pending_payment' },
+      where: { id: bookingId, userId },
     });
     if (!booking) return { ok: true };
-    await this.releaseBooking(bookingId, 'cancelled');
-    return { ok: true };
+
+    if (booking.status === 'pending_payment') {
+      await this.releaseBooking(bookingId, 'cancelled');
+      return { ok: true };
+    }
+
+    if (booking.status === 'paid') {
+      await this.releaseBooking(bookingId, 'cancelled');
+      return { ok: true, refundRub: 0 };
+    }
+
+    throw new BadRequestException('Активный сеанс нельзя отменить — только завершить');
+  }
+
+  /** @deprecated use cancelBooking */
+  async cancelPending(userId: string, bookingId: string) {
+    return this.cancelBooking(userId, bookingId);
   }
 
   async payFromWallet(userId: string, bookingId: string) {
