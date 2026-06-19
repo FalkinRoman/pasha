@@ -223,7 +223,7 @@ export default function TimeScreen() {
           style={[styles.customRow, customActive && styles.presetActive]}
           onPress={activateCustom}
         >
-          <Text style={[styles.customTag, customActive && styles.presetTextActive]}>своё</Text>
+          <Text style={[styles.customTag, customActive && styles.presetTextActive]}>Своё</Text>
           <View style={[styles.customControls, customActive && styles.customControlsActive]}>
             <Pressable
               style={[styles.customBtn, customActive && styles.customBtnActive]}
