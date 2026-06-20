@@ -1,0 +1,72 @@
+{
+  "expo": {
+    "name": "стопКЕК",
+    "slug": "stopkek-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "stopkek",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0A0A"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.stopkek.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Камера используется для фото с документом при верификации и для сканирования QR-кода на мониторе ПК",
+        "CFBundleDevelopmentRegion": "ru",
+        "CFBundleLocalizations": ["ru"],
+        "CFBundleDisplayName": "стопКЕК"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A0A0A"
+      },
+      "package": "com.stopkek.mobile",
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.CAMERA"
+      ],
+      "locales": {
+        "ru": {
+          "app_name": "стопКЕК"
+        }
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Камера используется для фото с документом при верификации и для сканирования QR-кода на мониторе ПК",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#C41E24"
+        }
+      ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "8d39fb47-aa67-4a91-8087-b4fbb367a01e"
+      }
+    }
+  }
+}

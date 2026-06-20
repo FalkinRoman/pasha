@@ -1,0 +1,6 @@
+node_modules/
+dist/
+release/
+/config.json
+deploy/**/*.exe
+!deploy/**/config.json

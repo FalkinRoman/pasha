@@ -1,0 +1,212 @@
+import { FormEvent, useEffect, useState } from 'react';
+import { ApiError } from '../api/client';
+import {
+  AdminLoginCode,
+  UserDetail,
+  UserRow,
+  adjustWallet,
+  fetchUser,
+  fetchUsers,
+  generateUserLoginCode,
+} from '../api/admin';
+import { TableEmptyRow } from '../components/TableEmptyRow';
+import { TX_TYPE } from '../lib/statusLabels';
+
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleString('ru-RU');
+}
+
+export function UsersPage() {
+  const [search, setSearch] = useState('');
+  const [rows, setRows] = useState<UserRow[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<UserDetail | null>(null);
+  const [adjustRub, setAdjustRub] = useState('');
+  const [adjustNote, setAdjustNote] = useState('');
+  const [loginCode, setLoginCode] = useState<AdminLoginCode | null>(null);
+  const [codeLoading, setCodeLoading] = useState(false);
+
+  const load = () => fetchUsers(search || undefined).then(setRows);
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const openUser = async (id: string) => {
+    setSelectedId(id);
+    setLoginCode(null);
+    setDetail(await fetchUser(id));
+  };
+
+  const onGenerateLoginCode = async () => {
+    if (!selectedId) return;
+    setCodeLoading(true);
+    setLoginCode(null);
+    try {
+      const res = await generateUserLoginCode(selectedId);
+      setLoginCode(res);
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : 'Не удалось сгенерировать код');
+    } finally {
+      setCodeLoading(false);
+    }
+  };
+
+  const onSearch = (e: FormEvent) => {
+    e.preventDefault();
+    load();
+  };
+
+  const onAdjust = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!selectedId) return;
+    const rub = Number(adjustRub);
+    if (!Number.isFinite(rub) || rub === 0) return;
+    try {
+      await adjustWallet(selectedId, Math.round(rub * 100), adjustNote || undefined);
+      setAdjustRub('');
+      openUser(selectedId);
+      load();
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : 'Ошибка');
+    }
+  };
+
+  return (
+    <>
+      <h1 className="page-title">Клиенты</h1>
+      <form className="toolbar" onSubmit={onSearch}>
+        <input
+          className="input"
+          style={{ flex: 1, maxWidth: 320 }}
+          placeholder="Телефон или имя"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <button type="submit" className="btn">
+          Найти
+        </button>
+      </form>
+
+      <div className="users-split">
+        <div className="card">
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Телефон</th>
+                  <th>Имя</th>
+                  <th>Баланс</th>
+                  <th className="hide-mobile">Броней</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.length === 0 && <TableEmptyRow colSpan={5} />}
+                {rows.map((u) => (
+                  <tr
+                    key={u.id}
+                    className={selectedId === u.id ? 'row-selected' : ''}
+                    style={u.isDeleted ? { opacity: 0.55 } : undefined}
+                  >
+                    <td>{u.phone}</td>
+                    <td>
+                      {u.name}
+                      {u.isDeleted ? (
+                        <span className="badge badge-rejected" style={{ marginLeft: 6 }}>удалён</span>
+                      ) : null}
+                    </td>
+                    <td>{u.balanceRub.toLocaleString('ru-RU')} ₽</td>
+                    <td className="hide-mobile">{u.bookingsCount}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-ghost"
+                        onClick={() => openUser(u.id)}
+                      >
+                        Открыть
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {detail && (
+          <div className="card user-detail">
+            <h3>{detail.name}</h3>
+            <p className="muted">{detail.phone}</p>
+            {detail.isDeleted ? (
+              <p>
+                <span className="badge badge-rejected">
+                  Аккаунт удалён{detail.deletedAt ? ` ${fmtDate(detail.deletedAt)}` : ''}
+                </span>
+              </p>
+            ) : null}
+            <p>
+              Баланс: <strong>{detail.balanceRub.toLocaleString('ru-RU')} ₽</strong>
+            </p>
+
+            {detail.isDeleted ? null : (
+            <div className="user-login-code-block">
+              <h4>Код для входа</h4>
+              <p className="muted" style={{ fontSize: 13 }}>
+                Клиент ввёл номер в приложении — сгенерируйте 4 цифры. Действует 15 минут
+                (альтернатива звонку).
+              </p>
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={codeLoading}
+                onClick={onGenerateLoginCode}
+              >
+                {codeLoading ? 'Генерация…' : 'Сгенерировать код'}
+              </button>
+              {loginCode ? (
+                <div className="login-code-box">
+                  <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+                    Назовите клиенту код для {loginCode.phone}:
+                  </p>
+                  <p className="login-code-value">{loginCode.code}</p>
+                  <p className="muted" style={{ fontSize: 12, margin: 0 }}>
+                    Действует {Math.round(loginCode.expiresInSec / 60)} мин
+                  </p>
+                </div>
+              ) : null}
+            </div>
+            )}
+
+            <form onSubmit={onAdjust} className="adjust-form">
+              <h4>Корректировка баланса</h4>
+              <input
+                className="input"
+                type="number"
+                placeholder="Сумма ₽ (+ / −)"
+                value={adjustRub}
+                onChange={(e) => setAdjustRub(e.target.value)}
+              />
+              <input
+                className="input"
+                placeholder="Комментарий"
+                value={adjustNote}
+                onChange={(e) => setAdjustNote(e.target.value)}
+              />
+              <button type="submit" className="btn">
+                Применить
+              </button>
+            </form>
+            <h4>Транзакции</h4>
+            {detail.transactions.map((t) => (
+              <p key={t.id} className="muted tx-line">
+                {TX_TYPE[t.type] ?? t.type}: {t.amountRub >= 0 ? '+' : ''}
+                {t.amountRub} ₽ — {t.description}
+              </p>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}

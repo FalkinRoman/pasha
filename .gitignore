@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.env
+deploy/.env.prod
+.DS_Store
+*.log
+stopkek-api/dist/
+stopkek-mobile/.expo/
+stopkek-admin/dist/
+stopkek-admin/tsconfig.tsbuildinfo
+stopkek-admin/.env
+stopkek-api/.env
+stopkek-api/uploads/

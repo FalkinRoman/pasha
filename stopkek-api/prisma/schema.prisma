@@ -1,0 +1,419 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SeatStatus {
+  free
+  occupied
+  reserved
+  repair
+}
+
+enum BookingStatus {
+  draft
+  pending_payment
+  paid
+  active
+  completed
+  cancelled
+  no_show
+}
+
+enum SessionPhase {
+  awaiting_arrival
+  arrival
+  cell_pending
+  acceptance
+  issue
+  playing
+  checkout
+}
+
+enum TransactionType {
+  topup
+  booking_payment
+  extension
+  refund
+}
+
+enum PaymentStatus {
+  pending
+  waiting_for_capture
+  succeeded
+  cancelled
+  failed
+}
+
+enum PaymentProvider {
+  yookassa
+  mock
+}
+
+enum AdminRole {
+  admin
+  superadmin
+}
+
+enum IdentityStatus {
+  none
+  pending
+  approved
+  rejected
+  auto_approved
+}
+
+enum LockProvider {
+  mock
+  http
+  mqtt
+}
+
+enum NotificationType {
+  session_start
+  session_remind_15
+  session_end
+  promo
+}
+
+enum LockerLogType {
+  lock_open_main
+  lock_open_cell
+  acceptance
+  checkout
+}
+
+model User {
+  id                String         @id @default(cuid())
+  phone             String         @unique
+  name              String         @default("")
+  profileCompleted  Boolean        @default(false)
+  identityStatus    IdentityStatus @default(none)
+  pdConsentAt       DateTime?
+  email             String?
+  notifySession     Boolean        @default(true)
+  notifyRemind15    Boolean        @default(true)
+  notifyPromo       Boolean        @default(false)
+  /// Soft delete: данные сохраняются, номер освобождается для новой регистрации
+  deletedAt         DateTime?
+  /// Исходный номер до удаления (для админки)
+  deletedPhone      String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  wallet                  Wallet?
+  bookings                Booking[]
+  feedbacks               Feedback[]
+  payments                Payment[]
+  identityVerifications   IdentityVerification[]
+  pushTokens              PushToken[]
+  notificationLogs        NotificationLog[]
+  lockerLogs              LockerLog[]
+}
+
+model IdentityVerification {
+  id                String         @id @default(cuid())
+  userId            String
+  status            IdentityStatus @default(pending)
+  photoPath         String
+  rejectReason      String?
+  pdConsentAt       DateTime
+  submittedAt       DateTime       @default(now())
+  autoApproveAt     DateTime
+  resolvedAt        DateTime?
+  resolvedByAdminId String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, submittedAt])
+  @@index([userId, submittedAt])
+}
+
+model Wallet {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  balance   Int      @default(0) // копейки
+  updatedAt DateTime @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+}
+
+model Transaction {
+  id          String          @id @default(cuid())
+  walletId    String
+  type        TransactionType
+  amount      Int
+  description String?
+  externalId  String?
+  createdAt   DateTime        @default(now())
+
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId, createdAt])
+}
+
+model Payment {
+  id              String          @id @default(cuid())
+  userId          String
+  amount          Int
+  status          PaymentStatus   @default(pending)
+  provider        PaymentProvider
+  providerId      String?
+  confirmationUrl String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  paidAt          DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([providerId])
+}
+
+model Club {
+  id               String   @id @default(cuid())
+  name             String
+  address          String
+  rating           Float    @default(5)
+  hours            String   @default("24/7")
+  imagePath        String?
+  supportPhone     String?
+  supportTelegram  String?
+  supportEmail     String?
+  lockProvider     LockProvider @default(mock)
+  mainDoorLockId   String?
+  lockHttpBaseUrl  String?
+  lockHttpToken    String?
+  lockMqttTopic    String?
+  createdAt        DateTime @default(now())
+
+  zones            Zone[]
+  durationPackages DurationPackage[]
+  nightPricing     NightPricing[]
+}
+
+model Zone {
+  id           String @id @default(cuid())
+  clubId       String
+  slug         String
+  name         String
+  specs        String
+  pricePerHour Int
+  labelX       Float  @default(0)
+  labelY       Float  @default(0)
+  sortOrder    Int    @default(0)
+
+  club             Club              @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  seats            Seat[]
+  durationPackages DurationPackage[]
+  nightPricing     NightPricing[]
+
+  @@unique([clubId, slug])
+}
+
+model DurationPackage {
+  id              String  @id @default(cuid())
+  clubId          String
+  zoneId          String?
+  minHours        Int
+  discountPercent Int
+  label           String
+  badge           String?
+  recommended     Boolean @default(false)
+  sortOrder       Int     @default(0)
+  active          Boolean @default(true)
+
+  club Club  @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  zone Zone? @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@index([clubId, active])
+}
+
+model NightPricing {
+  id              String  @id @default(cuid())
+  clubId          String
+  zoneId          String?
+  startHour       Int     @default(23)
+  endHour         Int     @default(7)
+  discountPercent Int     @default(20)
+  active          Boolean @default(true)
+
+  club Club  @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  zone Zone? @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@index([clubId, active])
+}
+
+model Seat {
+  id       String     @id @default(cuid())
+  zoneId   String
+  number   Int
+  x        Float
+  y        Float
+  w        Float      @default(22)
+  h        Float      @default(22)
+  status   SeatStatus @default(free)
+  lockId   String?
+  cellLock String?
+
+  zone         Zone          @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  bookingSeats BookingSeat[]
+  lockerLogs   LockerLog[]
+
+  @@unique([zoneId, number])
+}
+
+model Booking {
+  id              String        @id @default(cuid())
+  userId          String
+  status          BookingStatus @default(draft)
+  sessionPhase    SessionPhase  @default(awaiting_arrival)
+  startAt         DateTime
+  endAt           DateTime
+  startedAt       DateTime?
+  pcUnlockedAt    DateTime?
+  durationMinutes Int           @default(60)
+  basePrice          Int           @default(0)
+  discountAmount     Int           @default(0)
+  totalPrice         Int           @default(0)
+  checkoutPhotoPath  String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seats             BookingSeat[]
+  acceptanceReports AcceptanceReport[]
+  lockerLogs        LockerLog[]
+}
+
+model LockerLog {
+  id         String        @id @default(cuid())
+  bookingId  String?
+  userId     String
+  seatId     String?
+  seatNumber Int
+  cellLock   String
+  type       LockerLogType
+  photoPath  String?
+  payload    Json?
+  createdAt  DateTime      @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  booking Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  seat    Seat?    @relation(fields: [seatId], references: [id], onDelete: SetNull)
+
+  @@index([seatNumber, createdAt])
+  @@index([cellLock, createdAt])
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
+model AcceptanceReport {
+  id         String   @id @default(cuid())
+  bookingId  String
+  userId     String
+  items      Json
+  comment    String   @default("")
+  hasIssue   Boolean  @default(false)
+  resolved   Boolean  @default(false)
+  photoPath  String?
+  createdAt  DateTime @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([resolved, createdAt])
+  @@index([bookingId])
+}
+
+model BookingSeat {
+  bookingId String
+  seatId    String
+  seatNumber Int
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  seat    Seat    @relation(fields: [seatId], references: [id])
+
+  @@id([bookingId, seatId])
+}
+
+model Feedback {
+  id        String   @id @default(cuid())
+  userId    String
+  rating    Int
+  message   String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Admin {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String    @default("Администратор")
+  role         AdminRole @default(superadmin)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  passwordResets AdminPasswordReset[]
+}
+
+model PushToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String
+  platform  String   @default("unknown")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, token])
+  @@index([userId])
+}
+
+model NotificationLog {
+  id        String           @id @default(cuid())
+  userId    String
+  bookingId String?
+  type      NotificationType
+  sentAt    DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingId, type])
+  @@index([userId, sentAt])
+}
+
+model LockEvent {
+  id         String   @id @default(cuid())
+  userId     String?
+  bookingId  String?
+  lockType   String
+  lockTarget String
+  provider   LockProvider
+  success    Boolean
+  error      String?
+  createdAt  DateTime @default(now())
+
+  @@index([bookingId, createdAt])
+  @@index([createdAt])
+}
+
+model AdminPasswordReset {
+  id        String   @id @default(cuid())
+  adminId   String
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  admin Admin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId, createdAt])
+}

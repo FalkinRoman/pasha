@@ -1,0 +1,7 @@
+.stop-logo-img {
+  display: block;
+  margin: 0 auto;
+  flex-shrink: 0;
+  object-fit: contain;
+  background: transparent;
+}

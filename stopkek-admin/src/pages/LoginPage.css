@@ -1,0 +1,73 @@
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.login-card label,
+.login-card .input,
+.login-card .btn,
+.login-card .error,
+.login-card .login-success,
+.login-card .login-link,
+.login-card .login-title,
+.login-card .login-subtitle {
+  width: 100%;
+}
+
+.login-card .stop-logo-img {
+  display: block;
+}
+
+.login-subtitle {
+  text-align: center;
+  margin: 0 0 8px;
+}
+
+.login-title {
+  margin: 0;
+  font-size: 20px;
+  text-align: center;
+}
+
+.login-link {
+  text-align: center;
+  font-size: 14px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.login-link:hover {
+  color: var(--accent);
+}
+
+.login-success {
+  color: #66bb6a;
+  font-size: 14px;
+  margin: 0;
+}
+
+.login-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.login-card input,
+.login-card .input,
+.login-card .password-input {
+  font-size: 16px !important;
+}
