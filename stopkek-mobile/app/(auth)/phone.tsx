@@ -1,6 +1,8 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Linking, StyleSheet, Text, View } from 'react-native';
+import { requestCallDeduped } from '../../src/api/auth';
+import { ApiError } from '../../src/api/client';
 import { LEGAL_URLS } from '../../src/constants/legal';
 import { Input } from '../../src/components/ui/Input';
 import { Screen } from '../../src/components/ui/Screen';
@@ -18,6 +20,7 @@ export default function PhoneScreen() {
   const dispatch = useAppDispatch();
   const [phone, setPhone] = useState('+7');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const onChange = (text: string) => {
     const digits = text.replace(/\D/g, '');
@@ -25,17 +28,38 @@ export default function PhoneScreen() {
     setError('');
   };
 
-  const submit = () => {
+  const submit = async () => {
     const normalized = phoneDigits(phone);
     if (normalized.replace(/\D/g, '').length < 11) {
       setError('Введите номер полностью');
       return;
     }
-    dispatch(setPendingPhone(normalized));
-    router.push({
-      pathname: '/(auth)/verify-call',
-      params: { phone: normalized, nonce: String(Date.now()) },
-    });
+    const nonce = String(Date.now());
+    setLoading(true);
+    setError('');
+    try {
+      const res = await requestCallDeduped(normalized, nonce);
+      dispatch(setPendingPhone(normalized));
+      router.push({
+        pathname: '/(auth)/verify-call',
+        params: {
+          phone: normalized,
+          sessionId: res.sessionId,
+          retryAfterSec: String(res.retryAfterSec ?? 15),
+          ...(res.devCode ? { devCode: res.devCode } : {}),
+        },
+      });
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 429 && e.body && typeof e.body === 'object') {
+        const body = e.body as { message?: { message?: string } | string };
+        const nested = typeof body.message === 'object' ? body.message : null;
+        setError(nested?.message ?? e.message);
+      } else {
+        setError(e instanceof ApiError ? e.message : 'Не удалось позвонить');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -54,6 +78,7 @@ export default function PhoneScreen() {
         keyboardType="phone-pad"
         error={error}
         autoFocus
+        editable={!loading}
       />
       <View style={styles.hint}>
         <Text style={typography.caption}>
@@ -67,7 +92,12 @@ export default function PhoneScreen() {
           </Text>
         </Text>
       </View>
-      <StopButton title="Позвонить мне" onPress={submit} style={styles.cta} />
+      <StopButton
+        title={loading ? 'Звоним…' : 'Позвонить мне'}
+        onPress={submit}
+        style={styles.cta}
+        disabled={loading}
+      />
       <AuthSupportHint />
     </Screen>
   );

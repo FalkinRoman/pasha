@@ -39,6 +39,16 @@ export class AuthService {
   private readonly smsSessions = new Map<string, OtpSession>();
   private readonly adminCodesByPhone = new Map<string, AdminLoginCode>();
   private readonly lastRequestByPhone = new Map<string, number>();
+  private readonly callInFlightByPhone = new Map<
+    string,
+    Promise<{
+      sessionId: string;
+      phone: string;
+      expiresInSec: number;
+      retryAfterSec: number;
+      devCode?: string;
+    }>
+  >();
   private readonly mockCodes: Set<string>;
   private readonly ttlSec: number;
   private readonly hmacSecret: string;
@@ -64,6 +74,17 @@ export class AuthService {
 
   async requestCall(dto: CallRequestDto, clientIp: string) {
     const phone = normalizePhone(dto.phone);
+    const inflight = this.callInFlightByPhone.get(phone);
+    if (inflight) return inflight;
+
+    const promise = this.doRequestCall(phone, clientIp).finally(() => {
+      this.callInFlightByPhone.delete(phone);
+    });
+    this.callInFlightByPhone.set(phone, promise);
+    return promise;
+  }
+
+  private async doRequestCall(phone: string, clientIp: string) {
     const digits = phoneDigits(phone);
 
     const last = this.lastRequestByPhone.get(phone);
@@ -84,19 +105,27 @@ export class AuthService {
       `call/request phone=${phone} smsru=${this.smsRu.enabled} clientIp=${clientIp}`
     );
 
-    if (this.smsRu.enabled) {
-      const call = await this.smsRu.codeCall(digits, clientIp);
-      code = call.code;
-      smsCallId = call.callId;
-      this.logger.log(`call/request OK callId=${smsCallId}`);
-    } else if (this.isDev) {
-      code = [...this.mockCodes][0] ?? '1234';
-      devCode = code;
-    } else {
-      this.logger.error('call/request: SMSRU_API_ID не задан в production');
-      throw new ServiceUnavailableException(
-        'Вход по звонку временно недоступен. Обратитесь в поддержку.'
-      );
+    // Блокируем параллельные запросы до ответа SMS.ru
+    this.lastRequestByPhone.set(phone, Date.now());
+
+    try {
+      if (this.smsRu.enabled) {
+        const call = await this.smsRu.codeCall(digits, clientIp);
+        code = call.code;
+        smsCallId = call.callId;
+        this.logger.log(`call/request OK callId=${smsCallId}`);
+      } else if (this.isDev) {
+        code = [...this.mockCodes][0] ?? '1234';
+        devCode = code;
+      } else {
+        this.logger.error('call/request: SMSRU_API_ID не задан в production');
+        throw new ServiceUnavailableException(
+          'Вход по звонку временно недоступен. Обратитесь в поддержку.'
+        );
+      }
+    } catch (e) {
+      this.lastRequestByPhone.delete(phone);
+      throw e;
     }
 
     this.callSessions.set(sessionId, {
@@ -106,7 +135,6 @@ export class AuthService {
       attempts: 0,
       smsCallId,
     });
-    this.lastRequestByPhone.set(phone, Date.now());
 
     return {
       sessionId,

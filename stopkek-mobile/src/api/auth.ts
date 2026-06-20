@@ -9,6 +9,19 @@ export type CallRequestResponse = {
   devCode?: string;
 };
 
+/** Один in-flight requestCall на ключ (Strict Mode / двойной mount) */
+const inflightCalls = new Map<string, Promise<CallRequestResponse>>();
+
+export function requestCallDeduped(phone: string, dedupKey: string) {
+  const existing = inflightCalls.get(dedupKey);
+  if (existing) return existing;
+  const promise = requestCall(phone).finally(() => {
+    setTimeout(() => inflightCalls.delete(dedupKey), 15_000);
+  });
+  inflightCalls.set(dedupKey, promise);
+  return promise;
+}
+
 type AuthUserPayload = {
   id: string;
   phone: string;

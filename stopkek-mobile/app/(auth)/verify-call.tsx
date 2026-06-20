@@ -15,29 +15,35 @@ import { loginSuccess } from '../../src/store/authSlice';
 import { colors } from '../../src/theme/colors';
 import { spacing } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
+import { pickRouteParam } from '../../src/utils/routeParams';
 
 const CODE_LEN = 4;
 
 export default function VerifyCallScreen() {
   const dispatch = useAppDispatch();
-  const { phone: paramPhone, nonce } = useLocalSearchParams<{
-    phone?: string;
-    nonce?: string;
+  const params = useLocalSearchParams<{
+    phone?: string | string[];
+    sessionId?: string | string[];
+    devCode?: string | string[];
+    retryAfterSec?: string | string[];
   }>();
   const pendingPhone = useAppSelector((s) => s.auth.pendingPhone);
-  const phone = (typeof paramPhone === 'string' && paramPhone) || pendingPhone;
-  const [sessionId, setSessionId] = useState('');
-  const [devCode, setDevCode] = useState<string | null>(null);
-  const [calling, setCalling] = useState(true);
+  const phone = pickRouteParam(params.phone) || pendingPhone;
+  const initialSessionId = pickRouteParam(params.sessionId) ?? '';
+  const initialDevCode = pickRouteParam(params.devCode) ?? null;
+  const initialRetryAfter = Number(pickRouteParam(params.retryAfterSec)) || 15;
+
+  const [sessionId, setSessionId] = useState(initialSessionId);
+  const [devCode, setDevCode] = useState<string | null>(initialDevCode);
+  const [calling, setCalling] = useState(!initialSessionId);
   const [callTimeout, setCallTimeout] = useState(false);
-  const [countdown, setCountdown] = useState(0);
+  const [countdown, setCountdown] = useState(initialSessionId ? initialRetryAfter : 0);
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const pulse = useRef(new Animated.Value(1)).current;
   const pulseLoop = useRef<Animated.CompositeAnimation | null>(null);
   const callTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const requestGenRef = useRef(0);
-  const startedForNonce = useRef<string | null>(null);
+  const bootstrappedRef = useRef(Boolean(initialSessionId));
 
   const finishLogin = async (
     user: Parameters<typeof loginSuccess>[0]['user'],
@@ -52,8 +58,16 @@ export default function VerifyCallScreen() {
     else router.replace('/(tabs)/home');
   };
 
+  const applyCallResponse = (res: Awaited<ReturnType<typeof requestCall>>) => {
+    setSessionId(res.sessionId);
+    setDevCode(res.devCode ?? null);
+    setCountdown(res.retryAfterSec ?? 15);
+    if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
+    callTimeoutRef.current = setTimeout(() => setCallTimeout(true), 12_000);
+    setTimeout(() => setCalling(false), 2500);
+  };
+
   const startCallFlow = async (targetPhone: string) => {
-    const gen = ++requestGenRef.current;
     setCalling(true);
     setCallTimeout(false);
     setCode('');
@@ -61,16 +75,8 @@ export default function VerifyCallScreen() {
     if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
     try {
       const res = await requestCall(targetPhone);
-      if (gen !== requestGenRef.current) return;
-      setSessionId(res.sessionId);
-      setDevCode(res.devCode ?? null);
-      setCountdown(res.retryAfterSec ?? 15);
-      callTimeoutRef.current = setTimeout(() => setCallTimeout(true), 12_000);
-      setTimeout(() => {
-        if (gen === requestGenRef.current) setCalling(false);
-      }, 2500);
+      applyCallResponse(res);
     } catch (e) {
-      if (gen !== requestGenRef.current) return;
       if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
       if (e instanceof ApiError && e.status === 429 && e.body && typeof e.body === 'object') {
         const body = e.body as { message?: { retryAfterSec?: number; message?: string } | string };
@@ -88,18 +94,25 @@ export default function VerifyCallScreen() {
   };
 
   useEffect(() => {
-    const visitKey = typeof nonce === 'string' ? nonce : phone;
-    if (!phone || !visitKey) {
+    if (bootstrappedRef.current) return;
+    if (!phone) {
       const t = setTimeout(() => {
         setError('Не удалось получить номер — вернитесь и попробуйте снова');
         setCalling(false);
       }, 1500);
       return () => clearTimeout(t);
     }
-    if (startedForNonce.current === visitKey) return;
-    startedForNonce.current = visitKey;
+    if (initialSessionId) {
+      bootstrappedRef.current = true;
+      callTimeoutRef.current = setTimeout(() => setCallTimeout(true), 12_000);
+      setTimeout(() => setCalling(false), 2500);
+      return () => {
+        if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
+      };
+    }
+    bootstrappedRef.current = true;
     startCallFlow(phone);
-  }, [phone, nonce]);
+  }, [phone, initialSessionId]);
 
   useEffect(() => {
     if (countdown <= 0 || calling) return;
