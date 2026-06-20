@@ -32,7 +32,10 @@ export default function PhoneScreen() {
       return;
     }
     dispatch(setPendingPhone(normalized));
-    router.push('/(auth)/verify-call');
+    router.push({
+      pathname: '/(auth)/verify-call',
+      params: { phone: normalized, nonce: String(Date.now()) },
+    });
   };
 
   return (

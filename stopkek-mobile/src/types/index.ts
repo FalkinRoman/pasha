@@ -9,6 +9,8 @@ export interface Seat {
   w: number;
   h: number;
   status: SeatStatus;
+  bookedFrom?: string;
+  bookedUntil?: string;
 }
 
 export interface Zone {

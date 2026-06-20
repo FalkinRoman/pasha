@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { requestCall, verifyCall } from '../../src/api/auth';
@@ -20,7 +20,12 @@ const CODE_LEN = 4;
 
 export default function VerifyCallScreen() {
   const dispatch = useAppDispatch();
-  const phone = useAppSelector((s) => s.auth.pendingPhone);
+  const { phone: paramPhone, nonce } = useLocalSearchParams<{
+    phone?: string;
+    nonce?: string;
+  }>();
+  const pendingPhone = useAppSelector((s) => s.auth.pendingPhone);
+  const phone = (typeof paramPhone === 'string' && paramPhone) || pendingPhone;
   const [sessionId, setSessionId] = useState('');
   const [devCode, setDevCode] = useState<string | null>(null);
   const [calling, setCalling] = useState(true);
@@ -31,6 +36,8 @@ export default function VerifyCallScreen() {
   const pulse = useRef(new Animated.Value(1)).current;
   const pulseLoop = useRef<Animated.CompositeAnimation | null>(null);
   const callTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestGenRef = useRef(0);
+  const startedForNonce = useRef<string | null>(null);
 
   const finishLogin = async (
     user: Parameters<typeof loginSuccess>[0]['user'],
@@ -45,27 +52,25 @@ export default function VerifyCallScreen() {
     else router.replace('/(tabs)/home');
   };
 
-  const startCallFlow = async (targetPhone?: string) => {
-    const p = targetPhone ?? phone;
-    if (!p) {
-      setError('Номер не передан — вернитесь назад');
-      setCalling(false);
-      return;
-    }
+  const startCallFlow = async (targetPhone: string) => {
+    const gen = ++requestGenRef.current;
     setCalling(true);
     setCallTimeout(false);
     setCode('');
     setError('');
     if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
     try {
-      const res = await requestCall(p);
+      const res = await requestCall(targetPhone);
+      if (gen !== requestGenRef.current) return;
       setSessionId(res.sessionId);
       setDevCode(res.devCode ?? null);
       setCountdown(res.retryAfterSec ?? 15);
-      // Если за 12 секунд звонок не пришёл — показываем предупреждение
       callTimeoutRef.current = setTimeout(() => setCallTimeout(true), 12_000);
-      setTimeout(() => setCalling(false), 2500);
+      setTimeout(() => {
+        if (gen === requestGenRef.current) setCalling(false);
+      }, 2500);
     } catch (e) {
+      if (gen !== requestGenRef.current) return;
       if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
       if (e instanceof ApiError && e.status === 429 && e.body && typeof e.body === 'object') {
         const body = e.body as { message?: { retryAfterSec?: number; message?: string } | string };
@@ -73,6 +78,8 @@ export default function VerifyCallScreen() {
         const wait = nested?.retryAfterSec ?? 15;
         setCountdown(wait);
         setError(nested?.message ?? e.message);
+      } else if (e instanceof ApiError && e.status >= 500) {
+        setError('Сервис звонков временно недоступен. Попробуйте позже.');
       } else {
         setError(e instanceof ApiError ? e.message : 'Не удалось позвонить');
       }
@@ -81,19 +88,18 @@ export default function VerifyCallScreen() {
   };
 
   useEffect(() => {
-    if (phone) {
-      startCallFlow(phone);
-    } else {
-      // phone ещё не попало в Redux — ждём 300мс и повторяем
+    const visitKey = typeof nonce === 'string' ? nonce : phone;
+    if (!phone || !visitKey) {
       const t = setTimeout(() => {
-        if (!phone) {
-          setError('Не удалось получить номер — вернитесь и попробуйте снова');
-          setCalling(false);
-        }
+        setError('Не удалось получить номер — вернитесь и попробуйте снова');
+        setCalling(false);
       }, 1500);
       return () => clearTimeout(t);
     }
-  }, [phone]);
+    if (startedForNonce.current === visitKey) return;
+    startedForNonce.current = visitKey;
+    startCallFlow(phone);
+  }, [phone, nonce]);
 
   useEffect(() => {
     if (countdown <= 0 || calling) return;
@@ -135,9 +141,9 @@ export default function VerifyCallScreen() {
   };
 
   const resend = () => {
-    if (calling || (countdown > 0 && !callTimeout)) return;
+    if (calling || (countdown > 0 && !callTimeout) || !phone) return;
     if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
-    startCallFlow();
+    startCallFlow(phone);
   };
 
   return (
@@ -190,7 +196,7 @@ export default function VerifyCallScreen() {
           <Text style={typography.caption}>Звонок сбросится сам — это бесплатно</Text>
           {callTimeout && (
             <Text style={[typography.caption, styles.timeoutHint]}>
-              Звонок задерживается — нажмите «Позвонить снова» ниже или войдите по SMS
+              Звонок задерживается — нажмите «Позвонить снова» ниже
             </Text>
           )}
         </View>

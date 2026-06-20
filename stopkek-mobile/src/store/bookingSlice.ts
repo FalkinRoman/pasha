@@ -33,6 +33,9 @@ const bookingSlice = createSlice({
   name: 'booking',
   initialState,
   reducers: {
+    clearSeatSelection(state) {
+      state.selectedSeatIds = [];
+    },
     toggleSeat(state, action: PayloadAction<string>) {
       const id = action.payload;
       const seat = state.seats.find((s) => s.id === id);
@@ -92,6 +95,7 @@ const bookingSlice = createSlice({
 
 export const {
   toggleSeat,
+  clearSeatSelection,
   setDuration,
   setActivePackageId,
   setStartAt,

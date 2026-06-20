@@ -150,8 +150,8 @@ export class ClubService {
   async getFloorMap() {
     await this.bookings.syncSeatStates();
 
-    const [statuses, club] = await Promise.all([
-      this.bookings.getFloorMapSeatStatuses(),
+    const [seatStates, club] = await Promise.all([
+      this.bookings.getFloorMapSeatStates(),
       this.prisma.club.findFirst({
         include: {
           zones: {
@@ -179,16 +179,21 @@ export class ClubService {
         labelY: z.labelY,
       })),
       seats: club.zones.flatMap((z) =>
-        z.seats.map((s) => ({
-          id: s.id,
-          number: s.number,
-          zoneId: z.slug,
-          x: s.x,
-          y: s.y,
-          w: s.w,
-          h: s.h,
-          status: statuses.get(s.id) ?? s.status,
-        }))
+        z.seats.map((s) => {
+          const state = seatStates.get(s.id);
+          return {
+            id: s.id,
+            number: s.number,
+            zoneId: z.slug,
+            x: s.x,
+            y: s.y,
+            w: s.w,
+            h: s.h,
+            status: state?.status ?? s.status,
+            ...(state?.bookedFrom ? { bookedFrom: state.bookedFrom } : {}),
+            ...(state?.bookedUntil ? { bookedUntil: state.bookedUntil } : {}),
+          };
+        })
       ),
     };
   }

@@ -60,22 +60,3 @@ export async function verifyCall(phone: string, sessionId: string, code: string)
   };
 }
 
-export async function requestSms(phone: string) {
-  return apiFetch<CallRequestResponse>('/auth/sms/request', {
-    method: 'POST',
-    body: JSON.stringify({ phone }),
-  });
-}
-
-export async function verifySms(phone: string, sessionId: string, code: string) {
-  const data = await apiFetch<LoginResponse>('/auth/sms/verify', {
-    method: 'POST',
-    body: JSON.stringify({ phone, sessionId, code }),
-  });
-  return {
-    user: mapUser(data.user),
-    accessToken: data.accessToken,
-    refreshToken: data.refreshToken,
-    needsProfileSetup: data.needsProfileSetup,
-  };
-}

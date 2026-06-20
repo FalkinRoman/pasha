@@ -128,6 +128,12 @@ export function formatDurationHours(hours: number) {
   return `${hours} часов`;
 }
 
+/** «до 22:00 · сегодня» — для активной брони */
+export function formatBookingUntil(endAt: string) {
+  const end = new Date(endAt);
+  return `до ${formatTimeHM(end)} · ${formatPickerDay(end)}`;
+}
+
 export function formatBookingRange(start: string, end: string): string {
   const s = new Date(start);
   const e = new Date(end);

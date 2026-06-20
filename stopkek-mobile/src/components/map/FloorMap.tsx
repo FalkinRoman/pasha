@@ -15,11 +15,12 @@ import {
   zoneSubtitle,
 } from '../../constants/floorLayout';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
-import { toggleSeat } from '../../store/bookingSlice';
+import { clearSeatSelection, toggleSeat } from '../../store/bookingSlice';
 import { colors } from '../../theme/colors';
 import { radius, spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
 import { Seat, SeatStatus } from '../../types';
+import { BookedSeatPanel } from './BookedSeatPanel';
 import { CapsuleConfigPanel } from './CapsuleConfigPanel';
 
 const INNER_PAD = 12;
@@ -27,6 +28,8 @@ const MAP_SCREEN_INSET = spacing.sm;
 const CARD_MIN_H = 212;
 const CAPSULE_ROOM_FILL = 'rgba(46, 125, 50, 0.12)';
 const CAPSULE_ROOM_STROKE = '#4caf50';
+const CAPSULE_ROOM_FILL_BUSY = 'rgba(196, 30, 36, 0.1)';
+const CAPSULE_ROOM_STROKE_BUSY = colors.seatReservedBorder;
 
 function seatColors(status: SeatStatus, selected: boolean) {
   if (selected) {
@@ -44,12 +47,24 @@ function seatColors(status: SeatStatus, selected: boolean) {
   }
 }
 
-export function FloorMap() {
+type Props = {
+  onInspectSeat?: (seat: Seat | null) => void;
+};
+
+export function FloorMap({ onInspectSeat }: Props) {
   const dispatch = useAppDispatch();
   const { seats, zones, selectedSeatIds } = useAppSelector((s) => s.booking);
+  const [inspectedSeatId, setInspectedSeatId] = useState<string | null>(null);
   const [scale, setScale] = useState(1);
   const { width: windowW } = useWindowDimensions();
   const soloZone = zones[0] ?? null;
+
+  const inspectedSeat = seats.find((s) => s.id === inspectedSeatId) ?? null;
+  const showBookedPanel =
+    inspectedSeat &&
+    (inspectedSeat.status === 'reserved' ||
+      inspectedSeat.status === 'occupied' ||
+      inspectedSeat.status === 'repair');
 
   const cardW = windowW - MAP_SCREEN_INSET * 2;
   const configW = Math.min(152, Math.max(118, Math.round(cardW * 0.4)));
@@ -57,9 +72,19 @@ export function FloorMap() {
   const mapSvgW = mapColW - spacing.sm * 2;
   const mapSvgH = CARD_MIN_H - spacing.sm * 2;
 
+  const inspect = (seat: Seat | null) => {
+    setInspectedSeatId(seat?.id ?? null);
+    onInspectSeat?.(seat);
+  };
+
   const onSeatPress = (seat: Seat) => {
-    if (seat.status !== 'free') return;
-    dispatch(toggleSeat(seat.id));
+    if (seat.status === 'free') {
+      inspect(null);
+      dispatch(toggleSeat(seat.id));
+      return;
+    }
+    dispatch(clearSeatSelection());
+    inspect(seat);
   };
 
   return (
@@ -118,6 +143,8 @@ export function FloorMap() {
                 ) : null}
                 {seats.map((seat) => {
                   const room = capsuleRoomForSeat(seat);
+                  const busy = seat.status === 'reserved' || seat.status === 'occupied';
+                  const highlighted = inspectedSeatId === seat.id;
                   return (
                     <Rect
                       key={`room-${seat.id}`}
@@ -126,9 +153,16 @@ export function FloorMap() {
                       width={room.w}
                       height={room.h}
                       rx={10}
-                      fill={CAPSULE_ROOM_FILL}
-                      stroke={CAPSULE_ROOM_STROKE}
-                      strokeWidth={1.5}
+                      fill={busy ? CAPSULE_ROOM_FILL_BUSY : CAPSULE_ROOM_FILL}
+                      stroke={
+                        highlighted
+                          ? colors.accentBright
+                          : busy
+                            ? CAPSULE_ROOM_STROKE_BUSY
+                            : CAPSULE_ROOM_STROKE
+                      }
+                      strokeWidth={highlighted ? 2 : 1.5}
+                      onPress={() => onSeatPress(seat)}
                     />
                   );
                 })}
@@ -145,7 +179,7 @@ export function FloorMap() {
                       rx={8}
                       fill={c.fill}
                       stroke={c.stroke}
-                      strokeWidth={selected ? 2.5 : 1.5}
+                      strokeWidth={selected || inspectedSeatId === seat.id ? 2.5 : 1.5}
                       onPress={() => onSeatPress(seat)}
                     />
                   );
@@ -173,7 +207,11 @@ export function FloorMap() {
           </View>
         </View>
         <View style={[styles.configCol, { width: configW }]}>
-          <CapsuleConfigPanel zone={soloZone} embedded />
+          {showBookedPanel ? (
+            <BookedSeatPanel seat={inspectedSeat} embedded />
+          ) : (
+            <CapsuleConfigPanel zone={soloZone} embedded />
+          )}
         </View>
       </View>
 

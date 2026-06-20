@@ -1,6 +1,6 @@
 export const BOOKING_MAX_DAYS_AHEAD = 7;
 
-export const DOOR_EARLY_MIN = 15;
+export const DOOR_EARLY_MIN = 5;
 
 /** startAt в пределах N мин от «сейчас» = бронь «сейчас», таймер сразу после оплаты */
 export const WALK_IN_START_MIN = 10;

@@ -38,7 +38,7 @@ async function rawFetch(path: string, init: RequestInit, auth: boolean) {
 let refreshPromise: Promise<boolean> | null = null;
 
 /** Обновление access по refresh-токену; параллельные 401 ждут один refresh */
-async function tryRefresh(): Promise<boolean> {
+export async function refreshSession(): Promise<boolean> {
   if (refreshPromise) return refreshPromise;
   refreshPromise = (async () => {
     try {
@@ -65,6 +65,10 @@ async function tryRefresh(): Promise<boolean> {
     }
   })();
   return refreshPromise;
+}
+
+async function tryRefresh(): Promise<boolean> {
+  return refreshSession();
 }
 
 export async function apiFetch<T>(

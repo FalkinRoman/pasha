@@ -8,6 +8,7 @@ import { useAppDispatch, useAppSelector } from '../../src/store/hooks';
 import { setFloorMap, setPendingBookingId } from '../../src/store/bookingSlice';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BRAND_NAME } from '../../src/constants/brand';
+import { formatBookingUntil } from '../../src/utils/format';
 import { FloorMap } from '../../src/components/map/FloorMap';
 import { StopkekLoader } from '../../src/components/ui/StopkekLoader';
 import { Header } from '../../src/components/ui/Header';
@@ -27,6 +28,7 @@ export default function MapScreen() {
   const selected = seats.filter((s) => selectedSeatIds.includes(s.id));
   const club = useAppSelector((s) => s.booking.club);
   const [loading, setLoading] = useState(true);
+  const [inspectedSeat, setInspectedSeat] = useState<(typeof seats)[number] | null>(null);
 
   const loadMap = useCallback(() => {
     setLoading(true);
@@ -88,7 +90,7 @@ export default function MapScreen() {
         {loading ? (
           <StopkekLoader flex size="md" message="Карта зала" />
         ) : (
-          <FloorMap />
+          <FloorMap onInspectSeat={setInspectedSeat} />
         )}
       </View>
 
@@ -101,8 +103,18 @@ export default function MapScreen() {
       >
         <Text style={[typography.caption, styles.footerText]}>
           {selected[0]
-            ? `Место #${selected[0].number} · ${selected[0].status === 'free' ? 'свободно' : 'недоступно'}`
-            : 'Выберите свободное место'}
+            ? `Место #${selected[0].number} · свободно`
+            : inspectedSeat?.bookedUntil
+              ? `Место #${inspectedSeat.number} · забронировано ${formatBookingUntil(inspectedSeat.bookedUntil)}`
+              : inspectedSeat
+                ? `Место #${inspectedSeat.number} · ${
+                    inspectedSeat.status === 'occupied'
+                      ? 'занято'
+                      : inspectedSeat.status === 'repair'
+                        ? 'на обслуживании'
+                        : 'недоступно'
+                  }`
+                : 'Выберите свободное место или нажмите на капсулу для информации'}
         </Text>
         <StopButton
           title="Выбрать время"

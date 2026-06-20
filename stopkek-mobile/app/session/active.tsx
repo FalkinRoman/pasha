@@ -18,7 +18,8 @@ import { colors } from '../../src/theme/colors';
 import { spacing } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
 import { CANCEL_BOOKING_WARNING, EARLY_END_WARNING } from '../../src/constants/paymentPolicy';
-import { formatCountdown } from '../../src/utils/format';
+import { DOOR_EARLY_MIN } from '../../src/constants/session';
+import { formatBookingUntil, formatCountdown } from '../../src/utils/format';
 
 export default function ActiveSessionScreen() {
   const dispatch = useAppDispatch();
@@ -157,10 +158,13 @@ export default function ActiveSessionScreen() {
       </View>
       <Text style={[typography.h2, styles.center]}>Место #{seatNum}</Text>
       <Text style={[typography.bodySecondary, styles.center]}>{booking.zoneName}</Text>
+      <Text style={[typography.caption, styles.until]}>
+        Забронировано {formatBookingUntil(booking.endAt)}
+      </Text>
 
       {waiting && (
         <Text style={[typography.bodySecondary, styles.hint]}>
-          Доступ в клуб откроется за 15 минут до начала брони
+          Доступ в клуб откроется за {DOOR_EARLY_MIN} минут до начала брони
         </Text>
       )}
 
@@ -218,6 +222,7 @@ export default function ActiveSessionScreen() {
 
 const styles = StyleSheet.create({
   center: { textAlign: 'center' },
+  until: { textAlign: 'center', marginTop: spacing.xs },
   timerWrap: { alignItems: 'center', marginVertical: spacing.xl },
   playingBadge: {
     flexDirection: 'row',

@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Booking } from '../../types';
-import { formatCountdown, formatMoney } from '../../utils/format';
+import { formatBookingUntil, formatCountdown } from '../../utils/format';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
@@ -49,6 +49,7 @@ export function SessionCard({ booking }: Props) {
             Место #{booking.seatNumbers.join(', ')}
           </Text>
           <Text style={typography.bodySecondary}>{booking.zoneName}</Text>
+          <Text style={styles.until}>Забронировано {formatBookingUntil(booking.endAt)}</Text>
         </View>
         <Ionicons name="game-controller" size={32} color={colors.accent} />
       </View>
@@ -77,6 +78,7 @@ export function SessionCard({ booking }: Props) {
 
 const styles = StyleSheet.create({
   card: { marginBottom: spacing.md },
+  until: { ...typography.caption, color: colors.textSecondary, marginTop: 4 },
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   actions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   btn: { flex: 1 },

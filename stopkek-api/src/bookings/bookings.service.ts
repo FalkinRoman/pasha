@@ -143,7 +143,27 @@ export class BookingsService {
     }
   }
 
-  async getFloorMapSeatStatuses(): Promise<Map<string, SeatStatus>> {
+  private pickDisplayBooking(
+    bookings: { status: BookingStatus; startAt: Date; endAt: Date }[],
+    displayStatus: SeatStatus,
+    now = new Date()
+  ) {
+    if (displayStatus === 'occupied') {
+      return bookings.find((b) => b.status === 'active' && now < b.endAt);
+    }
+    if (displayStatus === 'reserved') {
+      return bookings.find(
+        (b) =>
+          (b.status === 'paid' || b.status === 'pending_payment') &&
+          this.inDoorWindow(b.startAt, b.endAt, now)
+      );
+    }
+    return undefined;
+  }
+
+  async getFloorMapSeatStates(): Promise<
+    Map<string, { status: SeatStatus; bookedFrom?: string; bookedUntil?: string }>
+  > {
     const now = new Date();
     const [seats, bookings] = await Promise.all([
       this.prisma.seat.findMany(),
@@ -170,14 +190,31 @@ export class BookingsService {
       }
     }
 
-    const result = new Map<string, SeatStatus>();
+    const result = new Map<
+      string,
+      { status: SeatStatus; bookedFrom?: string; bookedUntil?: string }
+    >();
     for (const seat of seats) {
-      result.set(
-        seat.id,
-        this.resolveDisplayStatus(seat.status, bySeat.get(seat.id) ?? [], now)
-      );
+      const seatBookings = bySeat.get(seat.id) ?? [];
+      const status = this.resolveDisplayStatus(seat.status, seatBookings, now);
+      const booking = this.pickDisplayBooking(seatBookings, status, now);
+      result.set(seat.id, {
+        status,
+        ...(booking
+          ? {
+              bookedFrom: booking.startAt.toISOString(),
+              bookedUntil: booking.endAt.toISOString(),
+            }
+          : {}),
+      });
     }
     return result;
+  }
+
+  /** @deprecated используй getFloorMapSeatStates */
+  async getFloorMapSeatStatuses(): Promise<Map<string, SeatStatus>> {
+    const states = await this.getFloorMapSeatStates();
+    return new Map([...states.entries()].map(([id, s]) => [id, s.status]));
   }
 
   private assertStartWithinBookingWindow(startAt: Date) {
@@ -619,7 +656,9 @@ export class BookingsService {
     }
 
     if (!this.inDoorWindow(booking.startAt, booking.endAt)) {
-      throw new BadRequestException('Доступ в клуб откроется за 15 минут до начала');
+      throw new BadRequestException(
+        `Доступ в клуб откроется за ${DOOR_EARLY_MIN} минут до начала`
+      );
     }
 
     const club = await this.prisma.club.findFirst();
