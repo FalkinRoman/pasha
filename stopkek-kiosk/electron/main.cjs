@@ -19,10 +19,14 @@ function showHeaderNow(win) {
   if (!win || win.isDestroyed() || displayMode !== 'header') return;
   clearTimeout(headerHideTimer);
   const { width } = primaryBounds();
+  win.setFocusable(true);
+  win.setIgnoreMouseEvents(false);
   win.setBounds({ x: 0, y: 0, width, height: HEADER_HEIGHT });
   headerHideTimer = setTimeout(() => {
     if (!win || win.isDestroyed() || displayMode !== 'header') return;
     win.setBounds({ x: 0, y: HEADER_HIDDEN_Y, width, height: HEADER_HEIGHT });
+    win.setFocusable(false);
+    win.setIgnoreMouseEvents(true, { forward: true }); // кликтуз — события уходят на рабочий стол
   }, 3000);
 }
 
@@ -81,18 +85,6 @@ function regDel(key, name) {
   try {
     execSync(
       `reg delete "${key}" /v ${name} /f`,
-      { stdio: 'ignore', windowsHide: true }
-    );
-  } catch {}
-}
-
-// ☆ НОВОЕ: Убить все дочерние процессы (при выходе)
-function killChildProcesses() {
-  if (process.platform !== 'win32') return;
-  try {
-    // Убить все дочерние процессы текущего приложения
-    execSync(
-      `taskkill /F /IM "stopkek Kiosk 0.1.0.exe" /T`,
       { stdio: 'ignore', windowsHide: true }
     );
   } catch {}
@@ -163,16 +155,18 @@ function applyHeaderMode(win) {
   displayMode = 'header';
   unregisterOverlayBlockShortcuts();
   enableSystemShortcuts();
+  // setSkipTaskbar до выхода из kiosk/fullscreen — иначе окно мигает в панели задач
+  win.setSkipTaskbar(true);
   win.setKiosk(false);
   win.setFullScreen(false);
   win.setAlwaysOnTop(true, 'screen-saver');
-  win.setSkipTaskbar(true);
   win.setResizable(false);
   win.setMovable(false);
   win.setFocusable(true);
 
   const bounds = { x: 0, y: 0, width, height: HEADER_HEIGHT };
   const finish = () => {
+    win.setSkipTaskbar(true); // повторно после fullscreen/kiosk
     win.setBounds(bounds);
     win.show();
     win.webContents.send('display-mode', 'header');
@@ -180,7 +174,7 @@ function applyHeaderMode(win) {
   };
 
   // На Windows после fullscreen/kiosk bounds иногда не схлопываются без задержки
-  if (process.platform === 'win32') setTimeout(finish, 80);
+  if (process.platform === 'win32') setTimeout(finish, 150);
   else finish();
 }
 
@@ -190,6 +184,7 @@ function applyOverlayMode(win) {
   displayMode = 'overlay';
   registerOverlayBlockShortcuts();
   disableSystemShortcuts();
+  win.setFocusable(true);
   win.setResizable(false);
   win.setMovable(false);
   win.setSkipTaskbar(true);
@@ -197,7 +192,7 @@ function applyOverlayMode(win) {
   win.setKiosk(true);
   win.setFullScreen(true);
   win.setBounds(b);
-  win.setFocusable(true);
+  win.setSkipTaskbar(true); // повторно после kiosk/fullscreen
   win.show();
   win.focus();
   win.webContents.send('display-mode', 'overlay');
@@ -254,6 +249,7 @@ function createWindow() {
     autoHideMenuBar: true,
     backgroundColor: '#0A0A0A',
     show: false,
+    skipTaskbar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -302,6 +298,7 @@ function createWindow() {
     if (displayMode === 'overlay' && !staffQuitOpen) {
       setTimeout(() => {
         if (!win.isDestroyed() && displayMode === 'overlay' && !staffQuitOpen) {
+          win.setSkipTaskbar(true); // сброс taskbar-кнопки до show(), иначе иконка прыгает
           win.show();
           win.setAlwaysOnTop(true, 'screen-saver');
           win.focus();
@@ -323,6 +320,7 @@ function createWindow() {
   win.on('hide', () => {
     if (displayMode === 'overlay' && !staffQuitOpen && !win.isDestroyed()) {
       setTimeout(() => {
+        win.setSkipTaskbar(true);
         win.show();
         win.focus();
       }, 100);
@@ -388,24 +386,15 @@ if (!gotLock) {
       }
     });
     ipcMain.on('staff-quit-confirmed', () => {
-      // ☆ НОВОЕ: Убить все дочерние процессы перед выходом
-      killChildProcesses();
-
       enableSystemShortcuts();
+      globalShortcut.unregisterAll();
       app.isQuitting = true;
-
-      // Дать время на завершение процессов
-      setTimeout(() => {
-        app.exit(0);
-      }, 500);
+      app.exit(0); // чистый выход → watchdog видит код 0 → не перезапускает
     });
   });
 }
 
 app.on('will-quit', () => {
-  // ☆ НОВОЕ: Убить все дочерние процессы при выходе приложения
-  killChildProcesses();
-
   enableSystemShortcuts();
   globalShortcut.unregisterAll();
 });
