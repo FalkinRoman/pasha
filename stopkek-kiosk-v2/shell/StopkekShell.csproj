@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Pure-WPF shell, zero NuGet packages: WPF + WinForms come from the locally-installed
+    Microsoft.WindowsDesktop.App framework, System.Text.Json from Microsoft.NETCore.App.
+    Built entirely in C# (no XAML codegen) so nothing external is needed. WebView2 is
+    intentionally NOT used (it would require a NuGet download on a dead-to-nuget network).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>StopkekShell</RootNamespace>
+    <AssemblyName>stopkek-shell</AssemblyName>
+    <OutputType>WinExe</OutputType>
+    <LangVersion>latest</LangVersion>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
+  </PropertyGroup>
+
+</Project>

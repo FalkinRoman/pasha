@@ -31,8 +31,11 @@ import { RejectVerificationDto } from './dto/reject-verification.dto';
 import { WalletAdjustDto } from './dto/wallet-adjust.dto';
 import { UpdateClubDto } from './dto/update-club.dto';
 import { AdminJwtGuard } from './guards/admin-jwt.guard';
+import { ConfigService } from '@nestjs/config';
 import { ClubService } from '../club/club.service';
 import { LocksService } from '../locks/locks.service';
+import { KioskTelemetryService } from '../kiosk/kiosk-telemetry.service';
+import { deriveSeatKey } from '../kiosk/kiosk-keys';
 import { UpdateClubLocksDto } from './dto/update-club-locks.dto';
 import { UpsertDurationPackageDto } from './dto/upsert-duration-package.dto';
 import { UpsertNightPricingDto } from './dto/upsert-night-pricing.dto';
@@ -43,7 +46,9 @@ export class AdminController {
     private readonly auth: AdminAuthService,
     private readonly admin: AdminService,
     private readonly club: ClubService,
-    private readonly locks: LocksService
+    private readonly locks: LocksService,
+    private readonly kioskTelemetry: KioskTelemetryService,
+    private readonly config: ConfigService
   ) {}
 
   @Post('auth/login')
@@ -77,6 +82,25 @@ export class AdminController {
   @UseGuards(AdminJwtGuard)
   seats() {
     return this.admin.listSeats();
+  }
+
+  // --- Kiosk (club PCs) -------------------------------------------------
+  @Get('kiosk/devices')
+  @UseGuards(AdminJwtGuard)
+  kioskDevices() {
+    return this.kioskTelemetry.list();
+  }
+
+  /** Per-seat kiosk key to put in that PC's config.json (HMAC of the master key). */
+  @Get('kiosk/seat-key')
+  @UseGuards(AdminJwtGuard)
+  kioskSeatKey(@Query('seatNumber') seatNumber: string) {
+    const n = Number(seatNumber);
+    if (!Number.isFinite(n) || n < 1) {
+      return { error: 'seatNumber required' };
+    }
+    const master = this.config.get<string>('KIOSK_API_KEY', '').trim();
+    return { seatNumber: n, key: master ? deriveSeatKey(master, n) : null };
   }
 
   @Post('seats')

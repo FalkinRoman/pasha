@@ -1,0 +1,12 @@
+# .NET build output
+**/bin/
+**/obj/
+dist/
+release/
+
+# local machine config (never commit real kioskKey)
+agent/config.local.json
+
+# IDE
+.vs/
+*.user

@@ -1,0 +1,11 @@
+{
+  "apiUrl": "http://localhost:3001/api",
+  "seatNumber": 1,
+  "kioskKey": "stopkek-kiosk-prod-2026",
+  "pollIntervalSec": 8,
+  "graceSeconds": 300,
+  "warnMinutes": [15, 5, 1],
+  "lockOnStartup": true,
+  "shellPath": "",
+  "watchdogEnabled": false
+}

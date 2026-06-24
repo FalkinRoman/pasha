@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Zero NuGet packages on purpose: everything below comes from the locally-installed
+    Microsoft.AspNetCore.App shared framework (Hosting, Logging, DI, Http) and
+    Microsoft.NETCore.App (System.Text.Json, pipes, channels). The PC build does NOT
+    touch nuget.org. Run as SYSTEM via Task Scheduler (see deploy/03-install-agent-task.ps1)
+    rather than a Windows service, which avoids the Hosting.WindowsServices package.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>StopkekAgent</RootNamespace>
+    <AssemblyName>stopkek-agent</AssemblyName>
+    <OutputType>Exe</OutputType>
+    <LangVersion>latest</LangVersion>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="config.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

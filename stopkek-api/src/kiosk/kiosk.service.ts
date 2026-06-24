@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomInt, randomUUID } from 'crypto';
+import * as QRCode from 'qrcode';
 import { BookingsService } from '../bookings/bookings.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -159,6 +160,24 @@ export class KioskService {
     });
   }
 
+  // Render the QR once per payload. A payload only changes when its challenge
+  // rotates (~2 min per seat), so caching avoids re-encoding on every 8s poll.
+  private readonly qrCache = new Map<string, string>();
+
+  private async renderQrImage(payload: string): Promise<string> {
+    const cached = this.qrCache.get(payload);
+    if (cached) return cached;
+    const image = await QRCode.toDataURL(payload, {
+      errorCorrectionLevel: 'M',
+      margin: 1,
+      width: 512,
+      color: { dark: '#0A0A0A', light: '#FFFFFF' },
+    });
+    if (this.qrCache.size > 200) this.qrCache.clear(); // bound memory across seats
+    this.qrCache.set(payload, image);
+    return image;
+  }
+
   async getSeatState(seatNumber: number) {
     await this.bookings.syncSeatStatesForKiosk();
     const seat = await this.prisma.seat.findFirst({ where: { number: seatNumber } });
@@ -181,11 +200,13 @@ export class KioskService {
 
     if (!row) {
       const challengeId = this.createQrChallenge(seatNumber);
+      const qrPayload = this.buildQrPayload(seatNumber, challengeId);
       return {
         state: 'locked' as const,
         seatNumber,
         seatStatus: seat.status,
-        qrPayload: this.buildQrPayload(seatNumber, challengeId),
+        qrPayload,
+        qrImage: await this.renderQrImage(qrPayload),
         qrRefreshSec: Math.floor(CHALLENGE_TTL_MS / 1000),
       };
     }
