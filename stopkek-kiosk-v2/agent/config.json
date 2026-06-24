@@ -7,5 +7,6 @@
   "warnMinutes": [15, 5, 1],
   "lockOnStartup": true,
   "shellPath": "",
-  "watchdogEnabled": false
+  "watchdogEnabled": false,
+  "adminExitPinHash": ""
 }

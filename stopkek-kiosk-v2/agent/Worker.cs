@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using StopkekAgent.Api;
@@ -22,6 +24,10 @@ public sealed class Worker : BackgroundService
     private readonly ILogger<Worker> _log;
     private readonly IpcServer _ipc;
     private readonly Stopwatch _clock = Stopwatch.StartNew();
+
+    // Admin "panic exit": once the correct PIN is entered, the agent stops gating until
+    // the next reboot (which restarts the agent and restores protection).
+    private bool _maintenance;
 
     public Worker(
         KioskConfig cfg,
@@ -47,15 +53,25 @@ public sealed class Worker : BackgroundService
         _ipc.Start(stoppingToken);
 
         // Publish the fail-secure boot view immediately.
-        _ipc.Publish(_machine.Current);
+        PublishView(_machine.Current);
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            // Maintenance: admin unlocked the PC for servicing. Stop gating entirely until
+            // reboot — no polling, no locking, no watchdog. Just keep the shell hidden.
+            if (_maintenance)
+            {
+                _ipc.Publish(MaintenanceView());
+                try { await Task.Delay(_cfg.PollInterval, stoppingToken); }
+                catch (OperationCanceledException) { break; }
+                continue;
+            }
+
             try
             {
                 var poll = await _api.GetStateAsync(stoppingToken);
                 var view = _machine.Apply(poll, _clock.ElapsedMilliseconds);
-                _ipc.Publish(view);
+                PublishView(view);
 
                 if (_watchdog.Tick())
                 {
@@ -99,8 +115,55 @@ public sealed class Worker : BackgroundService
                 break;
 
             case ShellCommand.Hello:
-                _ipc.Publish(_machine.Current); // re-send current view on demand
+                _ipc.Publish(_maintenance ? MaintenanceView() : Stamp(_machine.Current)); // re-send current view on demand
+                break;
+
+            case ShellCommand.AdminExit:
+                HandleAdminExit(cmd.Pin);
                 break;
         }
     }
+
+    private void HandleAdminExit(string? pin)
+    {
+        if (!_cfg.AdminExitEnabled)
+        {
+            _log.LogWarning("admin-exit ignored: no PIN configured");
+            return;
+        }
+        if (VerifyPin(pin))
+        {
+            _log.LogWarning("admin-exit: correct PIN — entering maintenance until reboot");
+            _maintenance = true;
+            _watchdog.Stop();
+            _ipc.Publish(MaintenanceView());
+            _ = _api.ReportEventAsync("admin_exit", "maintenance unlocked via PIN", CancellationToken.None);
+        }
+        else
+        {
+            _log.LogWarning("admin-exit: WRONG PIN");
+            _ = _api.ReportEventAsync("admin_exit_failed", "wrong admin PIN", CancellationToken.None);
+        }
+    }
+
+    private bool VerifyPin(string? pin)
+    {
+        if (string.IsNullOrEmpty(pin)) return false;
+        var got = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(pin))).ToLowerInvariant();
+        var want = _cfg.AdminExitPinHash.Trim().ToLowerInvariant();
+        return CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(got), Encoding.UTF8.GetBytes(want));
+    }
+
+    private KioskView Stamp(KioskView v) => v with { AdminExitEnabled = _cfg.AdminExitEnabled };
+    private void PublishView(KioskView v) => _ipc.Publish(Stamp(v));
+
+    private KioskView MaintenanceView() => new()
+    {
+        Mode = KioskMode.Maintenance,
+        Online = true,
+        SeatNumber = _cfg.SeatNumber,
+        Message = "Режим обслуживания — защита вернётся после перезагрузки",
+        AdminExitEnabled = _cfg.AdminExitEnabled,
+    };
 }

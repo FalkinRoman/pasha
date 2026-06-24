@@ -34,6 +34,17 @@ public sealed class KioskConfig
     /// <summary>Relaunch the shell if it dies and lock the workstation meanwhile.</summary>
     public bool WatchdogEnabled { get; set; }
 
+    /// <summary>
+    /// SHA-256 hex of the admin "panic exit" PIN. When set, the lock screen shows a faint
+    /// close button → keypad; entering this PIN drops the agent into maintenance (overlay off,
+    /// watchdog off) until reboot. Empty = feature disabled (no admin exit button).
+    /// Never store the plaintext PIN; never commit a real hash to the repo (short PINs are
+    /// brute-forceable). Set it per-PC in this PC's config.json.
+    /// </summary>
+    public string AdminExitPinHash { get; set; } = "";
+
+    public bool AdminExitEnabled => !string.IsNullOrWhiteSpace(AdminExitPinHash);
+
     public TimeSpan PollInterval => TimeSpan.FromSeconds(Math.Clamp(PollIntervalSec, 2, 60));
     public TimeSpan Grace => TimeSpan.FromSeconds(Math.Max(0, GraceSeconds));
 

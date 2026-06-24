@@ -16,6 +16,7 @@ public sealed class MockViewSource : IViewSource
     private long _rev;
     private DateTime _phaseStart;
     private int _phase; // 0 locked, 1 active, 2 grace
+    private bool _maintenance; // demo: admin panic-exit was used
     private long _activeMs = 70_000; // start active demo with 70s so warnings show fast
 
     // Optional: if %TEMP%\stopkek-mock-qr.txt exists (a real data-URL from the server's
@@ -42,6 +43,16 @@ public sealed class MockViewSource : IViewSource
 
     private void Tick(object? s, EventArgs e)
     {
+        if (_maintenance)
+        {
+            ViewUpdated?.Invoke(new KioskView
+            {
+                Mode = KioskMode.Maintenance, Online = true, SeatNumber = 5,
+                Message = "Режим обслуживания (демо)", AdminExitEnabled = true, Revision = ++_rev,
+            });
+            return;
+        }
+
         var elapsed = (DateTime.UtcNow - _phaseStart).TotalMilliseconds;
         switch (_phase)
         {
@@ -51,7 +62,7 @@ public sealed class MockViewSource : IViewSource
                     Mode = KioskMode.Locked, Online = true, SeatNumber = 5,
                     QrPayload = "{\"v\":2,\"type\":\"stopkek-unlock\",\"seat\":5,\"challengeId\":\"demo\"}",
                     QrImageBase64 = MockQr,
-                    QrRefreshSec = 120, Revision = ++_rev,
+                    QrRefreshSec = 120, AdminExitEnabled = true, Revision = ++_rev,
                 });
                 if (elapsed > 8000) { _phase = 1; _phaseStart = DateTime.UtcNow; }
                 break;
@@ -65,7 +76,7 @@ public sealed class MockViewSource : IViewSource
                     UserName = "Demo Player", ZoneName = "VIP", BalanceRub = 350,
                     RemainingMs = remaining,
                     Notice = remaining <= 60_000 ? "Осталось меньше минуты — продлите в приложении" : null,
-                    Revision = ++_rev,
+                    AdminExitEnabled = true, Revision = ++_rev,
                 });
                 break;
 
@@ -78,7 +89,7 @@ public sealed class MockViewSource : IViewSource
                     UserName = "Demo Player", ZoneName = "VIP",
                     GraceRemainingMs = graceLeft,
                     Notice = "Время вышло — продлите в приложении",
-                    Revision = ++_rev,
+                    AdminExitEnabled = true, Revision = ++_rev,
                 });
                 break;
         }
@@ -89,6 +100,9 @@ public sealed class MockViewSource : IViewSource
         // In mock, "end-session" jumps straight to locked.
         if (cmd == "end-session") { _phase = 0; _phaseStart = DateTime.UtcNow; }
     }
+
+    // Demo: any PIN "unlocks" to maintenance so the panic-exit flow is visible in --preview/--mock.
+    public void SendAdminExit(string pin) => _maintenance = true;
 
     public void Dispose() => _timer.Stop();
 }

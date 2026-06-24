@@ -2,6 +2,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -20,6 +21,7 @@ public sealed class LockWindow : Window
     private readonly bool _isPrimary;
     private readonly bool _preview;
     private readonly Forms.Screen _screen;
+    private readonly Action<string>? _onAdminPin;
 
     private Image? _qrImage;
     private TextBlock? _qrFallback;
@@ -27,11 +29,18 @@ public sealed class LockWindow : Window
     private TextBlock? _seatText;
     private TextBlock? _statusText;
 
-    public LockWindow(Forms.Screen screen, bool isPrimary, bool preview = false)
+    // Admin panic-exit affordance
+    private Button? _adminBtn;
+    private Border? _keypad;
+    private TextBlock? _pinDisplay;
+    private string _pin = "";
+
+    public LockWindow(Forms.Screen screen, bool isPrimary, bool preview = false, Action<string>? onAdminPin = null)
     {
         _screen = screen;
         _isPrimary = isPrimary;
         _preview = preview;
+        _onAdminPin = onAdminPin;
 
         Background = Brand.Brush(Brand.Bg);
         Title = "stopKEK";
@@ -151,11 +160,133 @@ public sealed class LockWindow : Window
         };
         root.Children.Add(_statusText);
 
+        BuildAdminExit(root);
+
         return root;
+    }
+
+    // --- admin panic-exit: faint corner button -> on-screen PIN keypad --------
+    private void BuildAdminExit(Grid root)
+    {
+        // Faint, easy-to-miss close button in the top-right corner.
+        _adminBtn = new Button
+        {
+            Content = "✕",
+            FontSize = 18,
+            Width = 40,
+            Height = 40,
+            Foreground = Brand.Brush(Brand.TextSecond),
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Opacity = 0.18,
+            Cursor = System.Windows.Input.Cursors.Hand,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+            VerticalAlignment = System.Windows.VerticalAlignment.Top,
+            Margin = new Thickness(0, 10, 14, 0),
+            Visibility = Visibility.Collapsed,
+        };
+        _adminBtn.Click += (_, _) => ShowKeypad(true);
+        root.Children.Add(_adminBtn);
+
+        // Keypad overlay (hidden until the button is pressed).
+        _pinDisplay = new TextBlock
+        {
+            Text = "",
+            FontSize = 28,
+            MinHeight = 40,
+            FontWeight = FontWeights.Bold,
+            Foreground = Brand.Brush(Brand.Text),
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+            TextAlignment = TextAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 14),
+        };
+
+        var grid = new UniformGrid { Columns = 3, Rows = 4, Width = 240, Height = 300 };
+        foreach (var d in new[] { "1", "2", "3", "4", "5", "6", "7", "8", "9" })
+            grid.Children.Add(PadButton(d, () => AppendDigit(d)));
+        grid.Children.Add(PadButton("⌫", Backspace));
+        grid.Children.Add(PadButton("0", () => AppendDigit("0")));
+        grid.Children.Add(PadButton("OK", Submit));
+
+        var inner = new StackPanel { HorizontalAlignment = System.Windows.HorizontalAlignment.Center };
+        inner.Children.Add(new TextBlock
+        {
+            Text = "Служебный выход",
+            FontSize = 16,
+            Foreground = Brand.Brush(Brand.TextSecond),
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 10),
+        });
+        inner.Children.Add(_pinDisplay);
+        inner.Children.Add(grid);
+        inner.Children.Add(PadButton("Отмена", () => ShowKeypad(false)));
+
+        _keypad = new Border
+        {
+            Background = Brand.Brush(Brand.Bg),
+            BorderBrush = Brand.Brush(Brand.TextSecond),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(16),
+            Padding = new Thickness(24),
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+            VerticalAlignment = System.Windows.VerticalAlignment.Center,
+            Visibility = Visibility.Collapsed,
+            Child = inner,
+        };
+        root.Children.Add(_keypad);
+    }
+
+    private Button PadButton(string text, Action onClick)
+    {
+        var b = new Button
+        {
+            Content = text,
+            FontSize = 20,
+            Margin = new Thickness(6),
+            Foreground = Brand.Brush(Brand.Text),
+            Background = Brand.Brush(Brand.Accent),
+            BorderThickness = new Thickness(0),
+            Cursor = System.Windows.Input.Cursors.Hand,
+        };
+        b.Click += (_, _) => onClick();
+        return b;
+    }
+
+    private void ShowKeypad(bool show)
+    {
+        _pin = "";
+        if (_pinDisplay is not null) _pinDisplay.Text = "";
+        if (_keypad is not null) _keypad.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void AppendDigit(string d)
+    {
+        if (_pin.Length >= 12) return;
+        _pin += d;
+        if (_pinDisplay is not null) _pinDisplay.Text = new string('●', _pin.Length);
+    }
+
+    private void Backspace()
+    {
+        if (_pin.Length == 0) return;
+        _pin = _pin[..^1];
+        if (_pinDisplay is not null) _pinDisplay.Text = new string('●', _pin.Length);
+    }
+
+    private void Submit()
+    {
+        var pin = _pin;
+        ShowKeypad(false);
+        if (!string.IsNullOrEmpty(pin)) _onAdminPin?.Invoke(pin);
+        // On success the agent flips to Maintenance and this window is hidden by the
+        // controller; on a wrong PIN nothing changes and the operator can try again.
     }
 
     public void UpdateView(KioskView v)
     {
+        if (_adminBtn is not null)
+            _adminBtn.Visibility = v.AdminExitEnabled ? Visibility.Visible : Visibility.Collapsed;
+
         if (_seatText is not null) _seatText.Text = $"Место #{v.SeatNumber}";
 
         if (_statusText is not null)

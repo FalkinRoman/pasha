@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace StopkekShell;
 
-public enum KioskMode { Locked, Active, Grace }
+public enum KioskMode { Locked, Active, Grace, Maintenance }
 
 /// <summary>Mirror of the agent's KioskView (camelCase, enum-as-string over IPC).
 /// The shell renders this and makes no policy decisions of its own.</summary>
@@ -26,5 +26,6 @@ public sealed class KioskView
 
     public string? Notice { get; set; }
     public string? Message { get; set; }
+    public bool AdminExitEnabled { get; set; }
     public long Revision { get; set; }
 }

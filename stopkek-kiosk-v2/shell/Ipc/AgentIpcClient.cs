@@ -81,6 +81,15 @@ public sealed class AgentIpcClient : IViewSource
         }
     }
 
+    public void SendAdminExit(string pin)
+    {
+        lock (_writeGate)
+        {
+            try { _writer?.WriteLine(JsonSerializer.Serialize(new { cmd = "admin-exit", pin })); }
+            catch { /* will reconnect */ }
+        }
+    }
+
     public void Dispose()
     {
         _cts.Cancel();

@@ -84,7 +84,8 @@ Windows; см. `docs` (TODO Фаза 0b).
   "warnMinutes": [15, 5, 1],
   "lockOnStartup": true,           // fail-secure до первого опроса
   "shellPath": "",                 // путь к shell.exe (Фаза 2)
-  "watchdogEnabled": false
+  "watchdogEnabled": false,
+  "adminExitPinHash": ""           // SHA-256 PIN служебного выхода (пусто = выкл). См. docs/INSTALL-CLUB-PC.md
 }
 ```
 

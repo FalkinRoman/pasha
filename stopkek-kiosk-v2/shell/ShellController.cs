@@ -57,6 +57,11 @@ public sealed class ShellController : IDisposable
                 EnsureWidget();
                 _widget!.UpdateView(view);
                 break;
+
+            case KioskMode.Maintenance:
+                // Admin unlocked the PC for servicing: drop the hook and hide everything.
+                if (changed) { _hook.Disable(); foreach (var w in _locks) w.Hide(); _widget?.Hide(); }
+                break;
         }
         _mode = view.Mode;
     }
@@ -90,16 +95,20 @@ public sealed class ShellController : IDisposable
         if (_preview)
         {
             // One windowed lock for safe visual preview.
-            _locks.Add(new LockWindow(Forms.Screen.PrimaryScreen!, isPrimary: true, preview: true));
+            _locks.Add(new LockWindow(Forms.Screen.PrimaryScreen!, isPrimary: true, preview: true, onAdminPin: OnAdminPin));
             return;
         }
         var primary = Forms.Screen.PrimaryScreen;
         foreach (var screen in Forms.Screen.AllScreens)
         {
-            var w = new LockWindow(screen, isPrimary: screen.Equals(primary));
+            var w = new LockWindow(screen, isPrimary: screen.Equals(primary), onAdminPin: OnAdminPin);
             _locks.Add(w);
         }
     }
+
+    // Lock screen collected an admin PIN; hand it to the agent, which validates and
+    // (on success) flips to Maintenance — the shell then hides via the normal view path.
+    private void OnAdminPin(string pin) => _source.SendAdminExit(pin);
 
     private void EnsureWidget() => _widget ??= new TimerWidget(() => _source.SendCommand("end-session"));
 

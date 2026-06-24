@@ -9,9 +9,13 @@ public sealed class ShellCommand
 {
     [JsonPropertyName("cmd")] public string Cmd { get; set; } = "";
 
+    /// <summary>Plaintext PIN for AdminExit (validated by the agent against its hash). Local pipe only.</summary>
+    [JsonPropertyName("pin")] public string? Pin { get; set; }
+
     public const string EndSession = "end-session";
     public const string Heartbeat = "heartbeat";
     public const string Hello = "hello";
+    public const string AdminExit = "admin-exit";
 }
 
 public static class IpcJson

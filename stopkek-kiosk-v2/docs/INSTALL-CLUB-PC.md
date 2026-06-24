@@ -77,12 +77,29 @@ C:\stopkek\shell\stopkek-shell.exe
   "warnMinutes": [15, 5, 1],
   "lockOnStartup": true,                    // fail-secure до первого опроса
   "shellPath": "C:\\stopkek\\shell\\stopkek-shell.exe",
-  "watchdogEnabled": true
+  "watchdogEnabled": true,
+  "adminExitPinHash": "<SHA-256 PIN, см. ниже>"
 }
 ```
 
 > `shellPath` + `watchdogEnabled:true` нужны, чтобы SYSTEM-агент перезапускал shell и
 > страховочно лочил ОС, если оверлей убили. Рисуется shell задачей из шага 5.
+
+### Служебный выход админа (PIN на экране-замке)
+Если задан `adminExitPinHash` — на замке в правом верхнем углу появляется **слабый крестик ✕**.
+Клик → цифровой пин-пад. Верный PIN → агент уходит в **режим обслуживания** (оверлей убран,
+watchdog выкл, ничего не релочит) **до перезагрузки**. Ребут возвращает защиту автоматически.
+
+- PIN хранится только как **SHA-256 хэш** в `config.json` этого ПК (плейнтекст нигде не лежит,
+  в репозиторий не коммитим). Пустой хэш = крестика нет (фича выключена).
+- Проверяет PIN **агент (SYSTEM)**, не shell — «левый» shell сам замок не снимет.
+- Хэш для PIN `572111`:
+  `576a2f00ee31a77b738dd4b77d6c65866dd559477a62c52158b767c14fc04f75`
+- Свой PIN → посчитать хэш (PowerShell):
+  ```powershell
+  $p='572111'; (([System.Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($p)) | % { $_.ToString('x2') }) -join '')
+  ```
+  Вставить результат в `adminExitPinHash`. Чем длиннее PIN — тем лучше (6 цифр перебираются).
 
 ---
 

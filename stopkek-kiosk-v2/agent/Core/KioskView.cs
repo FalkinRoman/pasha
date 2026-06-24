@@ -8,6 +8,8 @@ public enum KioskMode
     Active,
     /// <summary>Paid time ran out, "finish your match" grace before re-lock.</summary>
     Grace,
+    /// <summary>Admin entered the panic-exit PIN: overlay off, nothing relocks, until reboot.</summary>
+    Maintenance,
 }
 
 /// <summary>
@@ -42,6 +44,9 @@ public sealed record KioskView
 
     /// <summary>Human-readable status line for offline / setup problems.</summary>
     public string? Message { get; init; }
+
+    /// <summary>Whether to show the admin panic-exit affordance on the lock screen.</summary>
+    public bool AdminExitEnabled { get; init; }
 
     public long Revision { get; init; }
 }
