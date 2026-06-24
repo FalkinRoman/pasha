@@ -50,6 +50,8 @@ export class AuthService {
     }>
   >();
   private readonly mockCodes: Set<string>;
+  private readonly reviewPhone: string;
+  private readonly reviewCode: string;
   private readonly ttlSec: number;
   private readonly hmacSecret: string;
   private readonly isDev: boolean;
@@ -63,6 +65,13 @@ export class AuthService {
   ) {
     const raw = this.config.get<string>('MOCK_CALL_CODES', '1234');
     this.mockCodes = new Set(raw.split(',').map((c) => c.trim()));
+    const reviewPhone = this.config.get<string>('REVIEW_LOGIN_PHONE', '').trim();
+    const reviewCode = this.config.get<string>('REVIEW_LOGIN_CODE', '').trim();
+    this.reviewPhone = reviewPhone ? normalizePhone(reviewPhone) : '';
+    this.reviewCode = reviewCode ? normalizeCallCode(reviewCode) : '';
+    if (this.reviewPhone && this.reviewCode) {
+      this.logger.log(`Apple/review login enabled for ${this.reviewPhone}`);
+    }
     this.ttlSec = Number(this.config.get('CALL_CODE_TTL_SEC', 300));
     this.hmacSecret = this.config.get<string>('JWT_SECRET', 'dev-secret');
     this.isDev = this.config.get('NODE_ENV') !== 'production';
@@ -84,8 +93,31 @@ export class AuthService {
     return promise;
   }
 
+  private isReviewLogin(phone: string): boolean {
+    if (!this.reviewPhone || !this.reviewCode) return false;
+    return normalizePhone(phone) === this.reviewPhone;
+  }
+
   private async doRequestCall(phone: string, clientIp: string) {
     const digits = phoneDigits(phone);
+
+    if (this.isReviewLogin(phone)) {
+      const sessionId = randomUUID();
+      const code = this.reviewCode;
+      this.callSessions.set(sessionId, {
+        phone,
+        codeHash: this.hashCode(code),
+        exp: Date.now() + this.ttlSec * 1000,
+        attempts: 0,
+      });
+      this.logger.log(`call/request review phone=${phone} (no SMS.ru)`);
+      return {
+        sessionId,
+        phone,
+        expiresInSec: this.ttlSec,
+        retryAfterSec: Math.ceil(this.phoneCooldownMs / 1000),
+      };
+    }
 
     const last = this.lastRequestByPhone.get(phone);
     if (last && Date.now() - last < this.phoneCooldownMs) {
@@ -234,6 +266,11 @@ export class AuthService {
 
     if (this.tryAdminLoginCode(phone, code)) {
       this.adminCodesByPhone.delete(phone);
+      if (dto.sessionId) store.delete(dto.sessionId);
+      return this.finishLogin(phone);
+    }
+
+    if (this.isReviewLogin(phone) && normalizeCallCode(code) === this.reviewCode) {
       if (dto.sessionId) store.delete(dto.sessionId);
       return this.finishLogin(phone);
     }

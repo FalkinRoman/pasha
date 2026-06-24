@@ -19,6 +19,7 @@
     "floor:reseed:force": "npx tsx prisma/reseed-solo-floor.ts -- --force",
     "seed:locks": "npx tsx prisma/seed-locks.ts",
     "seed:pricing": "npx tsx prisma/seed-pricing.ts",
+    "review:seed": "npx tsx prisma/seed-review-user.ts",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down"
   },
