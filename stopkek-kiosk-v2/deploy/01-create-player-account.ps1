@@ -25,7 +25,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$User = 'stopkek-player',
+    [string]$User = 'player',
     [Parameter(Mandatory = $true)][string]$Password,
     [switch]$UseSecureAutologon
 )
@@ -45,7 +45,7 @@ Assert-Admin
 $securePass = ConvertTo-SecureString $Password -AsPlainText -Force
 
 if (Get-LocalUser -Name $User -ErrorAction SilentlyContinue) {
-    Write-Host "User '$User' already exists — updating password." -ForegroundColor Yellow
+    Write-Host "User '$User' already exists - updating password." -ForegroundColor Yellow
     Set-LocalUser -Name $User -Password $securePass
 } else {
     Write-Host "Creating standard user '$User'." -ForegroundColor Cyan
@@ -62,12 +62,10 @@ if (Get-LocalGroupMember -Group 'Administrators' -Member $User -ErrorAction Sile
 
 $winlogon = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
 if ($UseSecureAutologon) {
-    Write-Host @"
-Skipping registry auto-logon. Configure it securely with Sysinternals Autologon:
-    Autologon.exe $User $env:COMPUTERNAME <password>
-"@ -ForegroundColor Yellow
+    Write-Host 'Skipping registry auto-logon. Configure it securely with Sysinternals Autologon:' -ForegroundColor Yellow
+    Write-Host "    Autologon.exe $User $env:COMPUTERNAME <password>" -ForegroundColor Yellow
 } else {
-    Write-Host 'Enabling registry auto-logon (INSECURE plaintext — see notes).' -ForegroundColor Yellow
+    Write-Host 'Enabling registry auto-logon (INSECURE plaintext - see notes).' -ForegroundColor Yellow
     Set-ItemProperty $winlogon -Name 'AutoAdminLogon' -Value '1' -Type String
     Set-ItemProperty $winlogon -Name 'DefaultUserName' -Value $User -Type String
     Set-ItemProperty $winlogon -Name 'DefaultPassword' -Value $Password -Type String

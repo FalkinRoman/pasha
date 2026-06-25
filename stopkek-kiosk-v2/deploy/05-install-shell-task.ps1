@@ -29,7 +29,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$ShellExe,
-    [string]$User = 'stopkek-player',
+    [string]$User = 'player',
     [string]$TaskName = 'StopkekShell'
 )
 

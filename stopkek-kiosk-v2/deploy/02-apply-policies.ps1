@@ -16,7 +16,7 @@
   Player account name. Default: stopkek-player
 #>
 [CmdletBinding()]
-param([string]$User = 'stopkek-player')
+param([string]$User = 'player')
 
 $ErrorActionPreference = 'Stop'
 

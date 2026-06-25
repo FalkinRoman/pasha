@@ -5,7 +5,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$User = 'stopkek-player',
+    [string]$User = 'player',
     [string]$TaskName = 'StopkekAgent',
     [switch]$RemoveUser
 )
@@ -20,11 +20,13 @@ function Assert-Admin {
 }
 Assert-Admin
 
-# Agent scheduled task
-if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
-    Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
-    Write-Host "Removed scheduled task '$TaskName'." -ForegroundColor Green
+# Scheduled tasks: agent (SYSTEM) + shell (player session)
+foreach ($t in @($TaskName, 'StopkekShell')) {
+    if (Get-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue) {
+        Stop-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue
+        Unregister-ScheduledTask -TaskName $t -Confirm:$false
+        Write-Host "Removed scheduled task '$t'." -ForegroundColor Green
+    }
 }
 
 # Auto-logon off
