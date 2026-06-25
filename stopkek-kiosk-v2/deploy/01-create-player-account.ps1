@@ -26,11 +26,13 @@
 [CmdletBinding()]
 param(
     [string]$User = 'player',
-    [Parameter(Mandatory = $true)][string]$Password,
+    [string]$Password,            # omit for a passwordless account (one-click login)
+    [switch]$NoAutoLogon,         # don't auto-logon: boot shows the login screen with account tiles
     [switch]$UseSecureAutologon
 )
 
 $ErrorActionPreference = 'Stop'
+$hasPassword = -not [string]::IsNullOrEmpty($Password)
 
 function Assert-Admin {
     $id = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -42,15 +44,20 @@ function Assert-Admin {
 
 Assert-Admin
 
-$securePass = ConvertTo-SecureString $Password -AsPlainText -Force
+$securePass = if ($hasPassword) { ConvertTo-SecureString $Password -AsPlainText -Force } `
+              else { New-Object System.Security.SecureString }
 
 if (Get-LocalUser -Name $User -ErrorAction SilentlyContinue) {
-    Write-Host "User '$User' already exists - updating password." -ForegroundColor Yellow
+    Write-Host "User '$User' already exists - updating." -ForegroundColor Yellow
     Set-LocalUser -Name $User -Password $securePass
-} else {
-    Write-Host "Creating standard user '$User'." -ForegroundColor Cyan
+} elseif ($hasPassword) {
+    Write-Host "Creating standard user '$User' (with password)." -ForegroundColor Cyan
     New-LocalUser -Name $User -Password $securePass -FullName 'StopKEK Player' `
         -Description 'Restricted club game account' -PasswordNeverExpires
+} else {
+    Write-Host "Creating standard user '$User' (no password, one-click login)." -ForegroundColor Cyan
+    New-LocalUser -Name $User -NoPassword -FullName 'StopKEK Player' `
+        -Description 'Restricted club game account'
 }
 
 # Ensure NON-admin: member of Users only, never Administrators.
@@ -61,7 +68,13 @@ if (Get-LocalGroupMember -Group 'Administrators' -Member $User -ErrorAction Sile
 }
 
 $winlogon = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
-if ($UseSecureAutologon) {
+if ($NoAutoLogon -or -not $hasPassword) {
+    # No auto-logon: boot lands on the login screen with both account tiles. The user
+    # clicks 'player' (no password) -> kiosk; staff click the admin tile (password).
+    Set-ItemProperty $winlogon -Name 'AutoAdminLogon' -Value '0' -Type String -ErrorAction SilentlyContinue
+    Remove-ItemProperty $winlogon -Name 'DefaultPassword' -ErrorAction SilentlyContinue
+    Write-Host "Auto-logon NOT enabled - login screen will show the account tiles." -ForegroundColor Yellow
+} elseif ($UseSecureAutologon) {
     Write-Host 'Skipping registry auto-logon. Configure it securely with Sysinternals Autologon:' -ForegroundColor Yellow
     Write-Host "    Autologon.exe $User $env:COMPUTERNAME <password>" -ForegroundColor Yellow
 } else {

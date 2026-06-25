@@ -62,20 +62,25 @@ C:\stopkek\shell\   (stopkek-shell.exe)
 
 ## Часть D. Установка одной командой (создаёт аккаунт `player`)
 
+Модель по умолчанию (рекомендуется): **без автологина** — при загрузке Windows показывает
+две плитки: **`player`** (без пароля, вход в один клик) и **админ** (под вашим паролем).
 В PowerShell от админа, в папке `stopkek-kiosk-v2`:
 ```powershell
-.\deploy\setup-all.ps1 `
-  -Password 'ПРИДУМАЙ-ДЛИННЫЙ-СЛУЧАЙНЫЙ-ПАРОЛЬ' `
+.\deploy\setup-all.ps1 -NoAutoLogon `
   -AgentExe 'C:\stopkek\agent\stopkek-agent.exe' `
   -ShellExe 'C:\stopkek\shell\stopkek-shell.exe'
 ```
 Эта команда сделает **всё**:
-1. создаст **обычный** (не админ) аккаунт **`player`** + автологин в него с этим паролем;
+1. создаст **обычный** (не админ) аккаунт **`player`** **без пароля** (вход одним кликом);
 2. наложит политики-локдаун на `player` (нет Диспетчера задач, regedit, «Выполнить», Win+L, смены юзера);
 3. поставит **агент** SYSTEM-задачей (старт при загрузке, авто-restart);
 4. поставит **shell** задачей входа **только для `player`** (замок рисуется в его сессии).
 
-> Пароль `player` нигде вводить не нужно (автологин). Запиши его себе — пригодится для отката.
+> Автологина нет: на экране входа клиент жмёт плитку **`player`** → сразу замок; вы заходите
+> под своим **админ-аккаунтом** (с паролем) для обслуживания.
+>
+> Если всё-таки хочешь автологин в `player` (загрузка сразу в киоск, без выбора) — задай пароль
+> и убери `-NoAutoLogon`: `setup-all.ps1 -Password '<секрет>' -AgentExe ... -ShellExe ...`.
 
 ---
 
@@ -117,6 +122,31 @@ C:\stopkek\shell\   (stopkek-shell.exe)
 **ПК при этом не ломается** — Windows и админ-аккаунт целы; просто киоск выключается.
 
 ---
+
+## Тест на личном ПК (без локдауна, безопасно)
+
+Чтобы проверить опыт «две плитки → клик `player` → замок» на своём рабочем ПК, **не применяя
+политики** (чтобы свободно возвращаться в админа). В PowerShell от админа:
+
+```powershell
+cd <папка проекта>\stopkek-kiosk-v2
+.\deploy\build-agent.ps1 ; .\deploy\build-shell.ps1   # если ещё не собрано
+# заполнить dist\agent\config.json (apiUrl, seatNumber=1, kioskKey, adminExitPinHash) — watchdogEnabled:false для теста
+.\deploy\01-create-player-account.ps1 -NoAutoLogon           # аккаунт player без пароля, без автологина
+.\deploy\03-install-agent-task.ps1 -ExePath "$PWD\dist\agent\stopkek-agent.exe"
+.\deploy\05-install-shell-task.ps1 -ShellExe "$PWD\dist\shell\stopkek-shell.exe"
+```
+**НЕ запускай** `02-apply-policies.ps1` и `04-applocker-games.ps1` на личном ПК.
+
+Дальше: `Ctrl+Alt+Del → Сменить пользователя → player` (или перезагрузка — увидишь две плитки).
+В сессии `player` появится замок. Выход обратно к себе:
+- ✕ → PIN `572111` (обслуживание), **или**
+- `Ctrl+Alt+Del → Сменить пользователя → твой админ` (без политик переключение разрешено).
+
+Убрать всё после теста:
+```powershell
+.\deploy\uninstall.ps1 -RemoveUser
+```
 
 ## Памятка: что одинаково / что разное на ПК
 

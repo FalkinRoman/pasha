@@ -14,16 +14,20 @@
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)][string]$Password,
+    [string]$Password,                 # omit for a passwordless one-click 'player' account
     [Parameter(Mandatory = $true)][string]$AgentExe,
     [string]$ShellExe,                 # optional: also install the player-session shell task
+    [switch]$NoAutoLogon,              # show the login screen with account tiles instead of auto-logon
     [string]$User = 'player'
 )
 $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
 
-Write-Host "=== STEP 1/4: account + auto-logon ===" -ForegroundColor Magenta
-& "$here\01-create-player-account.ps1" -User $User -Password $Password
+Write-Host "=== STEP 1/4: account ===" -ForegroundColor Magenta
+$acct = @{ User = $User }
+if ($Password)    { $acct.Password = $Password }
+if ($NoAutoLogon) { $acct.NoAutoLogon = $true }
+& "$here\01-create-player-account.ps1" @acct
 
 Write-Host "=== STEP 2/4: lockdown policies ===" -ForegroundColor Magenta
 Write-Warning "The player account must be logged OFF for policy application."
