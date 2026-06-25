@@ -61,10 +61,14 @@ if (Get-LocalUser -Name $User -ErrorAction SilentlyContinue) {
 }
 
 # Ensure NON-admin: member of Users only, never Administrators.
-Add-LocalGroupMember -Group 'Users' -Member $User -ErrorAction SilentlyContinue
-if (Get-LocalGroupMember -Group 'Administrators' -Member $User -ErrorAction SilentlyContinue) {
+# Reference groups by well-known SID, not by name, so this works on localized Windows
+# (e.g. Russian, where the groups are "Пользователи" / "Администраторы").
+$usersGrp  = Get-LocalGroup -SID 'S-1-5-32-545'   # Users
+$adminsGrp = Get-LocalGroup -SID 'S-1-5-32-544'   # Administrators
+Add-LocalGroupMember -Group $usersGrp -Member $User -ErrorAction SilentlyContinue
+if (Get-LocalGroupMember -Group $adminsGrp -Member $User -ErrorAction SilentlyContinue) {
     Write-Warning "Removing '$User' from Administrators (must be standard)."
-    Remove-LocalGroupMember -Group 'Administrators' -Member $User
+    Remove-LocalGroupMember -Group $adminsGrp -Member $User
 }
 
 $winlogon = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
