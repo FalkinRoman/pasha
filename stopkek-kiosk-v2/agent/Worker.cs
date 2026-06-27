@@ -73,11 +73,11 @@ public sealed class Worker : BackgroundService
                 var view = _machine.Apply(poll, _clock.ElapsedMilliseconds);
                 PublishView(view);
 
-                if (_watchdog.Tick())
+                if (_watchdog.Tick(_ipc.ShellConnected))
                 {
-                    // Shell had to be relaunched — likely a tamper attempt. Flag it.
-                    _ = _api.ReportEventAsync("shell_relaunched",
-                        "watchdog restarted the UI", CancellationToken.None);
+                    // Shell vanished and the seat had to be secured — likely a tamper attempt. Flag it.
+                    _ = _api.ReportEventAsync("seat_secured",
+                        "watchdog disconnected the session after the shell disappeared", CancellationToken.None);
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

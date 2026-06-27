@@ -1,21 +1,36 @@
-using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using StopkekAgent.Config;
 
 namespace StopkekAgent.Watchdog;
 
 /// <summary>
-/// Keeps the shell UI alive. If the shell process dies (crash, or a user trying to
-/// kill the overlay), we relaunch it. While the shell is missing we lock the
-/// workstation so there is never an unguarded gap — killing the UI must never equal
-/// free play. No-op until ShellPath is configured (shell ships in Phase 2).
+/// Anti-tamper failsafe for the player-session shell.
+///
+/// The shell (the visible lock/overlay) is launched by a per-user logon task and runs in
+/// the PLAYER's interactive session. The agent runs as SYSTEM in Session 0 and CANNOT draw
+/// on the player's desktop (Session 0 isolation), so the watchdog must never try to launch
+/// the shell itself: a SYSTEM-started shell renders invisibly in Session 0 and — worse —
+/// grabs the single-client IPC pipe, so the real player-session shell can never connect and
+/// the overlay never appears. (That was the original bug.)
+///
+/// Instead the watchdog watches the live IPC connection. Once the shell has connected, if the
+/// pipe stays down past a short grace (the player killed the overlay), we secure the seat by
+/// disconnecting the interactive session to the Windows logon screen — killing the UI must
+/// never equal free play. The logon task relaunches the shell on the next sign-in, which
+/// reconnects and re-arms the watchdog.
 /// </summary>
 public sealed class ShellWatchdog
 {
     private readonly KioskConfig _cfg;
     private readonly ILogger _log;
-    private Process? _proc;
-    private DateTime _lastLaunch = DateTime.MinValue;
+
+    private bool _armed;                          // shell has connected at least once this cycle
+    private DateTime _downSince = DateTime.MinValue;
+
+    // How long the shell may be gone before we treat it as tamper and secure the seat.
+    // Long enough to ride out a normal agent/shell restart, short enough that free play is brief.
+    private static readonly TimeSpan DownGrace = TimeSpan.FromSeconds(15);
 
     public ShellWatchdog(KioskConfig cfg, ILogger log)
     {
@@ -23,49 +38,78 @@ public sealed class ShellWatchdog
         _log = log;
     }
 
-    public bool Enabled => _cfg.WatchdogEnabled && !string.IsNullOrWhiteSpace(_cfg.ShellPath);
+    public bool Enabled => _cfg.WatchdogEnabled;
 
-    public bool ShellAlive => _proc is { HasExited: false };
-
-    /// <summary>Called every tick. Returns true if the shell had to be (re)launched.</summary>
-    public bool Tick()
+    /// <summary>
+    /// Called every tick with the live IPC connection state. Returns true if it had to
+    /// secure the seat (so the caller can report a tamper event).
+    /// </summary>
+    public bool Tick(bool shellConnected)
     {
         if (!Enabled) return false;
-        if (ShellAlive) return false;
 
-        // Throttle relaunch storms (e.g. shell crashing on startup).
-        if (DateTime.UtcNow - _lastLaunch < TimeSpan.FromSeconds(3)) return false;
+        if (shellConnected)
+        {
+            _armed = true;
+            _downSince = DateTime.MinValue;
+            return false;
+        }
 
+        // Not connected. Until the shell has connected at least once (e.g. before the player
+        // signs in after boot) there is nothing to protect yet — stay quiet.
+        if (!_armed) return false;
+
+        if (_downSince == DateTime.MinValue)
+        {
+            _downSince = DateTime.UtcNow;
+            return false;
+        }
+        if (DateTime.UtcNow - _downSince < DownGrace) return false;
+
+        // The overlay was up and then vanished past the grace window -> secure the seat.
+        bool secured = SecureSeat();
+        // Disarm: require a fresh connection before we can act again, so the session bouncing
+        // back to the logon screen can't trigger a disconnect loop.
+        _armed = false;
+        _downSince = DateTime.MinValue;
+        return secured;
+    }
+
+    /// <summary>Drop the active interactive session to the secure Windows logon screen.</summary>
+    private bool SecureSeat()
+    {
         try
         {
-            if (!File.Exists(_cfg.ShellPath))
+            uint session = WTSGetActiveConsoleSessionId();
+            if (session == 0xFFFFFFFF)
             {
-                _log.LogError("shell not found at {Path}", _cfg.ShellPath);
+                _log.LogWarning("watchdog: no active console session to secure");
                 return false;
             }
-            _lastLaunch = DateTime.UtcNow;
-            _proc = Process.Start(new ProcessStartInfo
+            if (!WTSDisconnectSession(WTS_CURRENT_SERVER_HANDLE, session, bWait: true))
             {
-                FileName = _cfg.ShellPath,
-                UseShellExecute = true,
-            });
-            _log.LogWarning("shell (re)launched, pid={Pid}", _proc?.Id);
+                _log.LogError("watchdog: WTSDisconnectSession failed, err={Err}",
+                    Marshal.GetLastWin32Error());
+                return false;
+            }
+            _log.LogWarning("watchdog: shell gone past grace — disconnected session {Sid} to secure the seat", session);
             return true;
         }
         catch (Exception ex)
         {
-            _log.LogError("failed to launch shell: {Msg}", ex.Message);
+            _log.LogError("watchdog: secure-seat error: {Msg}", ex.Message);
             return false;
         }
     }
 
-    public void Stop()
-    {
-        try
-        {
-            if (_proc is { HasExited: false })
-                _proc.Kill(entireProcessTree: true);
-        }
-        catch { /* ignore */ }
-    }
+    /// <summary>Kept for symmetry with the worker lifecycle; nothing to tear down.</summary>
+    public void Stop() { }
+
+    private static readonly IntPtr WTS_CURRENT_SERVER_HANDLE = IntPtr.Zero;
+
+    [DllImport("kernel32.dll")]
+    private static extern uint WTSGetActiveConsoleSessionId();
+
+    [DllImport("wtsapi32.dll", SetLastError = true)]
+    private static extern bool WTSDisconnectSession(IntPtr hServer, uint sessionId, bool bWait);
 }

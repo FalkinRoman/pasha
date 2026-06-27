@@ -1,4 +1,6 @@
 using System.IO.Pipes;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
@@ -30,6 +32,28 @@ public sealed class IpcServer : IAsyncDisposable
     private CancellationTokenSource? _cts;
     private Task? _loop;
 
+    // The agent runs as SYSTEM; the shell runs as the limited player in an interactive
+    // session. A pipe created by SYSTEM with the default DACL grants only SYSTEM/Admins,
+    // so a standard user's ConnectAsync fails with access-denied — the player-session
+    // shell could never attach (retries forever, no overlay ever renders). Grant
+    // authenticated users connect/read/write, keeping SYSTEM and Admins in full control.
+    private static readonly PipeSecurity PipeAcl = BuildPipeAcl();
+
+    private static PipeSecurity BuildPipeAcl()
+    {
+        var acl = new PipeSecurity();
+        acl.AddAccessRule(new PipeAccessRule(
+            new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null),
+            PipeAccessRights.ReadWrite, AccessControlType.Allow));
+        acl.AddAccessRule(new PipeAccessRule(
+            new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+            PipeAccessRights.FullControl, AccessControlType.Allow));
+        acl.AddAccessRule(new PipeAccessRule(
+            new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+            PipeAccessRights.FullControl, AccessControlType.Allow));
+        return acl;
+    }
+
     public IpcServer(ILogger log, Func<ShellCommand, Task> onCommand)
     {
         _log = log;
@@ -59,12 +83,15 @@ public sealed class IpcServer : IAsyncDisposable
         {
             try
             {
-                using var server = new NamedPipeServerStream(
+                using var server = NamedPipeServerStreamAcl.Create(
                     IpcJson.PipeName,
                     PipeDirection.InOut,
                     maxNumberOfServerInstances: 1,
                     PipeTransmissionMode.Byte,
-                    PipeOptions.Asynchronous);
+                    PipeOptions.Asynchronous,
+                    inBufferSize: 4096,
+                    outBufferSize: 4096,
+                    PipeAcl);
 
                 await server.WaitForConnectionAsync(ct);
                 ShellConnected = true;
@@ -95,9 +122,13 @@ public sealed class IpcServer : IAsyncDisposable
         var reader = new StreamReader(pipe, Encoding.UTF8);
         var writer = new StreamWriter(pipe, new UTF8Encoding(false)) { AutoFlush = true };
 
-        // Send the current view right away so the shell can render without waiting a tick.
+        // Re-send the current view so a freshly-connected shell renders without waiting a
+        // tick. Crucially we enqueue it through the write pump (which runs concurrently with
+        // the read pump) instead of writing it here, before reads start: a direct blocking
+        // write would dead-lock against the shell, which also writes its "hello" before it
+        // begins reading — both sides stuck writing, neither reading, until the pipe broke.
         if (_latestView is not null)
-            await writer.WriteLineAsync(_latestView.AsMemory(), linked.Token);
+            _outbound.Writer.TryWrite(_latestView);
 
         var writeTask = WritePumpAsync(writer, pipe, linked.Token);
         var readTask = ReadPumpAsync(reader, pipe, linked.Token);

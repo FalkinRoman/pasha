@@ -38,6 +38,7 @@ public sealed class AgentIpcClient : IViewSource
             {
                 using var pipe = new NamedPipeClientStream(
                     ".", PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+                ShellLog.Write($"ipc: connecting to pipe '{PipeName}'");
                 await pipe.ConnectAsync(3000, ct);
                 _pipe = pipe;
 
@@ -45,6 +46,7 @@ public sealed class AgentIpcClient : IViewSource
                 lock (_writeGate)
                     _writer = new StreamWriter(pipe, new UTF8Encoding(false)) { AutoFlush = true };
 
+                ShellLog.Write("ipc: connected");
                 SendCommand("hello");
 
                 while (!ct.IsCancellationRequested && pipe.IsConnected)
@@ -55,13 +57,18 @@ public sealed class AgentIpcClient : IViewSource
                     try
                     {
                         var view = JsonSerializer.Deserialize<KioskView>(line, JsonOpts);
-                        if (view is not null) ViewUpdated?.Invoke(view);
+                        if (view is not null)
+                        {
+                            ShellLog.Write($"ipc: view mode={view.Mode} online={view.Online} rev={view.Revision}");
+                            ViewUpdated?.Invoke(view);
+                        }
                     }
                     catch (JsonException) { /* ignore malformed line */ }
                 }
+                ShellLog.Write("ipc: pipe closed, will retry");
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { break; }
-            catch (Exception) { /* connect failed / pipe broke — retry */ }
+            catch (Exception ex) { ShellLog.Write("ipc: connect/read error: " + ex.Message); }
             finally
             {
                 lock (_writeGate) { _writer = null; }

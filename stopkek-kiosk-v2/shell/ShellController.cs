@@ -43,6 +43,7 @@ public sealed class ShellController : IDisposable
     {
         if (_disposed) return;
         var changed = _mode != view.Mode;
+        if (changed) ShellLog.Write($"apply: mode {_mode?.ToString() ?? "none"} -> {view.Mode}");
 
         switch (view.Mode)
         {
@@ -81,6 +82,7 @@ public sealed class ShellController : IDisposable
             if (!_preview) { w.Topmost = true; w.Activate(); }
         }
         _widget?.Hide();
+        ShellLog.Write($"EnterLocked: {_locks.Count} lock window(s) shown");
     }
 
     private void EnterUnlocked()
