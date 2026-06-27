@@ -25,8 +25,9 @@ public sealed class Worker : BackgroundService
     private readonly IpcServer _ipc;
     private readonly Stopwatch _clock = Stopwatch.StartNew();
 
-    // Admin "panic exit": once the correct PIN is entered, the agent stops gating until
-    // the next reboot (which restarts the agent and restores protection).
+    // Admin "panic exit": once the correct PIN is entered, the agent stops gating for the
+    // rest of the current player sign-in. Protection resumes when a fresh shell session
+    // connects (the player signs out and back in, or the PC reboots) — see HandleCommandAsync.
     private bool _maintenance;
 
     public Worker(
@@ -115,6 +116,17 @@ public sealed class Worker : BackgroundService
                 break;
 
             case ShellCommand.Hello:
+                // A fresh shell session attached. The only Hello that can arrive while we're in
+                // maintenance is from a NEW sign-in (within the admin's own session the shell
+                // stays connected and never re-says hello), so this is the player signing back
+                // in — drop maintenance and let normal gating + watchdog resume.
+                if (_maintenance)
+                {
+                    _log.LogWarning("new shell session connected — exiting maintenance, resuming protection");
+                    _maintenance = false;
+                    _ = _api.ReportEventAsync("maintenance_ended",
+                        "new player session — protection resumed", CancellationToken.None);
+                }
                 _ipc.Publish(_maintenance ? MaintenanceView() : Stamp(_machine.Current)); // re-send current view on demand
                 break;
 
@@ -133,7 +145,7 @@ public sealed class Worker : BackgroundService
         }
         if (VerifyPin(pin))
         {
-            _log.LogWarning("admin-exit: correct PIN — entering maintenance until reboot");
+            _log.LogWarning("admin-exit: correct PIN — entering maintenance until the player signs out");
             _maintenance = true;
             _watchdog.Stop();
             _ipc.Publish(MaintenanceView());
@@ -163,7 +175,7 @@ public sealed class Worker : BackgroundService
         Mode = KioskMode.Maintenance,
         Online = true,
         SeatNumber = _cfg.SeatNumber,
-        Message = "Режим обслуживания — защита вернётся после перезагрузки",
+        Message = "Режим обслуживания — защита вернётся при следующем входе",
         AdminExitEnabled = _cfg.AdminExitEnabled,
     };
 }
