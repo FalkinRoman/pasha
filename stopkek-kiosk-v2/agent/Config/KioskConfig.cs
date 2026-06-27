@@ -9,7 +9,7 @@ namespace StopkekAgent.Config;
 /// </summary>
 public sealed class KioskConfig
 {
-    public string ApiUrl { get; set; } = "http://stopkek.site/api";
+    public string ApiUrl { get; set; } = "https://stopkek.site/api";
     public int SeatNumber { get; set; } = 1;
     public string KioskKey { get; set; } = "";
 
