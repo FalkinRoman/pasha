@@ -15,6 +15,18 @@ eas submit --platform ios --profile production
 eas submit --platform android --profile production
 ```
 
+## Скриншоты App Store
+
+Готовые PNG **1284×2778** (iPhone 6.5"):
+
+```
+stopkek-mobile/store-assets/output/iphone-65/
+```
+
+Порядок загрузки: `01-welcome` → `02-map` → `03-home` → `04-session` → `05-login`
+
+Перегенерация: см. `stopkek-mobile/store-assets/README.md`
+
 ## URLs для App Store Connect
 
 | Поле | Значение |
