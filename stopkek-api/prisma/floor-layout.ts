@@ -1,5 +1,5 @@
 /**
- * Разметка зала: 4 соло-капсулы + координаты для SVG.
+ * Разметка зала: 6 соло-капсул (сетка 3×2) + координаты для SVG.
  */
 export const SOLO_ZONE = {
   slug: 'solo',
@@ -33,17 +33,25 @@ const SEAT_H = 34;
 const COL_GAP = 12;
 const ROW_GAP = 14;
 
-const GRID_W = ROOM_W * 2 + COL_GAP;
-const GRID_H = ROOM_H * 2 + ROW_GAP;
+// 6 капсул: 3 столбца × 2 ряда. Сетка 270×122 центрируется в холсте 360×190.
+const COLS = 3;
+const ROWS = 2;
+
+const GRID_W = ROOM_W * COLS + COL_GAP * (COLS - 1);
+const GRID_H = ROOM_H * ROWS + ROW_GAP * (ROWS - 1);
 const ORIGIN_X = (MAP_W - GRID_W) / 2;
 const ORIGIN_Y = 52;
 
-const CAPSULE_ORIGINS = [
-  { number: 1, roomX: ORIGIN_X, roomY: ORIGIN_Y },
-  { number: 2, roomX: ORIGIN_X + ROOM_W + COL_GAP, roomY: ORIGIN_Y },
-  { number: 3, roomX: ORIGIN_X, roomY: ORIGIN_Y + ROOM_H + ROW_GAP },
-  { number: 4, roomX: ORIGIN_X + ROOM_W + COL_GAP, roomY: ORIGIN_Y + ROOM_H + ROW_GAP },
-] as const;
+// Нумерация слева-направо, сверху-вниз: 1-2-3 верхний ряд, 4-5-6 нижний.
+const CAPSULE_ORIGINS = Array.from({ length: COLS * ROWS }, (_, i) => {
+  const col = i % COLS;
+  const row = Math.floor(i / COLS);
+  return {
+    number: i + 1,
+    roomX: ORIGIN_X + col * (ROOM_W + COL_GAP),
+    roomY: ORIGIN_Y + row * (ROOM_H + ROW_GAP),
+  };
+});
 
 export type CapsuleLayout = {
   number: number;

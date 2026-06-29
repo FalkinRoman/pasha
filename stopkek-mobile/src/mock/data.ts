@@ -23,12 +23,14 @@ export const MOCK_ZONES: Zone[] = [
   },
 ];
 
-/** Координаты как в stopkek-api/prisma/floor-layout.ts */
+/** Координаты как в stopkek-api/prisma/floor-layout.ts (сетка 3×2). */
 const CAPSULES = [
-  { number: 1, x: 116, y: 54, w: 34, h: 34 },
-  { number: 2, x: 210, y: 54, w: 34, h: 34 },
-  { number: 3, x: 116, y: 122, w: 34, h: 34 },
-  { number: 4, x: 210, y: 122, w: 34, h: 34 },
+  { number: 1, x: 69, y: 62, w: 34, h: 34 },
+  { number: 2, x: 163, y: 62, w: 34, h: 34 },
+  { number: 3, x: 257, y: 62, w: 34, h: 34 },
+  { number: 4, x: 69, y: 130, w: 34, h: 34 },
+  { number: 5, x: 163, y: 130, w: 34, h: 34 },
+  { number: 6, x: 257, y: 130, w: 34, h: 34 },
 ];
 
 const statuses: Array<'free' | 'occupied' | 'reserved' | 'repair'> = [
@@ -36,6 +38,8 @@ const statuses: Array<'free' | 'occupied' | 'reserved' | 'repair'> = [
   'occupied',
   'free',
   'reserved',
+  'free',
+  'occupied',
 ];
 
 export const MOCK_SEATS: Seat[] = CAPSULES.map((c, i) => ({
