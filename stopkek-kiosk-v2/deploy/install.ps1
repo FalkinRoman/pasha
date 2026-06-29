@@ -73,6 +73,25 @@ if (-not (Test-Path (Join-Path $srcShell 'stopkek-shell.exe'))) {
 }
 
 # --- Seat number + key ---------------------------------------------------------------
+# If the bundle already ships a filled agent\config.json (per-PC folder), use it as
+# defaults so this becomes a true one-click install with no questions.
+$bundledCfg = Join-Path $srcAgent 'config.json'
+if (Test-Path $bundledCfg) {
+    try {
+        $bc = Get-Content $bundledCfg -Raw | ConvertFrom-Json
+        if (-not $PSBoundParameters.ContainsKey('SeatNumber') -and $bc.seatNumber -ge 1 -and $bc.seatNumber -le 6) {
+            $SeatNumber = [int]$bc.seatNumber
+        }
+        if (-not $PSBoundParameters.ContainsKey('KioskKey') -and $bc.kioskKey -and $bc.kioskKey -notlike 'PASTE-*') {
+            $KioskKey = [string]$bc.kioskKey
+        }
+        if (-not $PSBoundParameters.ContainsKey('ApiUrl') -and $bc.apiUrl) { $ApiUrl = [string]$bc.apiUrl }
+        if (-not $PSBoundParameters.ContainsKey('AdminExitPinHash') -and $bc.adminExitPinHash) {
+            $AdminExitPinHash = [string]$bc.adminExitPinHash
+        }
+    } catch { }
+}
+
 while ($SeatNumber -lt 1 -or $SeatNumber -gt 6) {
     $SeatNumber = [int](Read-Host 'Номер места этого ПК (1-6)')
 }
