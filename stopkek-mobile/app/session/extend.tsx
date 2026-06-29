@@ -13,6 +13,7 @@ import { ApiError } from '../../src/api/client';
 import { ExtendHoursSection } from '../../src/components/booking/ExtendHoursSection';
 import { ExtendMinutesSection } from '../../src/components/booking/ExtendMinutesSection';
 import { ExtendMode, ExtendModeTabs } from '../../src/components/booking/ExtendModeTabs';
+import { BOOKING_PACKAGES, calcBookingPrice } from '../../src/constants/bookingPricing';
 import { PaymentPolicyNotice } from '../../src/components/legal/PaymentPolicyNotice';
 import { Card } from '../../src/components/ui/Card';
 import { Header } from '../../src/components/ui/Header';
@@ -23,7 +24,7 @@ import { setActiveBooking } from '../../src/store/bookingSlice';
 import { colors } from '../../src/theme/colors';
 import { radius, spacing } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
-import { ExtendHourQuote, ExtendMinuteQuote } from '../../src/types';
+import { ExtendHourQuote, ExtendMinuteQuote, ExtendPackageQuote } from '../../src/types';
 import {
   formatBookingUntil,
   formatDurationMinutes,
@@ -37,11 +38,13 @@ export default function ExtendScreen() {
 
   const [mode, setMode] = useState<ExtendMode>('hours');
   const [selectedMinutes, setSelectedMinutes] = useState(15);
+  const [selectedPackageId, setSelectedPackageId] = useState<string | null>(null);
   const [selectedHours, setSelectedHours] = useState(1);
   const [loading, setLoading] = useState(false);
   const [quoteLoading, setQuoteLoading] = useState(true);
   const [minutePresets, setMinutePresets] = useState<ExtendMinuteQuote[]>([]);
   const [hourPresets, setHourPresets] = useState<ExtendHourQuote[]>([]);
+  const [packagePresets, setPackagePresets] = useState<ExtendPackageQuote[]>([]);
   const [pricePerHour, setPricePerHour] = useState(150);
 
   useEffect(() => {
@@ -56,6 +59,7 @@ export default function ExtendScreen() {
         if (cancelled) return;
         setMinutePresets(q.minutePresets);
         setHourPresets(q.hourPresets);
+        setPackagePresets(q.packagePresets ?? []);
         setPricePerHour(q.pricePerHour);
         if (q.minutePresets.length) {
           const preferred = q.minutePresets.find((p) => p.minutes === 15);
@@ -69,6 +73,7 @@ export default function ExtendScreen() {
         if (!cancelled) {
           setMinutePresets([]);
           setHourPresets([]);
+          setPackagePresets([]);
         }
       })
       .finally(() => {
@@ -87,6 +92,37 @@ export default function ExtendScreen() {
     () => hourPresets.find((p) => p.hours === selectedHours),
     [hourPresets, selectedHours]
   );
+  const selectedPackageQuote = useMemo(
+    () => packagePresets.find((p) => p.packageId === selectedPackageId),
+    [packagePresets, selectedPackageId]
+  );
+
+  const resolvedPackagePay = useMemo(() => {
+    if (!selectedPackageId) return null;
+    if (selectedPackageQuote) return selectedPackageQuote.totalPriceRub;
+    const pkg = BOOKING_PACKAGES.find((p) => p.id === selectedPackageId);
+    if (!pkg) return null;
+    if (pkg.id === 'morning') {
+      const hourMeta = hourPresets.find((p) => p.hours === pkg.hours);
+      if (hourMeta) return hourMeta.totalPriceRub;
+    }
+    return calcBookingPrice(pricePerHour, pkg.hours, pkg.discountPct).discounted;
+  }, [selectedPackageId, selectedPackageQuote, hourPresets, pricePerHour]);
+
+  const selectPreset = (hours: number) => {
+    setSelectedPackageId(null);
+    setSelectedHours(hours);
+  };
+
+  const selectPackage = (packageId: string, hours: number) => {
+    if (selectedPackageId === packageId) {
+      setSelectedPackageId(null);
+      setSelectedHours(1);
+      return;
+    }
+    setSelectedPackageId(packageId);
+    setSelectedHours(hours);
+  };
 
   const payAmount = useMemo(() => {
     if (mode === 'minutes') {
@@ -95,6 +131,7 @@ export default function ExtendScreen() {
         Math.round((pricePerHour / 60) * selectedMinutes)
       );
     }
+    if (resolvedPackagePay != null) return resolvedPackagePay;
     return (
       selectedHourQuote?.totalPriceRub ??
       pricePerHour * selectedHours
@@ -103,6 +140,7 @@ export default function ExtendScreen() {
     mode,
     selectedMinuteQuote,
     selectedHourQuote,
+    resolvedPackagePay,
     pricePerHour,
     selectedMinutes,
     selectedHours,
@@ -111,7 +149,9 @@ export default function ExtendScreen() {
   const selectionLabel =
     mode === 'minutes'
       ? formatDurationMinutes(selectedMinutes)
-      : `+${selectedHours} ч`;
+      : selectedPackageId
+        ? `+${BOOKING_PACKAGES.find((p) => p.id === selectedPackageId)?.label ?? selectedHours + ' ч'}`
+        : `+${selectedHours} ч`;
 
   const pay = async () => {
     if (!booking) return;
@@ -159,9 +199,13 @@ export default function ExtendScreen() {
       {mode === 'hours' ? (
         <ExtendHoursSection
           presets={hourPresets}
+          packagePresets={packagePresets}
+          pricePerHour={pricePerHour}
           selectedHours={selectedHours}
+          selectedPackageId={selectedPackageId}
           quoteLoading={quoteLoading}
-          onSelect={setSelectedHours}
+          onSelectPreset={selectPreset}
+          onSelectPackage={selectPackage}
         />
       ) : (
         <ExtendMinutesSection

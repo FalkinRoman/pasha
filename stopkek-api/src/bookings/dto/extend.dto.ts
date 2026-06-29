@@ -4,7 +4,7 @@ export class ExtendBookingDto {
   @IsOptional()
   @IsInt()
   @Min(1)
-  @Max(8)
+  @Max(12)
   hours?: number;
 
   @IsOptional()

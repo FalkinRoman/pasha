@@ -102,9 +102,21 @@ export interface ExtendHourQuote {
   badge: string | null;
 }
 
+export interface ExtendPackageQuote {
+  packageId: string;
+  label: string;
+  window: string;
+  hours: number;
+  basePriceRub: number;
+  totalPriceRub: number;
+  discountRub: number;
+  badge: string | null;
+}
+
 export interface ExtendQuote {
   minutePresets: ExtendMinuteQuote[];
   hourPresets: ExtendHourQuote[];
+  packagePresets: ExtendPackageQuote[];
   pricePerHour: number;
 }
 

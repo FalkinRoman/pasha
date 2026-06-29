@@ -733,6 +733,10 @@ export class BookingsService {
     const extendStart = booking.endAt;
     const minuteSteps = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
     const hourSteps = [1, 3, 6, 8];
+    const packageDefs = [
+      { packageId: 'night', hours: 9, label: 'Пакет ночь', window: '23:00–08:00' },
+      { packageId: 'morning', hours: 6, label: 'Пакет утро', window: '10:00–16:00' },
+    ] as const;
 
     const minutePresets = minuteSteps.map((minutes) => {
       const q = this.pricing.quoteExtensionMinutes(seat.zone.pricePerHour, minutes);
@@ -764,7 +768,30 @@ export class BookingsService {
       })
     );
 
-    return { minutePresets, hourPresets, pricePerHour: seat.zone.pricePerHour };
+    const packagePresets = await Promise.all(
+      packageDefs.map(async (def) => {
+        const q = await this.pricing.quoteForSeat(
+          seat.zoneId,
+          seat.zone.clubId,
+          seat.zone.pricePerHour,
+          def.hours,
+          extendStart
+        );
+        const packageDiscountKopecks = this.pricing.packageDiscountKopecks(q);
+        return {
+          packageId: def.packageId,
+          label: def.label,
+          window: def.window,
+          hours: def.hours,
+          basePriceRub: Math.round(q.basePriceKopecks / 100),
+          totalPriceRub: Math.round(q.totalPriceRub),
+          discountRub: Math.round(packageDiscountKopecks / 100),
+          badge: q.packageBadge,
+        };
+      })
+    );
+
+    return { minutePresets, hourPresets, packagePresets, pricePerHour: seat.zone.pricePerHour };
   }
 
   async extendSession(
@@ -783,8 +810,8 @@ export class BookingsService {
       addMinutes = minutes;
       label = `${minutes} мин`;
     } else if (hours != null) {
-      if (hours < 1 || hours > 8) {
-        throw new BadRequestException('Продление от 1 до 8 часов');
+      if (hours < 1 || hours > 12) {
+        throw new BadRequestException('Продление от 1 до 12 часов');
       }
       addMinutes = hours * 60;
       label = `${hours} ч`;
