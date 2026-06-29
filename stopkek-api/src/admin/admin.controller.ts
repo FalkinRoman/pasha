@@ -347,6 +347,18 @@ export class AdminController {
     return this.admin.deleteDurationPackage(id);
   }
 
+  @Post('pricing/night')
+  @UseGuards(AdminJwtGuard)
+  createNight(@Body() dto: UpsertNightPricingDto) {
+    return this.admin.createNightPricing(dto);
+  }
+
+  @Patch('pricing/night/:id')
+  @UseGuards(AdminJwtGuard)
+  updateNight(@Param('id') id: string, @Body() dto: UpsertNightPricingDto) {
+    return this.admin.updateNightPricing(id, dto);
+  }
+
   @Put('pricing/night')
   @UseGuards(AdminJwtGuard)
   upsertNight(@Body() dto: UpsertNightPricingDto) {

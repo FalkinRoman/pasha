@@ -1,5 +1,5 @@
 /**
- * Дефолтные пакеты и ночной тариф для существующего клуба.
+ * Дефолтные пакеты и тарифы по времени для существующего клуба.
  * npm run seed:pricing
  */
 import { PrismaClient } from '@prisma/client';
@@ -7,10 +7,14 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 const DEFAULT_PACKAGES = [
-  { minHours: 3, discountPercent: 10, label: 'Пакет 3 ч', badge: '−10%', sortOrder: 0 },
-  { minHours: 5, discountPercent: 15, label: 'Пакет 5 ч', badge: '−15%', recommended: true, sortOrder: 1 },
-  { minHours: 6, discountPercent: 20, label: 'Пакет 6 ч', badge: '−20%', sortOrder: 2 },
-  { minHours: 9, discountPercent: 25, label: 'Пакет 9 ч', badge: '−25%', sortOrder: 3 },
+  { minHours: 3, discountPercent: 7, label: 'Пакет 3 ч', badge: '−7%', sortOrder: 0 },
+  { minHours: 6, discountPercent: 13, label: 'Пакет 6 ч', badge: '−13%', sortOrder: 1 },
+  { minHours: 8, discountPercent: 16, label: 'Пакет 8 ч', badge: '−16%', recommended: true, sortOrder: 2 },
+];
+
+const DEFAULT_TIME_WINDOWS = [
+  { startHour: 23, endHour: 8, discountPercent: 36 },
+  { startHour: 10, endHour: 16, discountPercent: 26 },
 ];
 
 async function main() {
@@ -40,21 +44,16 @@ async function main() {
     console.log('Пакеты уже есть, пропуск');
   }
 
-  const night = await prisma.nightPricing.findFirst({
-    where: { clubId: club.id, zoneId: null },
-  });
-  if (!night) {
-    await prisma.nightPricing.create({
-      data: {
-        clubId: club.id,
-        startHour: 23,
-        endHour: 7,
-        discountPercent: 20,
-      },
-    });
-    console.log('Ночной тариф: 23:00–07:00, −20%');
+  const windows = await prisma.nightPricing.count({ where: { clubId: club.id } });
+  if (windows === 0) {
+    for (const w of DEFAULT_TIME_WINDOWS) {
+      await prisma.nightPricing.create({
+        data: { clubId: club.id, ...w },
+      });
+    }
+    console.log('Созданы тарифы по времени: ночь 23–08 −36%, утро 10–16 −26%');
   } else {
-    console.log('Ночной тариф уже есть');
+    console.log('Тарифы по времени уже есть, пропуск');
   }
 }
 

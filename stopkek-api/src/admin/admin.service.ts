@@ -864,6 +864,50 @@ export class AdminService {
     return { ok: true };
   }
 
+  async createNightPricing(dto: UpsertNightPricingDto) {
+    const club = await this.requireClub();
+    if (dto.zoneId) {
+      const z = await this.prisma.zone.findFirst({
+        where: { id: dto.zoneId, clubId: club.id },
+      });
+      if (!z) throw new BadRequestException('Зона не найдена');
+    }
+    return this.prisma.nightPricing.create({
+      data: {
+        clubId: club.id,
+        zoneId: dto.zoneId ?? null,
+        startHour: dto.startHour,
+        endHour: dto.endHour,
+        discountPercent: dto.discountPercent,
+        active: dto.active ?? true,
+      },
+    });
+  }
+
+  async updateNightPricing(id: string, dto: UpsertNightPricingDto) {
+    const club = await this.requireClub();
+    const row = await this.prisma.nightPricing.findFirst({
+      where: { id, clubId: club.id },
+    });
+    if (!row) throw new NotFoundException('Правило не найдено');
+    if (dto.zoneId) {
+      const z = await this.prisma.zone.findFirst({
+        where: { id: dto.zoneId, clubId: club.id },
+      });
+      if (!z) throw new BadRequestException('Зона не найдена');
+    }
+    return this.prisma.nightPricing.update({
+      where: { id },
+      data: {
+        zoneId: dto.zoneId === undefined ? undefined : dto.zoneId ?? null,
+        startHour: dto.startHour,
+        endHour: dto.endHour,
+        discountPercent: dto.discountPercent,
+        ...(dto.active !== undefined ? { active: dto.active } : {}),
+      },
+    });
+  }
+
   async upsertNightPricing(dto: UpsertNightPricingDto) {
     const club = await this.requireClub();
     if (dto.zoneId) {

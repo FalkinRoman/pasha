@@ -2,14 +2,16 @@ import { FormEvent, useEffect, useState } from 'react';
 import { ApiError } from '../api/client';
 import {
   DurationPackageRow,
+  NightPricingRow,
   PricingData,
   createDurationPackage,
+  createNightPricing,
   deleteDurationPackage,
   deleteNightPricing,
   fetchPricing,
   updateDurationPackage,
+  updateNightPricing,
   updateZone,
-  upsertNightPricing,
 } from '../api/admin';
 import { Modal } from '../components/Modal';
 import { TableEmptyRow } from '../components/TableEmptyRow';
@@ -17,12 +19,34 @@ import { TableEmptyRow } from '../components/TableEmptyRow';
 const emptyPkg = () => ({
   zoneId: '',
   minHours: '3',
-  discountPercent: '10',
+  discountPercent: '7',
   label: '',
   badge: '',
   recommended: false,
   active: true,
 });
+
+const emptyWindow = () => ({
+  zoneId: '',
+  startHour: '10',
+  endHour: '16',
+  discountPercent: '26',
+  active: true,
+});
+
+function padHour(h: number) {
+  return String(h).padStart(2, '0');
+}
+
+function formatWindow(start: number, end: number) {
+  return `${padHour(start)}:00–${padHour(end)}:00`;
+}
+
+function windowTypeLabel(startHour: number): string {
+  if (startHour >= 21 || startHour <= 5) return 'Ночной';
+  if (startHour >= 6 && startHour <= 12) return 'Утренний';
+  return 'Дневной';
+}
 
 export function PricingPage() {
   const [data, setData] = useState<PricingData | null>(null);
@@ -31,14 +55,9 @@ export function PricingPage() {
   const [pkgForm, setPkgForm] = useState<'create' | DurationPackageRow | null>(null);
   const [pkgFields, setPkgFields] = useState(emptyPkg);
 
-  const [nightStart, setNightStart] = useState('23');
-  const [nightEnd, setNightEnd] = useState('7');
-  const [nightDiscount, setNightDiscount] = useState('20');
-  const [nightActive, setNightActive] = useState(true);
-  const [nightId, setNightId] = useState<string | null>(null);
-  const [savingNight, setSavingNight] = useState(false);
+  const [windowForm, setWindowForm] = useState<'create' | NightPricingRow | null>(null);
+  const [windowFields, setWindowFields] = useState(emptyWindow);
 
-  // Дневной (базовый) тариф — цена за час по зонам.
   const [zonePrices, setZonePrices] = useState<Record<string, string>>({});
   const [savingZone, setSavingZone] = useState<string | null>(null);
 
@@ -51,14 +70,6 @@ export function PricingPage() {
       setZonePrices(
         Object.fromEntries(d.zones.map((z) => [z.id, String(z.pricePerHour)]))
       );
-      const global = d.nightRules.find((n) => !n.zoneId);
-      if (global) {
-        setNightId(global.id);
-        setNightStart(String(global.startHour));
-        setNightEnd(String(global.endHour));
-        setNightDiscount(String(global.discountPercent));
-        setNightActive(global.active);
-      }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Ошибка загрузки');
     } finally {
@@ -122,35 +133,51 @@ export function PricingPage() {
     }
   };
 
-  const saveNight = async (e: FormEvent) => {
+  const openCreateWindow = () => {
+    setWindowForm('create');
+    setWindowFields(emptyWindow());
+  };
+
+  const openEditWindow = (w: NightPricingRow) => {
+    setWindowForm(w);
+    setWindowFields({
+      zoneId: w.zoneId ?? '',
+      startHour: String(w.startHour),
+      endHour: String(w.endHour),
+      discountPercent: String(w.discountPercent),
+      active: w.active,
+    });
+  };
+
+  const saveWindow = async (e: FormEvent) => {
     e.preventDefault();
-    setSavingNight(true);
-    setError('');
+    const body = {
+      zoneId: windowFields.zoneId || null,
+      startHour: Number(windowFields.startHour),
+      endHour: Number(windowFields.endHour),
+      discountPercent: Number(windowFields.discountPercent),
+      active: windowFields.active,
+    };
     try {
-      const row = await upsertNightPricing({
-        zoneId: null,
-        startHour: Number(nightStart),
-        endHour: Number(nightEnd),
-        discountPercent: Number(nightDiscount),
-        active: nightActive,
-      });
-      setNightId(row.id);
+      if (windowForm === 'create') {
+        await createNightPricing(body);
+      } else if (windowForm) {
+        await updateNightPricing(windowForm.id, body);
+      }
+      setWindowForm(null);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Ошибка сохранения ночи');
-    } finally {
-      setSavingNight(false);
+      setError(err instanceof ApiError ? err.message : 'Ошибка сохранения тарифа');
     }
   };
 
-  const removeNight = async () => {
-    if (!nightId || !confirm('Отключить ночной тариф?')) return;
+  const removeWindow = async (id: string) => {
+    if (!confirm('Удалить правило?')) return;
     try {
-      await deleteNightPricing(nightId);
-      setNightId(null);
+      await deleteNightPricing(id);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Ошибка');
+      setError(err instanceof ApiError ? err.message : 'Ошибка удаления');
     }
   };
 
@@ -181,14 +208,14 @@ export function PricingPage() {
     <div className="page">
       <h1>Тарифы и скидки</h1>
       <p className="muted page-lead">
-        Дневная цена за час, пакеты по длительности и ночной тариф. Цена в приложении
-        считается на сервере.
+        Базовая цена за час, скидки по времени суток и пакеты по длительности. Итог в
+        приложении считается на сервере.
       </p>
       {error ? <p className="error-text">{error}</p> : null}
 
       <section className="card" style={{ marginBottom: 24 }}>
         <h2 className="section-title" style={{ marginBottom: 16 }}>
-          Дневной тариф (цена за час)
+          Базовая цена (₽ / час)
         </h2>
         <div className="table-wrap">
           <table className="table">
@@ -235,7 +262,69 @@ export function PricingPage() {
           </table>
         </div>
         <p className="muted" style={{ marginTop: 8 }}>
-          Базовая цена за час (день). Скидки пакетов и ночной тариф считаются от неё.
+          Полная ставка вне скидочных интервалов. Скидки по времени и пакеты считаются от
+          неё.
+        </p>
+      </section>
+
+      <section className="card" style={{ marginBottom: 24 }}>
+        <div className="section-head">
+          <h2 className="section-title">Скидки по времени суток</h2>
+          <button type="button" className="btn btn-primary btn-sm" onClick={openCreateWindow}>
+            Добавить интервал
+          </button>
+        </div>
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Тип</th>
+                <th>Интервал</th>
+                <th>Скидка</th>
+                <th>Зона</th>
+                <th>Статус</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {!data?.nightRules.length ? (
+                <TableEmptyRow
+                  colSpan={6}
+                  message="Нет правил — добавьте ночной (23–08) и утренний (10–16)"
+                />
+              ) : (
+                data.nightRules.map((w) => (
+                  <tr key={w.id}>
+                    <td>{windowTypeLabel(w.startHour)}</td>
+                    <td>{formatWindow(w.startHour, w.endHour)}</td>
+                    <td>−{w.discountPercent}%</td>
+                    <td>{zoneName(w.zoneId)}</td>
+                    <td>{w.active ? 'Вкл' : 'Выкл'}</td>
+                    <td className="table-actions">
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => openEditWindow(w)}
+                      >
+                        Изменить
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => removeWindow(w.id)}
+                      >
+                        Удалить
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        <p className="muted" style={{ marginTop: 8 }}>
+          Скидка применяется только к минутам брони, попавшим в интервал (например ночь
+          23:00–08:00 −36%, утро 10:00–16:00 −26%).
         </p>
       </section>
 
@@ -261,7 +350,7 @@ export function PricingPage() {
             </thead>
             <tbody>
               {!data?.packages.length ? (
-                <TableEmptyRow colSpan={7} message="Нет пакетов — npm run seed:pricing в API" />
+                <TableEmptyRow colSpan={7} message="Нет пакетов" />
               ) : (
                 data.packages.map((p) => (
                   <tr key={p.id}>
@@ -290,69 +379,81 @@ export function PricingPage() {
         </div>
       </section>
 
-      <section className="card">
-        <h2 className="section-title" style={{ marginBottom: 16 }}>
-          Ночной тариф (глобальный)
-        </h2>
-        <form onSubmit={saveNight} className="card-form pricing-night-form">
-          <div className="pricing-night-fields">
-            <label>
-              С (час)
-              <input
-                className="input"
-                type="number"
-                min={0}
-                max={23}
-                value={nightStart}
-                onChange={(e) => setNightStart(e.target.value)}
-              />
-            </label>
-            <label>
-              До (час)
-              <input
-                className="input"
-                type="number"
-                min={0}
-                max={23}
-                value={nightEnd}
-                onChange={(e) => setNightEnd(e.target.value)}
-              />
-            </label>
-            <label>
-              Скидка, %
-              <input
-                className="input"
-                type="number"
-                min={0}
-                max={90}
-                value={nightDiscount}
-                onChange={(e) => setNightDiscount(e.target.value)}
-              />
-            </label>
-          </div>
+      <Modal
+        open={windowForm !== null}
+        title={windowForm === 'create' ? 'Новый интервал' : 'Редактировать интервал'}
+        onClose={() => setWindowForm(null)}
+      >
+        <form onSubmit={saveWindow} className="card-form">
+          <label>
+            С (час, 0–23)
+            <input
+              className="input"
+              type="number"
+              min={0}
+              max={23}
+              value={windowFields.startHour}
+              onChange={(e) => setWindowFields((f) => ({ ...f, startHour: e.target.value }))}
+              required
+            />
+          </label>
+          <label>
+            До (час, 0–23)
+            <input
+              className="input"
+              type="number"
+              min={0}
+              max={23}
+              value={windowFields.endHour}
+              onChange={(e) => setWindowFields((f) => ({ ...f, endHour: e.target.value }))}
+              required
+            />
+          </label>
+          <label>
+            Скидка, %
+            <input
+              className="input"
+              type="number"
+              min={0}
+              max={90}
+              value={windowFields.discountPercent}
+              onChange={(e) => setWindowFields((f) => ({ ...f, discountPercent: e.target.value }))}
+              required
+            />
+          </label>
+          <label>
+            Зона (пусто = все)
+            <select
+              className="input"
+              value={windowFields.zoneId}
+              onChange={(e) => setWindowFields((f) => ({ ...f, zoneId: e.target.value }))}
+            >
+              <option value="">Все зоны</option>
+              {data?.zones.map((z) => (
+                <option key={z.id} value={z.id}>
+                  {z.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="pricing-night-check">
             <input
               type="checkbox"
-              checked={nightActive}
-              onChange={(e) => setNightActive(e.target.checked)}
+              checked={windowFields.active}
+              onChange={(e) => setWindowFields((f) => ({ ...f, active: e.target.checked }))}
             />
             Активен
           </label>
-          <div className="form-actions">
-            <button type="submit" className="btn btn-primary" disabled={savingNight}>
-              {savingNight ? 'Сохранение…' : 'Сохранить ночь'}
+          <div className="form-footer">
+            <button type="submit" className="btn btn-primary btn-block">
+              Сохранить
             </button>
-            {nightId ? (
-              <button type="button" className="btn btn-ghost" onClick={removeNight}>
-                Удалить правило
-              </button>
-            ) : null}
+            <button type="button" className="btn btn-ghost btn-block" onClick={() => setWindowForm(null)}>
+              Отмена
+            </button>
           </div>
-          <p className="pricing-night-hint">
-            Скидка применяется только к минутам в этом интервале (например 23:00–07:00).
-          </p>
         </form>
-      </section>
+      </Modal>
 
       <Modal
         open={pkgForm !== null}
@@ -390,7 +491,7 @@ export function PricingPage() {
               className="input"
               value={pkgFields.label}
               onChange={(e) => setPkgFields((f) => ({ ...f, label: e.target.value }))}
-              placeholder="Пакет 4 ч"
+              placeholder="Пакет 6 ч"
               required
             />
           </label>
@@ -400,7 +501,7 @@ export function PricingPage() {
               className="input"
               value={pkgFields.badge}
               onChange={(e) => setPkgFields((f) => ({ ...f, badge: e.target.value }))}
-              placeholder="−15%"
+              placeholder="−13%"
             />
           </label>
           <label>

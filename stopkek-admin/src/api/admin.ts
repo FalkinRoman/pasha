@@ -532,6 +532,35 @@ export function deleteDurationPackage(id: string) {
   return api<{ ok: boolean }>(`/admin/pricing/packages/${id}`, { method: 'DELETE' });
 }
 
+export function createNightPricing(body: {
+  zoneId?: string | null;
+  startHour: number;
+  endHour: number;
+  discountPercent: number;
+  active?: boolean;
+}) {
+  return api<NightPricingRow>('/admin/pricing/night', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateNightPricing(
+  id: string,
+  body: {
+    zoneId?: string | null;
+    startHour: number;
+    endHour: number;
+    discountPercent: number;
+    active?: boolean;
+  }
+) {
+  return api<NightPricingRow>(`/admin/pricing/night/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
 export function upsertNightPricing(body: {
   zoneId?: string | null;
   startHour: number;
