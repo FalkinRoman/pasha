@@ -732,25 +732,17 @@ export class BookingsService {
 
     const extendStart = booking.endAt;
     const minuteSteps = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
-    const hourSteps = [1, 2, 3, 4];
+    const hourSteps = [1, 3, 6, 8];
 
-    const minutePresets = await Promise.all(
-      minuteSteps.map(async (minutes) => {
-        const q = await this.pricing.quoteForSeat(
-          seat.zoneId,
-          seat.zone.clubId,
-          seat.zone.pricePerHour,
-          minutes / 60,
-          extendStart
-        );
-        return {
-          minutes,
-          basePriceRub: Math.round(q.basePriceKopecks / 100),
-          totalPriceRub: Math.round(q.totalPriceRub),
-          discountRub: Math.round(q.discountRub),
-        };
-      })
-    );
+    const minutePresets = minuteSteps.map((minutes) => {
+      const q = this.pricing.quoteExtensionMinutes(seat.zone.pricePerHour, minutes);
+      return {
+        minutes,
+        basePriceRub: Math.round(q.basePriceKopecks / 100),
+        totalPriceRub: Math.round(q.totalPriceKopecks / 100),
+        discountRub: 0,
+      };
+    });
 
     const hourPresets = await Promise.all(
       hourSteps.map(async (hours) => {
@@ -761,11 +753,12 @@ export class BookingsService {
           hours,
           extendStart
         );
+        const packageDiscountKopecks = this.pricing.packageDiscountKopecks(q);
         return {
           hours,
           basePriceRub: Math.round(q.basePriceKopecks / 100),
           totalPriceRub: Math.round(q.totalPriceRub),
-          discountRub: Math.round(q.discountRub),
+          discountRub: Math.round(packageDiscountKopecks / 100),
           badge: q.packageBadge,
         };
       })
@@ -807,13 +800,16 @@ export class BookingsService {
     if (!seat) throw new BadRequestException('Нет места');
     const extendStart = booking.endAt;
     const durationHours = addMinutes / 60;
-    const price = await this.pricing.quoteForSeat(
-      seat.zoneId,
-      seat.zone.clubId,
-      seat.zone.pricePerHour,
-      durationHours,
-      extendStart
-    );
+    const price =
+      minutes != null
+        ? this.pricing.quoteExtensionMinutes(seat.zone.pricePerHour, minutes)
+        : await this.pricing.quoteForSeat(
+            seat.zoneId,
+            seat.zone.clubId,
+            seat.zone.pricePerHour,
+            durationHours,
+            extendStart
+          );
     const addKopecks = price.totalPriceKopecks;
     const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
     if (!wallet || wallet.balance < addKopecks) {

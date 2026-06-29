@@ -61,6 +61,30 @@ export class PricingService {
     return this.quoteForSeat(zone.id, zone.clubId, zone.pricePerHour, durationHours, startAt);
   }
 
+  /** Поминутное продление: только пропорция от pricePerHour, без пакетов и окон. */
+  quoteExtensionMinutes(pricePerHour: number, minutes: number): PriceBreakdown {
+    const durationHours = minutes / 60;
+    const basePriceKopecks = Math.round(pricePerHour * durationHours * 100);
+    return {
+      pricePerHour,
+      durationHours,
+      nightMinutes: 0,
+      basePriceKopecks,
+      discountAmountKopecks: 0,
+      totalPriceKopecks: basePriceKopecks,
+      discounts: [],
+      packageBadge: null,
+      packageLabel: null,
+      recommended: false,
+    };
+  }
+
+  packageDiscountKopecks(breakdown: PriceBreakdown): number {
+    return breakdown.discounts
+      .filter((d) => d.type === 'package')
+      .reduce((sum, d) => sum + d.amountKopecks, 0);
+  }
+
   calculate(
     pricePerHour: number,
     durationHours: number,

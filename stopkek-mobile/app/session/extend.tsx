@@ -4,13 +4,15 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { extendBooking, quoteExtend } from '../../src/api/bookings';
 import { ApiError } from '../../src/api/client';
+import { ExtendHoursSection } from '../../src/components/booking/ExtendHoursSection';
+import { ExtendMinutesSection } from '../../src/components/booking/ExtendMinutesSection';
+import { ExtendMode, ExtendModeTabs } from '../../src/components/booking/ExtendModeTabs';
 import { PaymentPolicyNotice } from '../../src/components/legal/PaymentPolicyNotice';
 import { Card } from '../../src/components/ui/Card';
 import { Header } from '../../src/components/ui/Header';
@@ -28,14 +30,12 @@ import {
   formatMoney,
 } from '../../src/utils/format';
 
-type ExtendMode = 'minutes' | 'hours';
-
 export default function ExtendScreen() {
   const dispatch = useAppDispatch();
   const booking = useAppSelector((s) => s.booking.activeBooking);
   const seatNum = booking?.seatNumbers[0] ?? 0;
 
-  const [mode, setMode] = useState<ExtendMode>('minutes');
+  const [mode, setMode] = useState<ExtendMode>('hours');
   const [selectedMinutes, setSelectedMinutes] = useState(15);
   const [selectedHours, setSelectedHours] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -133,7 +133,7 @@ export default function ExtendScreen() {
   };
 
   return (
-    <Screen scroll>
+    <Screen scroll style={styles.screen}>
       <Header title="Продлить сеанс" back />
 
       {booking ? (
@@ -154,103 +154,21 @@ export default function ExtendScreen() {
       ) : null}
 
       <Text style={styles.sectionTitle}>На сколько продлить</Text>
+      <ExtendModeTabs mode={mode} onChange={setMode} />
 
-      <View style={styles.segment}>
-        <Pressable
-          style={[styles.segmentBtn, mode === 'minutes' && styles.segmentBtnActive]}
-          onPress={() => setMode('minutes')}
-        >
-          <Text
-            style={[
-              styles.segmentText,
-              mode === 'minutes' && styles.segmentTextActive,
-            ]}
-          >
-            Минуты
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.segmentBtn, mode === 'hours' && styles.segmentBtnActive]}
-          onPress={() => setMode('hours')}
-        >
-          <Text
-            style={[
-              styles.segmentText,
-              mode === 'hours' && styles.segmentTextActive,
-            ]}
-          >
-            Часы
-          </Text>
-        </Pressable>
-      </View>
-
-      {mode === 'minutes' ? (
-        <View style={styles.minuteGrid}>
-          {minutePresets.map((preset) => {
-            const active = selectedMinutes === preset.minutes;
-            return (
-              <Pressable
-                key={preset.minutes}
-                style={[styles.minuteChip, active && styles.chipActive]}
-                onPress={() => setSelectedMinutes(preset.minutes)}
-              >
-                <Text style={[styles.chipValue, active && styles.chipTextActive]}>
-                  {preset.minutes}
-                </Text>
-                <Text style={[styles.chipUnit, active && styles.chipUnitActive]}>
-                  мин
-                </Text>
-                <View style={styles.chipPriceWrap}>
-                  {quoteLoading && active ? (
-                    <ActivityIndicator size="small" color={active ? '#fff' : colors.accent} />
-                  ) : (
-                    <Text style={[styles.chipPrice, active && styles.chipTextActive]}>
-                      {formatMoney(preset.totalPriceRub)}
-                    </Text>
-                  )}
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
+      {mode === 'hours' ? (
+        <ExtendHoursSection
+          presets={hourPresets}
+          selectedHours={selectedHours}
+          quoteLoading={quoteLoading}
+          onSelect={setSelectedHours}
+        />
       ) : (
-        <View style={styles.hourList}>
-          {hourPresets.map((preset) => {
-            const active = selectedHours === preset.hours;
-            return (
-              <Pressable
-                key={preset.hours}
-                style={[styles.hourRow, active && styles.hourRowActive]}
-                onPress={() => setSelectedHours(preset.hours)}
-              >
-                <View style={styles.hourLeft}>
-                  <Text style={[styles.hourLabel, active && styles.chipTextActive]}>
-                    +{preset.hours} ч
-                  </Text>
-                  {preset.badge ? (
-                    <Text style={[styles.hourBadge, active && styles.hourBadgeActive]}>
-                      {preset.badge}
-                    </Text>
-                  ) : null}
-                </View>
-                <View style={styles.priceCol}>
-                  {preset.discountRub > 0 ? (
-                    <Text style={[styles.basePrice, active && styles.basePriceActive]}>
-                      {formatMoney(preset.basePriceRub)}
-                    </Text>
-                  ) : null}
-                  {quoteLoading && active ? (
-                    <ActivityIndicator size="small" color={colors.textSecondary} />
-                  ) : (
-                    <Text style={[styles.hourPrice, active && styles.chipTextActive]}>
-                      {formatMoney(preset.totalPriceRub)}
-                    </Text>
-                  )}
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
+        <ExtendMinutesSection
+          presets={minutePresets}
+          selectedMinutes={selectedMinutes}
+          onSelect={setSelectedMinutes}
+        />
       )}
 
       <Card style={styles.summaryCard}>
@@ -270,7 +188,10 @@ export default function ExtendScreen() {
         </View>
       </Card>
 
-      <PaymentPolicyNotice compact />
+      <View style={styles.policyWrap}>
+        <PaymentPolicyNotice compact />
+      </View>
+
       <StopButton
         title={`Оплатить ${formatMoney(payAmount)}`}
         onPress={pay}
@@ -282,6 +203,7 @@ export default function ExtendScreen() {
 }
 
 const styles = StyleSheet.create({
+  screen: { paddingBottom: spacing.xxl },
   sessionCard: { marginBottom: spacing.lg },
   sessionRow: {
     flexDirection: 'row',
@@ -305,128 +227,17 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     color: colors.textSecondary,
   },
-  segment: {
-    flexDirection: 'row',
-    backgroundColor: colors.bgMuted,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 4,
-    marginBottom: spacing.md,
-    gap: 4,
-  },
-  segmentBtn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: radius.sm,
-  },
-  segmentBtnActive: {
-    backgroundColor: colors.accent,
-  },
-  segmentText: {
-    ...typography.body,
-    fontWeight: '700',
-    color: colors.textSecondary,
-  },
-  segmentTextActive: {
-    color: '#fff',
-  },
-  minuteGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  minuteChip: {
-    width: '30%',
-    flexGrow: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 88,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.xs,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.bgMuted,
-    gap: 2,
-  },
-  chipActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  chipValue: {
-    ...typography.h3,
-    fontWeight: '800',
-    lineHeight: 28,
-  },
-  chipUnit: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    fontSize: 11,
-    marginTop: -2,
-  },
-  chipUnitActive: {
-    color: 'rgba(255,255,255,0.75)',
-  },
-  chipPrice: {
-    ...typography.caption,
-    fontWeight: '600',
-    marginTop: 4,
-  },
-  chipPriceWrap: {
-    minHeight: 18,
-    justifyContent: 'center',
-    marginTop: 4,
-  },
-  chipTextActive: {
-    color: '#fff',
-  },
-  hourList: {
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  hourRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.bgCard,
-  },
-  hourRowActive: {
-    borderColor: colors.accent,
-    backgroundColor: '#1a1010',
-  },
-  hourLeft: { gap: 4 },
-  hourLabel: { ...typography.h3 },
-  hourBadge: {
-    ...typography.caption,
-    color: colors.accentBright,
-  },
-  hourBadgeActive: {
-    color: 'rgba(255,255,255,0.85)',
-  },
-  hourPrice: { ...typography.bodySecondary },
-  priceCol: { alignItems: 'flex-end', gap: 2 },
-  basePrice: {
-    ...typography.caption,
-    textDecorationLine: 'line-through',
-    color: colors.textDisabled,
-  },
-  basePriceActive: {
-    color: 'rgba(255,255,255,0.5)',
-  },
-  summaryCard: { marginBottom: spacing.md },
+  summaryCard: { marginTop: spacing.md, marginBottom: spacing.md },
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: spacing.md,
   },
-  cta: { marginTop: 'auto' },
+  priceCol: { alignItems: 'flex-end', gap: 2 },
+  policyWrap: {
+    marginTop: spacing.sm,
+    marginBottom: spacing.xl,
+  },
+  cta: { marginTop: 0 },
 });
