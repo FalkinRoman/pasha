@@ -30,6 +30,12 @@ public sealed class Worker : BackgroundService
     // connects (the player signs out and back in, or the PC reboots) — see HandleCommandAsync.
     private bool _maintenance;
 
+    // Interrupts the inter-poll sleep so a shell command (e.g. end-session) is reflected on
+    // screen within a round-trip instead of waiting up to PollIntervalSec. Cancelling this
+    // token wakes the main loop, which re-polls immediately. Only the main loop polls, so the
+    // state machine still has a single owner — no races.
+    private volatile CancellationTokenSource? _wakeCts;
+
     public Worker(
         KioskConfig cfg,
         KioskApiClient api,
@@ -96,8 +102,14 @@ public sealed class Worker : BackgroundService
                 ? TimeSpan.FromSeconds(2)
                 : _cfg.PollInterval;
 
-            try { await Task.Delay(delay, stoppingToken); }
-            catch (OperationCanceledException) { break; }
+            // Interruptible sleep: a poke (e.g. end-session from the shell) cancels the delay
+            // so the next poll fires at once and the lock appears almost immediately.
+            using var wake = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+            _wakeCts = wake;
+            try { await Task.Delay(delay, wake.Token); }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
+            catch (OperationCanceledException) { /* poked — re-poll now */ }
+            finally { _wakeCts = null; }
         }
 
         _watchdog.Stop();
@@ -113,6 +125,9 @@ public sealed class Worker : BackgroundService
                 _log.LogInformation("shell requested end-session");
                 var ok = await _api.EndSessionAsync(CancellationToken.None);
                 _log.LogInformation("end-session result: {Ok}", ok);
+                // Server has ended the session — wake the loop so it re-polls now and the
+                // lock screen comes up at once instead of after the next poll interval.
+                Poke();
                 break;
 
             case ShellCommand.Hello:
@@ -169,6 +184,14 @@ public sealed class Worker : BackgroundService
 
     private KioskView Stamp(KioskView v) => v with { AdminExitEnabled = _cfg.AdminExitEnabled };
     private void PublishView(KioskView v) => _ipc.Publish(Stamp(v));
+
+    // Wake the main loop out of its inter-poll sleep so it re-polls immediately. Safe to call
+    // from the IPC thread; races against loop teardown are swallowed.
+    private void Poke()
+    {
+        try { _wakeCts?.Cancel(); }
+        catch (ObjectDisposedException) { /* loop already moved on */ }
+    }
 
     private KioskView MaintenanceView() => new()
     {
