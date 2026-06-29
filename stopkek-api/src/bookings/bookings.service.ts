@@ -722,10 +722,83 @@ export class BookingsService {
     };
   }
 
-  async extendSession(userId: string, bookingId: string, hours: number) {
-    if (!hours || hours < 1 || hours > 8) {
-      throw new BadRequestException('Продление от 1 до 8 часов');
+  async quoteExtend(userId: string, bookingId: string) {
+    const booking = await this.getOngoingBooking(userId, bookingId);
+    if (booking.status !== 'active' || booking.sessionPhase !== 'playing') {
+      throw new BadRequestException('Продление только во время игры');
     }
+    const seat = booking.seats[0]?.seat;
+    if (!seat) throw new BadRequestException('Нет места');
+
+    const extendStart = booking.endAt;
+    const minuteSteps = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
+    const hourSteps = [1, 2, 3, 4];
+
+    const minutePresets = await Promise.all(
+      minuteSteps.map(async (minutes) => {
+        const q = await this.pricing.quoteForSeat(
+          seat.zoneId,
+          seat.zone.clubId,
+          seat.zone.pricePerHour,
+          minutes / 60,
+          extendStart
+        );
+        return {
+          minutes,
+          basePriceRub: Math.round(q.basePriceKopecks / 100),
+          totalPriceRub: Math.round(q.totalPriceRub),
+          discountRub: Math.round(q.discountRub),
+        };
+      })
+    );
+
+    const hourPresets = await Promise.all(
+      hourSteps.map(async (hours) => {
+        const q = await this.pricing.quoteForSeat(
+          seat.zoneId,
+          seat.zone.clubId,
+          seat.zone.pricePerHour,
+          hours,
+          extendStart
+        );
+        return {
+          hours,
+          basePriceRub: Math.round(q.basePriceKopecks / 100),
+          totalPriceRub: Math.round(q.totalPriceRub),
+          discountRub: Math.round(q.discountRub),
+          badge: q.packageBadge,
+        };
+      })
+    );
+
+    return { minutePresets, hourPresets, pricePerHour: seat.zone.pricePerHour };
+  }
+
+  async extendSession(
+    userId: string,
+    bookingId: string,
+    dto: { hours?: number; minutes?: number }
+  ) {
+    const { hours, minutes } = dto;
+    let addMinutes: number;
+    let label: string;
+
+    if (minutes != null) {
+      if (minutes % 5 !== 0 || minutes < 5 || minutes > 480) {
+        throw new BadRequestException('Продление поминутно: от 5 до 480 мин, шаг 5');
+      }
+      addMinutes = minutes;
+      label = `${minutes} мин`;
+    } else if (hours != null) {
+      if (hours < 1 || hours > 8) {
+        throw new BadRequestException('Продление от 1 до 8 часов');
+      }
+      addMinutes = hours * 60;
+      label = `${hours} ч`;
+    } else {
+      throw new BadRequestException('Укажите hours или minutes');
+    }
+
     const booking = await this.getOngoingBooking(userId, bookingId);
     if (booking.status !== 'active' || booking.sessionPhase !== 'playing') {
       throw new BadRequestException('Продление только во время игры');
@@ -733,11 +806,12 @@ export class BookingsService {
     const seat = booking.seats[0]?.seat;
     if (!seat) throw new BadRequestException('Нет места');
     const extendStart = booking.endAt;
+    const durationHours = addMinutes / 60;
     const price = await this.pricing.quoteForSeat(
       seat.zoneId,
       seat.zone.clubId,
       seat.zone.pricePerHour,
-      hours,
+      durationHours,
       extendStart
     );
     const addKopecks = price.totalPriceKopecks;
@@ -756,15 +830,15 @@ export class BookingsService {
           walletId: wallet.id,
           type: 'extension',
           amount: -addKopecks,
-          description: `Продление +${hours} ч, место #${booking.seats[0].seatNumber}`,
+          description: `Продление +${label}, место #${booking.seats[0].seatNumber}`,
           externalId: `${bookingId}-ext-${Date.now()}`,
         },
       });
       return tx.booking.update({
         where: { id: bookingId },
         data: {
-          endAt: new Date(booking.endAt.getTime() + hours * 3600_000),
-          durationMinutes: booking.durationMinutes + hours * 60,
+          endAt: new Date(booking.endAt.getTime() + addMinutes * 60_000),
+          durationMinutes: booking.durationMinutes + addMinutes,
           basePrice: booking.basePrice + price.basePriceKopecks,
           discountAmount: booking.discountAmount + price.discountAmountKopecks,
           totalPrice: booking.totalPrice + addKopecks,

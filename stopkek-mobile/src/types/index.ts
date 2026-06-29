@@ -87,6 +87,27 @@ export interface PresetQuote {
   recommended: boolean;
 }
 
+export interface ExtendMinuteQuote {
+  minutes: number;
+  basePriceRub: number;
+  totalPriceRub: number;
+  discountRub: number;
+}
+
+export interface ExtendHourQuote {
+  hours: number;
+  basePriceRub: number;
+  totalPriceRub: number;
+  discountRub: number;
+  badge: string | null;
+}
+
+export interface ExtendQuote {
+  minutePresets: ExtendMinuteQuote[];
+  hourPresets: ExtendHourQuote[];
+  pricePerHour: number;
+}
+
 export interface BookingPriceQuote {
   basePriceRub: number;
   totalPriceRub: number;

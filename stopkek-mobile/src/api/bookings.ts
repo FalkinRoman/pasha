@@ -1,4 +1,4 @@
-import { Booking, BookingPriceQuote } from '../types';
+import { Booking, BookingPriceQuote, ExtendQuote } from '../types';
 import { apiFetch } from './client';
 
 export async function quoteBooking(
@@ -58,11 +58,21 @@ export async function openSessionDoor(bookingId: string) {
   });
 }
 
-export async function extendBooking(bookingId: string, hours: number) {
+export async function quoteExtend(bookingId: string) {
+  return apiFetch<ExtendQuote>(`/bookings/${bookingId}/extend-quote`, {
+    method: 'POST',
+    auth: true,
+  });
+}
+
+export async function extendBooking(
+  bookingId: string,
+  opts: { hours?: number; minutes?: number }
+) {
   return apiFetch<Booking>(`/bookings/${bookingId}/extend`, {
     method: 'POST',
     auth: true,
-    body: JSON.stringify({ hours }),
+    body: JSON.stringify(opts),
   });
 }
 

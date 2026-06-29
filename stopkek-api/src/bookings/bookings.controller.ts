@@ -64,13 +64,21 @@ export class BookingsController {
     return this.bookings.openMainDoor(u.userId, id);
   }
 
+  @Post(':id/extend-quote')
+  extendQuote(
+    @CurrentUser() u: { userId: string },
+    @Param('id') id: string
+  ) {
+    return this.bookings.quoteExtend(u.userId, id);
+  }
+
   @Post(':id/extend')
   extend(
     @CurrentUser() u: { userId: string },
     @Param('id') id: string,
     @Body() dto: ExtendBookingDto
   ) {
-    return this.bookings.extendSession(u.userId, id, dto.hours);
+    return this.bookings.extendSession(u.userId, id, dto);
   }
 
   @Post(':id/end')

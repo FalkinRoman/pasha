@@ -128,6 +128,13 @@ export function formatDurationHours(hours: number) {
   return `${hours} часов`;
 }
 
+export function formatDurationMinutes(minutes: number) {
+  if (minutes === 1) return '1 минута';
+  if (minutes >= 2 && minutes <= 4) return `${minutes} минуты`;
+  if (minutes % 60 === 0) return formatDurationHours(minutes / 60);
+  return `${minutes} мин`;
+}
+
 /** «до 22:00 · сегодня» — для активной брони */
 export function formatBookingUntil(endAt: string) {
   const end = new Date(endAt);
