@@ -1,0 +1,12 @@
+{
+  "apiUrl": "https://stopkek.site/api",
+  "seatNumber": 0,
+  "kioskKey": "PASTE-SEAT-KEY-HERE",
+  "pollIntervalSec": 8,
+  "graceSeconds": 300,
+  "warnMinutes": [15, 5, 1],
+  "lockOnStartup": true,
+  "shellPath": "C:\\stopkek\\shell\\stopkek-shell.exe",
+  "watchdogEnabled": true,
+  "adminExitPinHash": ""
+}
