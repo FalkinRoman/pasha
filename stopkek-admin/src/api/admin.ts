@@ -486,7 +486,7 @@ export type NightPricingRow = {
 export type PricingData = {
   packages: DurationPackageRow[];
   nightRules: NightPricingRow[];
-  zones: { id: string; name: string; slug: string }[];
+  zones: { id: string; name: string; slug: string; pricePerHour: number }[];
 };
 
 export function fetchPricing() {

@@ -780,7 +780,7 @@ export class AdminService {
       this.prisma.nightPricing.findMany({ where: { clubId: club.id } }),
       this.prisma.zone.findMany({
         where: { clubId: club.id },
-        select: { id: true, name: true, slug: true },
+        select: { id: true, name: true, slug: true, pricePerHour: true },
         orderBy: { sortOrder: 'asc' },
       }),
     ]);

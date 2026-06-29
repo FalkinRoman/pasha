@@ -8,9 +8,9 @@ const prisma = new PrismaClient();
 
 const DEFAULT_PACKAGES = [
   { minHours: 3, discountPercent: 10, label: 'Пакет 3 ч', badge: '−10%', sortOrder: 0 },
-  { minHours: 4, discountPercent: 15, label: 'Пакет 4 ч', badge: '−15%', recommended: true, sortOrder: 1 },
+  { minHours: 5, discountPercent: 15, label: 'Пакет 5 ч', badge: '−15%', recommended: true, sortOrder: 1 },
   { minHours: 6, discountPercent: 20, label: 'Пакет 6 ч', badge: '−20%', sortOrder: 2 },
-  { minHours: 8, discountPercent: 25, label: 'Пакет 8 ч', badge: '−25%', sortOrder: 3 },
+  { minHours: 9, discountPercent: 25, label: 'Пакет 9 ч', badge: '−25%', sortOrder: 3 },
 ];
 
 async function main() {

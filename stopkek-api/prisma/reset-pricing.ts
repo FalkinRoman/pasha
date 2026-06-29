@@ -17,11 +17,12 @@ async function main() {
   await prisma.durationPackage.deleteMany({ where: { clubId: club.id } });
   await prisma.nightPricing.deleteMany({ where: { clubId: club.id } });
 
-  // Пакеты длительности
+  // Пакеты длительности: 3 / 5 / 6 / 9 часов
   const packages = [
-    { minHours: 3, discountPercent: 7,  label: 'Пакет 3 ч', badge: '−7%',  sortOrder: 0 },
-    { minHours: 6, discountPercent: 13, label: 'Пакет 6 ч', badge: '−13%', sortOrder: 1 },
-    { minHours: 8, discountPercent: 16, label: 'Пакет 8 ч', badge: '−16%', recommended: true, sortOrder: 2 },
+    { minHours: 3, discountPercent: 10, label: 'Пакет 3 ч', badge: '−10%', sortOrder: 0 },
+    { minHours: 5, discountPercent: 15, label: 'Пакет 5 ч', badge: '−15%', recommended: true, sortOrder: 1 },
+    { minHours: 6, discountPercent: 20, label: 'Пакет 6 ч', badge: '−20%', sortOrder: 2 },
+    { minHours: 9, discountPercent: 25, label: 'Пакет 9 ч', badge: '−25%', sortOrder: 3 },
   ];
   for (const p of packages) {
     await prisma.durationPackage.create({ data: { clubId: club.id, ...p } });
@@ -37,11 +38,9 @@ async function main() {
   });
 
   console.log('Тарифы обновлены:', club.name);
-  console.log('  Пакет 3ч  −7%  → ~619р');
-  console.log('  Пакет 6ч  −13% → ~1159р');
-  console.log('  Пакет 8ч  −16% → ~1492р  (recommended)');
-  console.log('  Ночной 23:00–08:00  −36% → ~1279р за 9 ч');
-  console.log('  Утренний 10:00–16:00 −26% → ~987р за 6 ч');
+  console.log('  Пакеты: 3ч −10%, 5ч −15% (recommended), 6ч −20%, 9ч −25%');
+  console.log('  Ночной 23:00–08:00 −36%, Утренний 10:00–16:00 −26%');
+  console.log('  Дневная (базовая) цена за час — в зоне (pricePerHour), правится в админке.');
 }
 
 main()

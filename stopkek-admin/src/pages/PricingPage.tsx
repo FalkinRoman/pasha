@@ -8,6 +8,7 @@ import {
   deleteNightPricing,
   fetchPricing,
   updateDurationPackage,
+  updateZone,
   upsertNightPricing,
 } from '../api/admin';
 import { Modal } from '../components/Modal';
@@ -37,12 +38,19 @@ export function PricingPage() {
   const [nightId, setNightId] = useState<string | null>(null);
   const [savingNight, setSavingNight] = useState(false);
 
+  // Дневной (базовый) тариф — цена за час по зонам.
+  const [zonePrices, setZonePrices] = useState<Record<string, string>>({});
+  const [savingZone, setSavingZone] = useState<string | null>(null);
+
   const load = async () => {
     setLoading(true);
     setError('');
     try {
       const d = await fetchPricing();
       setData(d);
+      setZonePrices(
+        Object.fromEntries(d.zones.map((z) => [z.id, String(z.pricePerHour)]))
+      );
       const global = d.nightRules.find((n) => !n.zoneId);
       if (global) {
         setNightId(global.id);
@@ -146,6 +154,24 @@ export function PricingPage() {
     }
   };
 
+  const saveZonePrice = async (zoneId: string) => {
+    const v = Number(zonePrices[zoneId]);
+    if (!Number.isFinite(v) || v < 0) {
+      setError('Неверная цена за час');
+      return;
+    }
+    setSavingZone(zoneId);
+    setError('');
+    try {
+      await updateZone(zoneId, { pricePerHour: v });
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Ошибка сохранения цены');
+    } finally {
+      setSavingZone(null);
+    }
+  };
+
   const zoneName = (zoneId: string | null) =>
     !zoneId ? 'Все зоны' : data?.zones.find((z) => z.id === zoneId)?.name ?? zoneId;
 
@@ -155,9 +181,63 @@ export function PricingPage() {
     <div className="page">
       <h1>Тарифы и скидки</h1>
       <p className="muted page-lead">
-        Пакеты по длительности и ночной тариф. Цена в приложении считается на сервере.
+        Дневная цена за час, пакеты по длительности и ночной тариф. Цена в приложении
+        считается на сервере.
       </p>
       {error ? <p className="error-text">{error}</p> : null}
+
+      <section className="card" style={{ marginBottom: 24 }}>
+        <h2 className="section-title" style={{ marginBottom: 16 }}>
+          Дневной тариф (цена за час)
+        </h2>
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Зона</th>
+                <th>₽ / час</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {!data?.zones.length ? (
+                <TableEmptyRow colSpan={3} message="Нет зон" />
+              ) : (
+                data.zones.map((z) => (
+                  <tr key={z.id}>
+                    <td>{z.name}</td>
+                    <td>
+                      <input
+                        className="input"
+                        type="number"
+                        min={0}
+                        style={{ maxWidth: 120 }}
+                        value={zonePrices[z.id] ?? ''}
+                        onChange={(e) =>
+                          setZonePrices((m) => ({ ...m, [z.id]: e.target.value }))
+                        }
+                      />
+                    </td>
+                    <td className="table-actions">
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        disabled={savingZone === z.id}
+                        onClick={() => saveZonePrice(z.id)}
+                      >
+                        {savingZone === z.id ? 'Сохранение…' : 'Сохранить'}
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        <p className="muted" style={{ marginTop: 8 }}>
+          Базовая цена за час (день). Скидки пакетов и ночной тариф считаются от неё.
+        </p>
+      </section>
 
       <section className="card" style={{ marginBottom: 24 }}>
         <div className="section-head">
