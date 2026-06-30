@@ -10,7 +10,6 @@ import {
   View,
 } from 'react-native';
 import { quoteBooking } from '../../src/api/bookings';
-import { fetchClubPricing } from '../../src/api/club';
 import {
   BOOKING_MAX_HOURS,
   BOOKING_MIN_HOURS,
@@ -18,10 +17,11 @@ import {
   buildDurationPresetHours,
   buildTimePackages,
   calcBookingPrice,
-  getBookingSummaryPricing,
+  formatPricingBadge,
   getTierDiscountForHours,
   resolveBookingStartDate,
 } from '../../src/constants/bookingPricing';
+import { useClubPricing } from '../../src/hooks/useClubPricing';
 import { Card } from '../../src/components/ui/Card';
 import { Header } from '../../src/components/ui/Header';
 import { Screen } from '../../src/components/ui/Screen';
@@ -45,11 +45,7 @@ export default function TimeScreen() {
 
   const [pickedDate,   setPickedDate]   = useState(() => { const d = new Date(); d.setSeconds(0,0); return d; });
   const [quoteLoading, setQuoteLoading] = useState(false);
-  const [clubPricing, setClubPricing] = useState<Awaited<ReturnType<typeof fetchClubPricing>> | null>(null);
-
-  useEffect(() => {
-    fetchClubPricing().then(setClubPricing).catch(() => {});
-  }, []);
+  const { clubPricing } = useClubPricing(seat?.zoneId);
 
   const timePackages = useMemo(
     () => buildTimePackages(clubPricing?.timeWindows ?? []),
@@ -95,23 +91,19 @@ export default function TimeScreen() {
 
   const endDate    = useMemo(() => new Date(startDate.getTime() + effectiveHours * 3_600_000), [startDate, effectiveHours]);
   const startAtIso = startDate.toISOString();
-  const summaryPricing = useMemo(
-    () =>
-      getBookingSummaryPricing(
-        pricePerHour,
-        effectiveHours,
-        activePackageId,
-        timePackages,
-        durationPackages
-      ),
-    [pricePerHour, effectiveHours, activePackageId, timePackages, durationPackages]
-  );
-  const pkg = summaryPricing.pkg;
+  const activeTimePkg = timePackages.find((p) => p.id === activePackageId) ?? null;
+  const summaryLabel =
+    priceQuote?.packageLabel ??
+    activeTimePkg?.label ??
+    null;
+  const summaryTotal = priceQuote?.totalPriceRub ?? 0;
+  const summaryOriginal = priceQuote?.basePriceRub ?? 0;
+  const summaryHasDiscount = (priceQuote?.discountRub ?? 0) > 0;
 
   useEffect(() => {
-    dispatch(setCalculatedPrice(summaryPricing.discounted));
+    if (priceQuote) dispatch(setCalculatedPrice(priceQuote.totalPriceRub));
     dispatch(setStartAt(startAtIso));
-  }, [summaryPricing.discounted, startAtIso, dispatch]);
+  }, [priceQuote?.totalPriceRub, startAtIso, dispatch]);
 
   useEffect(() => {
     if (!seat?.id || hoursError) return;
@@ -174,6 +166,13 @@ export default function TimeScreen() {
     [pricePerHour, customHours, durationPackages]
   );
   const customDiscount = getTierDiscountForHours(customHours, durationPackages);
+  const customBadgePkg = useMemo(() => {
+    let match: (typeof durationPackages)[number] | undefined;
+    for (const p of durationPackages) {
+      if (customHours >= p.minHours) match = p;
+    }
+    return match;
+  }, [customHours, durationPackages]);
 
   const presetRows = useMemo(() => {
     return durationPresetHours.map((hours) => {
@@ -196,6 +195,25 @@ export default function TimeScreen() {
       return { hours, discountPct, pricing, badge: pkg?.badge ?? fromQuote?.badge ?? null };
     });
   }, [durationPresetHours, priceQuote, durationPackages, pricePerHour]);
+
+  const windowPackageRows = useMemo(() => {
+    const fromQuote = priceQuote?.windowPresets ?? [];
+    return timePackages.map((p) => {
+      const quoted = fromQuote.find((w) => w.packageId === p.id);
+      const pricing = quoted
+        ? {
+            original: quoted.basePriceRub,
+            discounted: quoted.totalPriceRub,
+            discount: quoted.discountRub,
+            hasDiscount: quoted.discountRub > 0,
+          }
+        : calcBookingPrice(pricePerHour, p.hours, p.discountPct);
+      const badge = quoted
+        ? formatPricingBadge(null, quoted.discountPercent)
+        : formatPricingBadge(null, p.discountPct);
+      return { pkg: p, pricing, badge };
+    });
+  }, [timePackages, priceQuote, pricePerHour]);
 
   return (
     <Screen scroll>
@@ -248,13 +266,14 @@ export default function TimeScreen() {
       <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>Сколько играть</Text>
       <View style={styles.presetsBlock}>
         <View style={styles.presets}>
-          {presetRows.map(({ hours, discountPct, pricing }) => {
+          {presetRows.map(({ hours, discountPct, pricing, badge }) => {
             const active  = !activePackageId && !customActive && durationHours === hours;
+            const badgeText = formatPricingBadge(badge, discountPct);
             return (
               <Pressable key={hours} style={[styles.preset, active && styles.presetActive]} onPress={() => selectPreset(hours)}>
-                {discountPct > 0 && (
+                {badgeText && (
                   <View style={[styles.discBadge, active && styles.discBadgeActive]}>
-                    <Text style={[styles.discBadgeText, active && styles.discBadgeTextActive]}>−{discountPct}%</Text>
+                    <Text style={[styles.discBadgeText, active && styles.discBadgeTextActive]}>{badgeText}</Text>
                   </View>
                 )}
                 <Text style={[styles.presetHours, active && styles.presetTextActive]}>{hours} ч</Text>
@@ -307,7 +326,9 @@ export default function TimeScreen() {
           <View style={styles.customPriceWrap}>
             {customActive && customDiscount > 0 && (
               <View style={[styles.discBadgeInline, customActive && styles.discBadgeActive]}>
-                <Text style={[styles.discBadgeText, customActive && styles.discBadgeTextActive]}>−{customDiscount}%</Text>
+                <Text style={[styles.discBadgeText, customActive && styles.discBadgeTextActive]}>
+                  {formatPricingBadge(customBadgePkg?.badge ?? null, customDiscount)}
+                </Text>
               </View>
             )}
             <Text style={[styles.customPrice, customActive && styles.presetTextActive]}>
@@ -321,14 +342,15 @@ export default function TimeScreen() {
       {/* Пакеты */}
       <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>Пакеты</Text>
       <View style={styles.packages}>
-        {timePackages.map((p) => {
+        {windowPackageRows.map(({ pkg: p, pricing, badge }) => {
           const active  = activePackageId === p.id;
-          const pricing = calcBookingPrice(pricePerHour, p.hours, p.discountPct);
           return (
             <Pressable key={p.id} style={[styles.packageCard, active && styles.packageCardActive]} onPress={() => selectPackage(p)}>
+              {badge && (
               <View style={[styles.pkgDiscBadge, active && styles.pkgDiscBadgeActive]}>
-                <Text style={[styles.pkgDiscText, active && styles.pkgDiscTextActive]}>−{p.discountPct}%</Text>
+                <Text style={[styles.pkgDiscText, active && styles.pkgDiscTextActive]}>{badge}</Text>
               </View>
+              )}
               <View style={styles.pkgInfo}>
                 <Text style={[typography.body, { fontWeight: '700' }, active && styles.pkgTextActive]}>{p.label}</Text>
                 <Text style={[styles.pkgWindow, active && styles.pkgWindowActive]}>{p.window} · {p.hours} ч</Text>
@@ -351,16 +373,16 @@ export default function TimeScreen() {
               {formatSessionDay(startDate)} · {formatTimeHM(startDate)} — {formatTimeHM(endDate)}
             </Text>
             <Text style={typography.body}>
-              {formatDurationHours(effectiveHours)}{pkg ? `  ·  ${pkg.label}` : ''}
+              {formatDurationHours(effectiveHours)}{summaryLabel ? `  ·  ${summaryLabel}` : ''}
             </Text>
           </View>
           <View style={styles.priceCol}>
-            {summaryPricing.hasDiscount && (
-              <Text style={styles.origPriceLabel}>{formatMoney(summaryPricing.original)}</Text>
+            {summaryHasDiscount && (
+              <Text style={styles.origPriceLabel}>{formatMoney(summaryOriginal)}</Text>
             )}
             <View style={styles.priceRow}>
               {quoteLoading && <ActivityIndicator size="small" color={colors.accent} />}
-              <Text style={typography.h2}>{formatMoney(summaryPricing.discounted)}</Text>
+              <Text style={typography.h2}>{formatMoney(summaryTotal)}</Text>
             </View>
           </View>
         </View>

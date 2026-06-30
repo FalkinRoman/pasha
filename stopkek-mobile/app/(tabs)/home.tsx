@@ -17,13 +17,14 @@ import { spacing } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
 import { BrandTitle } from '../../src/components/ui/BrandTitle';
 import { formatMoney } from '../../src/utils/format';
+import { useActiveBookingSync } from '../../src/hooks/useActiveBookingSync';
 
 export default function HomeScreen() {
   const dispatch = useAppDispatch();
   const user = useAppSelector((s) => s.auth.user);
   const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
-  const activeBooking = useAppSelector((s) => s.booking.activeBooking);
   const club = useAppSelector((s) => s.booking.club);
+  const { booking: activeBooking, refresh: refreshActiveBooking } = useActiveBookingSync();
   useFocusEffect(
     useCallback(() => {
       if (!isAuthenticated) return;
@@ -66,7 +67,7 @@ export default function HomeScreen() {
       </Pressable>
 
       {activeBooking && ['paid', 'active'].includes(activeBooking.status) ? (
-        <SessionCard booking={activeBooking} />
+        <SessionCard booking={activeBooking} onCountdownEnd={refreshActiveBooking} />
       ) : (
         <Card style={styles.empty}>
           <Ionicons name="desktop-outline" size={40} color={colors.textSecondary} />

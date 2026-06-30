@@ -84,7 +84,20 @@ export interface PresetQuote {
   totalPriceRub: number;
   discountRub: number;
   badge: string | null;
+  label?: string | null;
   recommended: boolean;
+}
+
+export interface WindowPackageQuote {
+  packageId: string;
+  label: string;
+  window: string;
+  startHour: number;
+  hours: number;
+  basePriceRub: number;
+  totalPriceRub: number;
+  discountRub: number;
+  discountPercent: number;
 }
 
 export interface ExtendMinuteQuote {
@@ -100,6 +113,7 @@ export interface ExtendHourQuote {
   totalPriceRub: number;
   discountRub: number;
   badge: string | null;
+  label?: string | null;
 }
 
 export interface ExtendPackageQuote {
@@ -130,6 +144,7 @@ export interface BookingPriceQuote {
   packageLabel: string | null;
   recommended: boolean;
   presets: PresetQuote[];
+  windowPresets?: WindowPackageQuote[];
 }
 
 export interface Booking {

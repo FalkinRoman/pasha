@@ -63,20 +63,44 @@ export class ClubService {
   }
 
   /** Пакеты и окна скидок для мобилки (из БД, как в админке). */
-  async getPricing() {
+  async getPricing(zoneId?: string) {
     const club = await this.prisma.club.findFirst();
     if (!club) throw new NotFoundException('Клуб не найден');
 
-    const [packages, timeWindows] = await Promise.all([
+    const [allPackages, allWindows] = await Promise.all([
       this.prisma.durationPackage.findMany({
-        where: { clubId: club.id, active: true, zoneId: null },
+        where: {
+          clubId: club.id,
+          active: true,
+          ...(zoneId ? { OR: [{ zoneId: null }, { zoneId }] } : { zoneId: null }),
+        },
         orderBy: [{ sortOrder: 'asc' }, { minHours: 'asc' }],
       }),
       this.prisma.nightPricing.findMany({
-        where: { clubId: club.id, active: true, zoneId: null },
+        where: {
+          clubId: club.id,
+          active: true,
+          ...(zoneId ? { OR: [{ zoneId: null }, { zoneId }] } : { zoneId: null }),
+        },
         orderBy: { startHour: 'asc' },
       }),
     ]);
+
+    const zonedPackages = zoneId ? allPackages.filter((p) => p.zoneId === zoneId) : [];
+    const packages = zonedPackages.length
+      ? zonedPackages
+      : allPackages.filter((p) => !p.zoneId);
+    const zonedWindows = zoneId ? allWindows.filter((w) => w.zoneId === zoneId) : [];
+    const timeWindows = zonedWindows.length
+      ? zonedWindows
+      : allWindows.filter((w) => !w.zoneId);
+
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const windowTypeLabel = (startHour: number) => {
+      if (startHour >= 21 || startHour <= 5) return 'Ночной';
+      if (startHour >= 6 && startHour <= 12) return 'Утренний';
+      return 'Дневной';
+    };
 
     return {
       packages: packages.map((p) => ({
@@ -92,6 +116,8 @@ export class ClubService {
         startHour: w.startHour,
         endHour: w.endHour,
         discountPercent: w.discountPercent,
+        typeLabel: windowTypeLabel(w.startHour),
+        window: `${pad(w.startHour)}:00–${pad(w.endHour)}:00`,
       })),
     };
   }

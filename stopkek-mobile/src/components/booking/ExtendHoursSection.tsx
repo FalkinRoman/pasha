@@ -1,9 +1,5 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import {
-  BOOKING_PACKAGES,
-  BOOKING_PRESETS,
-  calcBookingPrice,
-} from '../../constants/bookingPricing';
+import { formatPricingBadge } from '../../constants/bookingPricing';
 import { colors } from '../../theme/colors';
 import { radius, spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
@@ -13,7 +9,6 @@ import { formatMoney } from '../../utils/format';
 type Props = {
   presets: ExtendHourQuote[];
   packagePresets: ExtendPackageQuote[];
-  pricePerHour: number;
   selectedHours: number;
   selectedPackageId: string | null;
   quoteLoading: boolean;
@@ -24,126 +19,104 @@ type Props = {
 export function ExtendHoursSection({
   presets,
   packagePresets,
-  pricePerHour,
   selectedHours,
   selectedPackageId,
   quoteLoading,
   onSelectPreset,
   onSelectPackage,
 }: Props) {
-  const presetByHours = (hours: number) => presets.find((p) => p.hours === hours);
-  const packageById = (id: string) => packagePresets.find((p) => p.packageId === id);
-
-  const resolvePackageMeta = (p: (typeof BOOKING_PACKAGES)[number]): ExtendPackageQuote => {
-    const fromApi = packageById(p.id);
-    if (fromApi) return fromApi;
-
-    const hourMeta = presetByHours(p.hours);
-    if (p.id === 'morning' && hourMeta) {
-      return {
-        packageId: p.id,
-        label: p.label,
-        window: p.window,
-        hours: p.hours,
-        basePriceRub: hourMeta.basePriceRub,
-        totalPriceRub: hourMeta.totalPriceRub,
-        discountRub: hourMeta.discountRub,
-        badge: hourMeta.badge,
-      };
-    }
-
-    const pricing = calcBookingPrice(pricePerHour, p.hours, p.discountPct);
-    return {
-      packageId: p.id,
-      label: p.label,
-      window: p.window,
-      hours: p.hours,
-      basePriceRub: pricing.original,
-      totalPriceRub: pricing.discounted,
-      discountRub: pricing.discount,
-      badge: null,
-    };
-  };
+  if (quoteLoading && !presets.length && !packagePresets.length) {
+    return (
+      <View style={styles.loadingWrap}>
+        <ActivityIndicator size="small" color={colors.accent} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.sectionTitle}>Часы</Text>
-      <View style={styles.presets}>
-        {BOOKING_PRESETS.map(({ hours, discountPct }) => {
-          const meta = presetByHours(hours);
-          const active = !selectedPackageId && selectedHours === hours;
-          const hasDiscount = (meta?.discountRub ?? 0) > 0;
-          return (
-            <Pressable
-              key={hours}
-              style={[styles.preset, active && styles.presetActive]}
-              onPress={() => onSelectPreset(hours)}
-            >
-              {discountPct > 0 && (
-                <View style={[styles.discBadge, active && styles.discBadgeActive]}>
-                  <Text style={[styles.discBadgeText, active && styles.discBadgeTextActive]}>
-                    −{discountPct}%
+      {presets.length > 0 && (
+        <>
+          <Text style={styles.sectionTitle}>Часы</Text>
+          <View style={styles.presets}>
+            {presets.map((meta) => {
+              const active = !selectedPackageId && selectedHours === meta.hours;
+              const hasDiscount = meta.totalPriceRub < meta.basePriceRub;
+              const badgeText = formatPricingBadge(
+                meta.badge,
+                meta.basePriceRub > 0
+                  ? Math.round(
+                      ((meta.basePriceRub - meta.totalPriceRub) / meta.basePriceRub) * 100
+                    )
+                  : 0
+              );
+              return (
+                <Pressable
+                  key={meta.hours}
+                  style={[styles.preset, active && styles.presetActive]}
+                  onPress={() => onSelectPreset(meta.hours)}
+                >
+                  {badgeText && (
+                    <View style={[styles.discBadge, active && styles.discBadgeActive]}>
+                      <Text style={[styles.discBadgeText, active && styles.discBadgeTextActive]}>
+                        {badgeText}
+                      </Text>
+                    </View>
+                  )}
+                  <Text style={[styles.presetHours, active && styles.presetTextActive]}>
+                    +{meta.hours} ч
                   </Text>
-                </View>
-              )}
-              <Text style={[styles.presetHours, active && styles.presetTextActive]}>
-                +{hours} ч
-              </Text>
-              {quoteLoading && active ? (
-                <ActivityIndicator size="small" color={colors.accent} />
-              ) : meta ? (
-                hasDiscount ? (
-                  <>
-                    <Text style={[styles.presetOrigPrice, active && styles.presetOrigPriceActive]}>
-                      {formatMoney(meta.basePriceRub)}
-                    </Text>
+                  {hasDiscount ? (
+                    <>
+                      <Text style={[styles.presetOrigPrice, active && styles.presetOrigPriceActive]}>
+                        {formatMoney(meta.basePriceRub)}
+                      </Text>
+                      <Text style={[styles.presetDiscPrice, active && styles.presetTextActive]}>
+                        {formatMoney(meta.totalPriceRub)}
+                      </Text>
+                    </>
+                  ) : (
                     <Text style={[styles.presetDiscPrice, active && styles.presetTextActive]}>
                       {formatMoney(meta.totalPriceRub)}
                     </Text>
-                  </>
-                ) : (
-                  <Text style={[styles.presetDiscPrice, active && styles.presetTextActive]}>
-                    {formatMoney(meta.totalPriceRub)}
-                  </Text>
-                )
-              ) : (
-                <Text style={[styles.presetDiscPrice, active && styles.presetTextActive]}>—</Text>
-              )}
-            </Pressable>
-          );
-        })}
-      </View>
+                  )}
+                </Pressable>
+              );
+            })}
+          </View>
+        </>
+      )}
 
-      <Text style={[styles.sectionTitle, styles.packagesTitle]}>Пакеты</Text>
-      <View style={styles.packages}>
-        {BOOKING_PACKAGES.map((p) => {
-          const meta = resolvePackageMeta(p);
-          const active = selectedPackageId === p.id;
-          const hasDiscount = meta.totalPriceRub < meta.basePriceRub;
-          return (
-            <Pressable
-              key={p.id}
-              style={[styles.packageCard, active && styles.packageCardActive]}
-              onPress={() => onSelectPackage(p.id, p.hours)}
-            >
-              <View style={[styles.pkgDiscBadge, active && styles.pkgDiscBadgeActive]}>
-                <Text style={[styles.pkgDiscText, active && styles.pkgDiscTextActive]}>
-                  −{p.discountPct}%
-                </Text>
-              </View>
-              <View style={styles.pkgInfo}>
-                <Text style={[typography.body, styles.pkgLabel, active && styles.pkgTextActive]}>
-                  {p.label}
-                </Text>
-                <Text style={[styles.pkgWindow, active && styles.pkgWindowActive]}>
-                  {p.window} · {p.hours} ч
-                </Text>
-              </View>
-              <View style={styles.pkgPriceCol}>
-                {quoteLoading && active && packageById(p.id) == null ? (
-                  <ActivityIndicator size="small" color={colors.accent} />
-                ) : (
-                  <>
+      {packagePresets.length > 0 && (
+        <>
+          <Text style={[styles.sectionTitle, styles.packagesTitle]}>Пакеты</Text>
+          <View style={styles.packages}>
+            {packagePresets.map((meta) => {
+              const active = selectedPackageId === meta.packageId;
+              const hasDiscount = meta.totalPriceRub < meta.basePriceRub;
+              const badgeText = formatPricingBadge(meta.badge);
+              return (
+                <Pressable
+                  key={meta.packageId}
+                  style={[styles.packageCard, active && styles.packageCardActive]}
+                  onPress={() => onSelectPackage(meta.packageId, meta.hours)}
+                >
+                  {badgeText && (
+                    <View style={[styles.pkgDiscBadge, active && styles.pkgDiscBadgeActive]}>
+                      <Text style={[styles.pkgDiscText, active && styles.pkgDiscTextActive]}>
+                        {badgeText}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={styles.pkgInfo}>
+                    <Text style={[typography.body, styles.pkgLabel, active && styles.pkgTextActive]}>
+                      {meta.label}
+                    </Text>
+                    <Text style={[styles.pkgWindow, active && styles.pkgWindowActive]}>
+                      {meta.window} · {meta.hours} ч
+                    </Text>
+                  </View>
+                  <View style={styles.pkgPriceCol}>
                     {hasDiscount ? (
                       <Text style={[styles.pkgOrigPrice, active && styles.pkgOrigPriceActive]}>
                         {formatMoney(meta.basePriceRub)}
@@ -152,19 +125,20 @@ export function ExtendHoursSection({
                     <Text style={[styles.pkgDiscPrice, active && styles.pkgDiscPriceActive]}>
                       {formatMoney(meta.totalPriceRub)}
                     </Text>
-                  </>
-                )}
-              </View>
-            </Pressable>
-          );
-        })}
-      </View>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        </>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { gap: spacing.sm },
+  loadingWrap: { paddingVertical: spacing.xl, alignItems: 'center' },
   sectionTitle: { ...typography.caption, color: colors.textSecondary },
   packagesTitle: { marginTop: spacing.md },
   presets: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },

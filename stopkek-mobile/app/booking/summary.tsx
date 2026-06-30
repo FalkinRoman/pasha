@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { PaymentPolicyNotice } from '../../src/components/legal/PaymentPolicyNotice';
-import { getBookingSummaryPricing } from '../../src/constants/bookingPricing';
+import { buildTimePackages } from '../../src/constants/bookingPricing';
 import { Header } from '../../src/components/ui/Header';
 import { Screen } from '../../src/components/ui/Screen';
 import { StopButton } from '../../src/components/ui/StopButton';
@@ -26,11 +26,12 @@ export default function SummaryScreen() {
     startAt,
     activePackageId,
     calculatedPrice,
+    priceQuote,
+    clubPricing,
   } = useAppSelector((s) => s.booking);
 
   const seat = seats.find((s) => s.id === selectedSeatIds[0]);
   const zone = zones.find((z) => z.id === seat?.zoneId);
-  const pricePerHour = zone?.pricePerHour ?? 150;
 
   const startDate = useMemo(() => (startAt ? new Date(startAt) : new Date()), [startAt]);
   const endDate = useMemo(
@@ -38,12 +39,16 @@ export default function SummaryScreen() {
     [startDate, durationHours]
   );
 
-  const pricing = useMemo(
-    () => getBookingSummaryPricing(pricePerHour, durationHours, activePackageId),
-    [pricePerHour, durationHours, activePackageId]
+  const timePackages = useMemo(
+    () => buildTimePackages(clubPricing?.timeWindows ?? []),
+    [clubPricing]
   );
+  const activePkg = timePackages.find((p) => p.id === activePackageId) ?? null;
+  const packageLabel = priceQuote?.packageLabel ?? activePkg?.label ?? null;
 
-  const totalPrice = calculatedPrice || pricing.discounted;
+  const totalPrice = priceQuote?.totalPriceRub ?? calculatedPrice;
+  const hasDiscount = (priceQuote?.discountRub ?? 0) > 0;
+  const originalPrice = priceQuote?.basePriceRub ?? 0;
 
   return (
     <Screen scroll>
@@ -71,13 +76,13 @@ export default function SummaryScreen() {
           <Text style={typography.bodySecondary}>Длительность</Text>
           <Text style={[typography.body, styles.rowValue]}>
             {formatDurationHours(durationHours)}
-            {pricing.pkg ? ` · ${pricing.pkg.label}` : ''}
+            {packageLabel ? ` · ${packageLabel}` : ''}
           </Text>
         </View>
         <View style={styles.total}>
           <Text style={typography.h2}>К оплате</Text>
-          {pricing.hasDiscount ? (
-            <Text style={styles.origPrice}>{formatMoney(pricing.original)}</Text>
+          {hasDiscount ? (
+            <Text style={styles.origPrice}>{formatMoney(originalPrice)}</Text>
           ) : null}
           <Text style={typography.h1}>{formatMoney(totalPrice)}</Text>
         </View>

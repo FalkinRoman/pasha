@@ -48,6 +48,8 @@ export type ClubPricingWindow = {
   startHour: number;
   endHour: number;
   discountPercent: number;
+  typeLabel?: string;
+  window?: string;
 };
 
 export type ClubPricing = {
@@ -55,6 +57,7 @@ export type ClubPricing = {
   timeWindows: ClubPricingWindow[];
 };
 
-export async function fetchClubPricing() {
-  return apiFetch<ClubPricing>('/club/pricing');
+export async function fetchClubPricing(zoneId?: string) {
+  const qs = zoneId ? `?zoneId=${encodeURIComponent(zoneId)}` : '';
+  return apiFetch<ClubPricing>(`/club/pricing${qs}`);
 }

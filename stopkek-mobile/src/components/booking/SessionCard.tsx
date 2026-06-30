@@ -1,9 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Booking } from '../../types';
-import { formatBookingUntil, formatCountdown } from '../../utils/format';
+import { formatBookingStartLine, formatCountdown } from '../../utils/format';
 import { colors } from '../../theme/colors';
 import { spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
@@ -12,9 +12,11 @@ import { StopButton } from '../ui/StopButton';
 
 interface Props {
   booking: Booking;
+  /** Вызывается, когда локальный отсчёт дошёл до нуля — нужен refresh с API */
+  onCountdownEnd?: () => void;
 }
 
-export function SessionCard({ booking }: Props) {
+export function SessionCard({ booking, onCountdownEnd }: Props) {
   const isPlaying = booking.gameRunning === true;
   const isWaiting =
     !isPlaying &&
@@ -25,6 +27,8 @@ export function SessionCard({ booking }: Props) {
     booking.displayRemainingMs ??
     (booking.durationMinutes ?? 60) * 60_000;
   const [remaining, setRemaining] = useState(base);
+  const onCountdownEndRef = useRef(onCountdownEnd);
+  onCountdownEndRef.current = onCountdownEnd;
 
   useEffect(() => {
     if (booking.timerMode === 'pre_play') {
@@ -32,16 +36,28 @@ export function SessionCard({ booking }: Props) {
       return;
     }
     const loadedAt = Date.now();
-    const tick = () => setRemaining(Math.max(0, base - (Date.now() - loadedAt)));
+    let ended = false;
+    const tick = () => {
+      const next = Math.max(0, base - (Date.now() - loadedAt));
+      setRemaining(next);
+      if (next === 0 && !ended && isWaiting) {
+        ended = true;
+        onCountdownEndRef.current?.();
+      }
+    };
     tick();
     const t = setInterval(tick, 1000);
     return () => clearInterval(t);
-  }, [booking.id, booking.timerMode, base]);
+  }, [booking.id, booking.timerMode, base, isWaiting]);
 
   const urgent = isPlaying && remaining < 15 * 60 * 1000;
   const timerCaption =
     booking.timerLabel ??
-    (isPlaying ? 'осталось' : booking.status === 'paid' ? 'до приёмки' : 'осталось');
+    (isPlaying ? 'осталось' : isWaiting ? 'до начала' : 'осталось');
+
+  const statusLine = isPlaying
+    ? 'Игра началась!'
+    : formatBookingStartLine(booking.startAt);
 
   return (
     <Card accent style={styles.card}>
@@ -54,7 +70,7 @@ export function SessionCard({ booking }: Props) {
             Место #{booking.seatNumbers.join(', ')}
           </Text>
           <Text style={typography.bodySecondary}>{booking.zoneName}</Text>
-          <Text style={styles.until}>Забронировано {formatBookingUntil(booking.endAt)}</Text>
+          <Text style={styles.until}>{statusLine}</Text>
         </View>
         <Ionicons
           name={isPlaying ? 'game-controller' : 'time-outline'}

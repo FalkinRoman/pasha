@@ -141,6 +141,24 @@ export function formatBookingUntil(endAt: string) {
   return `до ${formatTimeHM(end)} · ${formatPickerDay(end)}`;
 }
 
+/** «Забронировано в 11:33!» — до старта сеанса */
+export function formatBookingStartLine(startAt: string) {
+  const start = new Date(startAt);
+  return `Забронировано в ${formatTimeHM(start)}!`;
+}
+
+/** «Игра началась в 11:33» — после старта сеанса */
+export function formatGameStartedLine(startAt: string) {
+  const start = new Date(startAt);
+  return `Игра началась в ${formatTimeHM(start)}`;
+}
+
+/** «Завершение игры в 11:33» — конец текущего сеанса */
+export function formatGameEndLine(endAt: string) {
+  const end = new Date(endAt);
+  return `Завершение игры в ${formatTimeHM(end)}`;
+}
+
 export function formatBookingRange(start: string, end: string): string {
   const s = new Date(start);
   const e = new Date(end);

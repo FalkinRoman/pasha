@@ -25,7 +25,20 @@ export interface PresetQuote {
   totalPriceRub: number;
   discountRub: number;
   badge: string | null;
+  label: string | null;
   recommended: boolean;
+}
+
+export interface WindowPackageQuote {
+  packageId: string;
+  label: string;
+  window: string;
+  startHour: number;
+  hours: number;
+  basePriceRub: number;
+  totalPriceRub: number;
+  discountRub: number;
+  discountPercent: number;
 }
 
 export interface QuoteResponse extends PriceBreakdown {
@@ -33,4 +46,5 @@ export interface QuoteResponse extends PriceBreakdown {
   totalPriceRub: number;
   discountRub: number;
   presets: PresetQuote[];
+  windowPresets: WindowPackageQuote[];
 }

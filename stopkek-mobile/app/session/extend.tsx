@@ -13,7 +13,6 @@ import { ApiError } from '../../src/api/client';
 import { ExtendHoursSection } from '../../src/components/booking/ExtendHoursSection';
 import { ExtendMinutesSection } from '../../src/components/booking/ExtendMinutesSection';
 import { ExtendMode, ExtendModeTabs } from '../../src/components/booking/ExtendModeTabs';
-import { BOOKING_PACKAGES, calcBookingPrice } from '../../src/constants/bookingPricing';
 import { PaymentPolicyNotice } from '../../src/components/legal/PaymentPolicyNotice';
 import { Card } from '../../src/components/ui/Card';
 import { Header } from '../../src/components/ui/Header';
@@ -26,8 +25,8 @@ import { radius, spacing } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
 import { ExtendHourQuote, ExtendMinuteQuote, ExtendPackageQuote } from '../../src/types';
 import {
-  formatBookingUntil,
   formatDurationMinutes,
+  formatGameEndLine,
   formatMoney,
 } from '../../src/utils/format';
 
@@ -100,14 +99,9 @@ export default function ExtendScreen() {
   const resolvedPackagePay = useMemo(() => {
     if (!selectedPackageId) return null;
     if (selectedPackageQuote) return selectedPackageQuote.totalPriceRub;
-    const pkg = BOOKING_PACKAGES.find((p) => p.id === selectedPackageId);
-    if (!pkg) return null;
-    if (pkg.id === 'morning') {
-      const hourMeta = hourPresets.find((p) => p.hours === pkg.hours);
-      if (hourMeta) return hourMeta.totalPriceRub;
-    }
-    return calcBookingPrice(pricePerHour, pkg.hours, pkg.discountPct).discounted;
-  }, [selectedPackageId, selectedPackageQuote, hourPresets, pricePerHour]);
+    const hourMeta = hourPresets.find((p) => p.hours === selectedHours);
+    return hourMeta?.totalPriceRub ?? null;
+  }, [selectedPackageId, selectedPackageQuote, hourPresets, selectedHours]);
 
   const selectPreset = (hours: number) => {
     setSelectedPackageId(null);
@@ -150,7 +144,7 @@ export default function ExtendScreen() {
     mode === 'minutes'
       ? formatDurationMinutes(selectedMinutes)
       : selectedPackageId
-        ? `+${BOOKING_PACKAGES.find((p) => p.id === selectedPackageId)?.label ?? selectedHours + ' ч'}`
+        ? `+${selectedPackageQuote?.label ?? selectedHours + ' ч'}`
         : `+${selectedHours} ч`;
 
   const pay = async () => {
@@ -185,7 +179,7 @@ export default function ExtendScreen() {
             <View style={styles.sessionInfo}>
               <Text style={typography.h3}>{booking.zoneName}</Text>
               <Text style={typography.caption}>
-                Сейчас {formatBookingUntil(booking.endAt)}
+                {formatGameEndLine(booking.endAt)}
               </Text>
             </View>
             <Ionicons name="time-outline" size={22} color={colors.accent} />
@@ -200,7 +194,6 @@ export default function ExtendScreen() {
         <ExtendHoursSection
           presets={hourPresets}
           packagePresets={packagePresets}
-          pricePerHour={pricePerHour}
           selectedHours={selectedHours}
           selectedPackageId={selectedPackageId}
           quoteLoading={quoteLoading}

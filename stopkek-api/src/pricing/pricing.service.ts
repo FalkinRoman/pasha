@@ -6,10 +6,10 @@ import {
   PriceBreakdown,
   PricingDiscountLine,
   QuoteResponse,
+  WindowPackageQuote,
 } from './pricing.types';
 
 const SLOT_MS = 30 * 60_000;
-const PRESET_HOURS = [1, 2, 3, 4, 6, 8];
 
 @Injectable()
 export class PricingService {
@@ -27,24 +27,88 @@ export class PricingService {
       this.loadTimeWindows(clubId, zoneId),
     ]);
     const breakdown = this.calculate(pricePerHour, durationHours, startAt, packages, timeWindows);
-    const presets = PRESET_HOURS.map((h) => {
+    const presetHours = this.buildPresetHours(packages);
+    const presets = presetHours.map((h) => {
       const p = this.calculate(pricePerHour, h, startAt, packages, timeWindows);
+      const pkg = this.pickPackage(packages, h);
       return {
         hours: h,
         basePriceRub: Math.round(p.basePriceKopecks / 100),
         totalPriceRub: Math.round(p.totalPriceKopecks / 100),
         discountRub: Math.round(p.discountAmountKopecks / 100),
-        badge: p.packageBadge,
-        recommended: p.recommended,
+        badge: pkg?.badge ?? p.packageBadge,
+        label: pkg?.label ?? null,
+        recommended: pkg?.recommended ?? false,
       } satisfies PresetQuote;
     });
+    const windowPresets = this.buildWindowPresets(
+      pricePerHour,
+      startAt,
+      packages,
+      timeWindows
+    );
     return {
       ...breakdown,
       basePriceRub: Math.round(breakdown.basePriceKopecks / 100),
       totalPriceRub: Math.round(breakdown.totalPriceKopecks / 100),
       discountRub: Math.round(breakdown.discountAmountKopecks / 100),
       presets,
+      windowPresets,
     };
+  }
+
+  private buildPresetHours(packages: DurationPackage[]): number[] {
+    const hours = new Set<number>([1]);
+    for (const p of packages) {
+      if (p.active) hours.add(p.minHours);
+    }
+    return [...hours].sort((a, b) => a - b);
+  }
+
+  private windowDurationHours(startHour: number, endHour: number) {
+    if (endHour > startHour) return endHour - startHour;
+    return 24 - startHour + endHour;
+  }
+
+  private resolveWindowStart(reference: Date, startHour: number, now = new Date()) {
+    const d = new Date(reference);
+    d.setHours(startHour, 0, 0, 0);
+    d.setSeconds(0, 0);
+    if (d.getTime() < now.getTime()) d.setDate(d.getDate() + 1);
+    return d;
+  }
+
+  private buildWindowPresets(
+    pricePerHour: number,
+    referenceStart: Date,
+    packages: DurationPackage[],
+    timeWindows: NightPricing[]
+  ): WindowPackageQuote[] {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return timeWindows
+      .filter((w) => w.active)
+      .map((win) => {
+        const hours = this.windowDurationHours(win.startHour, win.endHour);
+        const pkgStart = this.resolveWindowStart(referenceStart, win.startHour);
+        const q = this.calculate(pricePerHour, hours, pkgStart, packages, timeWindows);
+        return {
+          packageId: `tw-${win.id}`,
+          label: this.timeWindowPackageLabel(win.startHour),
+          window: `${pad(win.startHour)}:00–${pad(win.endHour)}:00`,
+          startHour: win.startHour,
+          hours,
+          basePriceRub: Math.round(q.basePriceKopecks / 100),
+          totalPriceRub: Math.round(q.totalPriceKopecks / 100),
+          discountRub: Math.round(q.discountAmountKopecks / 100),
+          discountPercent: win.discountPercent,
+        } satisfies WindowPackageQuote;
+      });
+  }
+
+  private timeWindowPackageLabel(startHour: number): string {
+    if (startHour >= 21 || startHour <= 5) return 'Пакет ночь';
+    if (startHour >= 6 && startHour <= 12) return 'Пакет утро';
+    return 'Пакет день';
   }
 
   async quoteForZone(

@@ -1,4 +1,4 @@
-import { Controller, Get, Res } from '@nestjs/common';
+import { Controller, Get, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { ClubService } from './club.service';
 
@@ -22,7 +22,7 @@ export class ClubController {
   }
 
   @Get('pricing')
-  getPricing() {
-    return this.club.getPricing();
+  getPricing(@Query('zoneId') zoneId?: string) {
+    return this.club.getPricing(zoneId);
   }
 }

@@ -1,10 +1,12 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { Booking, BookingPriceQuote, ClubSummary, Seat, Zone } from '../types';
+import type { ClubPricing } from '../api/club';
 
 interface BookingState {
   seats: Seat[];
   zones: Zone[];
   club: ClubSummary | null;
+  clubPricing: ClubPricing | null;
   selectedSeatIds: string[];
   startAt: string | null;
   durationHours: number;
@@ -19,6 +21,7 @@ const initialState: BookingState = {
   seats: [],
   zones: [],
   club: null,
+  clubPricing: null,
   selectedSeatIds: [],
   startAt: null,
   durationHours: 1,
@@ -83,6 +86,9 @@ const bookingSlice = createSlice({
     setClub(state, action: PayloadAction<ClubSummary>) {
       state.club = action.payload;
     },
+    setClubPricing(state, action: PayloadAction<ClubPricing | null>) {
+      state.clubPricing = action.payload;
+    },
     setFloorMap(
       state,
       action: PayloadAction<{ seats: Seat[]; zones: Zone[] }>
@@ -107,6 +113,7 @@ export const {
   setSeats,
   setZones,
   setClub,
+  setClubPricing,
   setFloorMap,
 } = bookingSlice.actions;
 export default bookingSlice.reducer;

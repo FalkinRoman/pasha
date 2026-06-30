@@ -1,53 +1,41 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import {
   cancelBooking,
   endSession,
-  fetchActiveBooking,
   openSessionDoor,
 } from '../../src/api/bookings';
 import { ApiError } from '../../src/api/client';
 import { Header } from '../../src/components/ui/Header';
 import { Screen } from '../../src/components/ui/Screen';
 import { StopButton } from '../../src/components/ui/StopButton';
-import { useAppDispatch, useAppSelector } from '../../src/store/hooks';
+import { useActiveBookingSync } from '../../src/hooks/useActiveBookingSync';
+import { useAppDispatch } from '../../src/store/hooks';
 import { setActiveBooking } from '../../src/store/bookingSlice';
 import { colors } from '../../src/theme/colors';
 import { spacing } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
 import { CANCEL_BOOKING_WARNING, EARLY_END_WARNING } from '../../src/constants/paymentPolicy';
 import { DOOR_EARLY_MIN } from '../../src/constants/session';
-import { formatBookingUntil, formatCountdown } from '../../src/utils/format';
+import { formatBookingStartLine, formatCountdown, formatGameStartedLine } from '../../src/utils/format';
 
 export default function ActiveSessionScreen() {
   const dispatch = useAppDispatch();
-  const booking = useAppSelector((s) => s.booking.activeBooking);
+  const { booking, refresh } = useActiveBookingSync();
   const [remaining, setRemaining] = useState(0);
   const [loading, setLoading] = useState(false);
   const seatNum = booking?.seatNumbers[0] ?? 0;
   const phase = booking?.sessionPhase ?? 'arrival';
 
-  const refresh = useCallback(() => {
-    fetchActiveBooking()
-      .then((b) => dispatch(setActiveBooking(b)))
-      .catch(() => {});
-  }, [dispatch]);
-
-  useFocusEffect(
-    useCallback(() => {
-      refresh();
-    }, [refresh])
-  );
-
-  // Пока ждём startAt — подтягиваем статус с сервера
-  useEffect(() => {
-    if (!booking || booking.gameRunning) return;
-    if (booking.timerMode !== 'until_start' && booking.timerMode !== 'until_door') return;
-    const t = setInterval(() => refresh(), 3000);
-    return () => clearInterval(t);
-  }, [booking?.id, booking?.gameRunning, booking?.timerMode, refresh]);
+  const isPlayingNow = booking?.gameRunning === true;
+  const isWaitingNow =
+    !!booking &&
+    !isPlayingNow &&
+    (booking.timerMode === 'until_start' ||
+      booking.timerMode === 'until_door' ||
+      (booking.untilStartMs != null && booking.untilStartMs > 0));
 
   useEffect(() => {
     if (!booking) return;
@@ -55,7 +43,15 @@ export default function ActiveSessionScreen() {
       booking.displayRemainingMs ??
       (booking.durationMinutes ?? 60) * 60_000;
     const loadedAt = Date.now();
-    const tick = () => setRemaining(Math.max(0, base - (Date.now() - loadedAt)));
+    let ended = false;
+    const tick = () => {
+      const next = Math.max(0, base - (Date.now() - loadedAt));
+      setRemaining(next);
+      if (next === 0 && !ended && isWaitingNow) {
+        ended = true;
+        refresh();
+      }
+    };
     tick();
     const t = setInterval(tick, 1000);
     return () => clearInterval(t);
@@ -64,6 +60,8 @@ export default function ActiveSessionScreen() {
     booking?.timerMode,
     booking?.displayRemainingMs,
     booking?.durationMinutes,
+    isWaitingNow,
+    refresh,
   ]);
 
   const onOpenMainDoor = async () => {
@@ -170,7 +168,9 @@ export default function ActiveSessionScreen() {
       <Text style={[typography.h2, styles.center]}>Место #{seatNum}</Text>
       <Text style={[typography.bodySecondary, styles.center]}>{booking.zoneName}</Text>
       <Text style={[typography.caption, styles.until]}>
-        Забронировано {formatBookingUntil(booking.endAt)}
+        {isPlaying
+          ? formatGameStartedLine(booking.startedAt ?? booking.startAt)
+          : formatBookingStartLine(booking.startAt)}
       </Text>
 
       {waiting && booking.timerMode === 'until_door' && (

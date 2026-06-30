@@ -62,7 +62,13 @@ export function timeWindowPackageLabel(startHour: number): string {
 }
 
 export function buildTimePackages(
-  windows: readonly { id: string; startHour: number; endHour: number; discountPercent: number }[]
+  windows: readonly {
+    id: string;
+    startHour: number;
+    endHour: number;
+    discountPercent: number;
+    window?: string;
+  }[]
 ): BookingPackage[] {
   if (!windows.length) return [...BOOKING_PACKAGES];
   return windows.map((w) => {
@@ -70,12 +76,19 @@ export function buildTimePackages(
     return {
       id: `tw-${w.id}`,
       label: timeWindowPackageLabel(w.startHour),
-      window: `${padHour(w.startHour)}:00–${padHour(w.endHour)}:00`,
+      window: w.window ?? `${padHour(w.startHour)}:00–${padHour(w.endHour)}:00`,
       startHour: w.startHour,
       hours,
       discountPct: w.discountPercent,
     };
   });
+}
+
+/** Текст бейджа: из админки или −X% */
+export function formatPricingBadge(badge: string | null | undefined, discountPct?: number) {
+  if (badge?.trim()) return badge.trim();
+  if (discountPct != null && discountPct > 0) return `−${discountPct}%`;
+  return null;
 }
 
 /** Часы для кнопок «Сколько играть»: 1 ч + пакеты из админки. */
