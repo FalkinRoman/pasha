@@ -1,16 +1,21 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
+RUN apk add --no-cache openssl
 COPY package.json package-lock.json* ./
 RUN npm ci
+COPY prisma ./prisma
+# Prisma иногда падает на скачивании engine — ретраи при сборке на VPS
+RUN for i in 1 2 3 4 5; do npx prisma generate && break; echo "prisma generate retry $i"; sleep 8; done
 
 FROM node:22-alpine AS build
 WORKDIR /app
+RUN apk add --no-cache openssl
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma
 COPY tsconfig.json nest-cli.json ./
 COPY src ./src
-RUN npx prisma generate && npm run build
+RUN npm run build
 
 FROM node:22-alpine AS runner
 WORKDIR /app
