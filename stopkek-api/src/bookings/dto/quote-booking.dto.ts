@@ -12,4 +12,9 @@ export class QuoteBookingDto {
   @IsOptional()
   @IsISO8601()
   startAt?: string;
+
+  /** id интервала NightPricing — скидка только при явном выборе пакета */
+  @IsOptional()
+  @IsString()
+  timeWindowId?: string;
 }

@@ -21,7 +21,6 @@ const emptyPkg = () => ({
   minHours: '3',
   discountPercent: '7',
   label: '',
-  badge: '',
   recommended: false,
   active: true,
 });
@@ -93,7 +92,6 @@ export function PricingPage() {
       minHours: String(p.minHours),
       discountPercent: String(p.discountPercent),
       label: p.label,
-      badge: p.badge ?? '',
       recommended: p.recommended,
       active: p.active,
     });
@@ -106,7 +104,6 @@ export function PricingPage() {
       minHours: Number(pkgFields.minHours),
       discountPercent: Number(pkgFields.discountPercent),
       label: pkgFields.label.trim(),
-      badge: pkgFields.badge.trim() || null,
       recommended: pkgFields.recommended,
       active: pkgFields.active,
     };
@@ -342,7 +339,6 @@ export function PricingPage() {
                 <th>От, ч</th>
                 <th>Скидка</th>
                 <th>Название</th>
-                <th>Бейдж</th>
                 <th>Зона</th>
                 <th>Статус</th>
                 <th />
@@ -350,7 +346,7 @@ export function PricingPage() {
             </thead>
             <tbody>
               {!data?.packages.length ? (
-                <TableEmptyRow colSpan={7} message="Нет пакетов" />
+                <TableEmptyRow colSpan={6} message="Нет пакетов" />
               ) : (
                 data.packages.map((p) => (
                   <tr key={p.id}>
@@ -360,7 +356,6 @@ export function PricingPage() {
                       {p.label}
                       {p.recommended ? ' ★' : ''}
                     </td>
-                    <td>{p.badge ?? '—'}</td>
                     <td>{zoneName(p.zoneId)}</td>
                     <td>{p.active ? 'Вкл' : 'Выкл'}</td>
                     <td className="table-actions">
@@ -493,15 +488,6 @@ export function PricingPage() {
               onChange={(e) => setPkgFields((f) => ({ ...f, label: e.target.value }))}
               placeholder="Пакет 6 ч"
               required
-            />
-          </label>
-          <label>
-            Бейдж в приложении
-            <input
-              className="input"
-              value={pkgFields.badge}
-              onChange={(e) => setPkgFields((f) => ({ ...f, badge: e.target.value }))}
-              placeholder="−13%"
             />
           </label>
           <label>

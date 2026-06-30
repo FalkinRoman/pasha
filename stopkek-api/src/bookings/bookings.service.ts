@@ -398,7 +398,12 @@ export class BookingsService {
     return this.formatBooking(booking);
   }
 
-  async quote(seatId: string, durationHours: number, startAtIso?: string) {
+  async quote(
+    seatId: string,
+    durationHours: number,
+    startAtIso?: string,
+    timeWindowId?: string
+  ) {
     const seat = await this.prisma.seat.findUnique({
       where: { id: seatId },
       include: { zone: true },
@@ -416,7 +421,8 @@ export class BookingsService {
       seat.zone.clubId,
       seat.zone.pricePerHour,
       durationHours,
-      startAt
+      startAt,
+      timeWindowId
     );
   }
 
@@ -424,7 +430,8 @@ export class BookingsService {
     userId: string,
     seatId: string,
     durationHours: number,
-    startAtIso?: string
+    startAtIso?: string,
+    timeWindowId?: string
   ) {
     await this.syncSeatStates();
 
@@ -462,7 +469,8 @@ export class BookingsService {
       seat.zone.clubId,
       seat.zone.pricePerHour,
       durationHours,
-      startAt
+      startAt,
+      timeWindowId
     );
 
     const booking = await this.prisma.booking.create({
@@ -766,7 +774,7 @@ export class BookingsService {
           basePriceRub: Math.round(q.basePriceKopecks / 100),
           totalPriceRub: Math.round(q.totalPriceRub),
           discountRub: Math.round(packageDiscountKopecks / 100),
-          badge: preset.badge ?? q.packageBadge,
+          discountPercent: preset.discountPercent,
           label: preset.label,
         };
       })
@@ -774,6 +782,9 @@ export class BookingsService {
 
     const packagePresets = await Promise.all(
       fullQuote.windowPresets.map(async (def) => {
+        const timeWindowId = def.packageId.startsWith('tw-')
+          ? def.packageId.slice(3)
+          : def.packageId;
         const pkgStart = new Date(extendStart);
         pkgStart.setHours(def.startHour, 0, 0, 0);
         pkgStart.setSeconds(0, 0);
@@ -783,7 +794,8 @@ export class BookingsService {
           seat.zone.clubId,
           seat.zone.pricePerHour,
           def.hours,
-          pkgStart
+          pkgStart,
+          timeWindowId
         );
         return {
           packageId: def.packageId,
@@ -793,7 +805,7 @@ export class BookingsService {
           basePriceRub: Math.round(q.basePriceKopecks / 100),
           totalPriceRub: Math.round(q.totalPriceRub),
           discountRub: Math.round(q.discountAmountKopecks / 100),
-          badge: `−${def.discountPercent}%`,
+          discountPercent: def.discountPercent,
         };
       })
     );
@@ -804,9 +816,9 @@ export class BookingsService {
   async extendSession(
     userId: string,
     bookingId: string,
-    dto: { hours?: number; minutes?: number }
+    dto: { hours?: number; minutes?: number; timeWindowId?: string }
   ) {
-    const { hours, minutes } = dto;
+    const { hours, minutes, timeWindowId } = dto;
     let addMinutes: number;
     let label: string;
 
@@ -842,7 +854,8 @@ export class BookingsService {
             seat.zone.clubId,
             seat.zone.pricePerHour,
             durationHours,
-            extendStart
+            extendStart,
+            timeWindowId
           );
     const addKopecks = price.totalPriceKopecks;
     const wallet = await this.prisma.wallet.findUnique({ where: { userId } });

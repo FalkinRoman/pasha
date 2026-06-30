@@ -24,7 +24,8 @@ export interface PresetQuote {
   basePriceRub: number;
   totalPriceRub: number;
   discountRub: number;
-  badge: string | null;
+  /** Скидка пакета из БД для этой кнопки (minHours === hours), 0 если нет пакета */
+  discountPercent: number;
   label: string | null;
   recommended: boolean;
 }

@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class ExtendBookingDto {
   @IsOptional()
@@ -12,4 +12,8 @@ export class ExtendBookingDto {
   @Min(5)
   @Max(480)
   minutes?: number;
+
+  @IsOptional()
+  @IsString()
+  timeWindowId?: string;
 }

@@ -14,6 +14,7 @@ import { ExtendHoursSection } from '../../src/components/booking/ExtendHoursSect
 import { ExtendMinutesSection } from '../../src/components/booking/ExtendMinutesSection';
 import { ExtendMode, ExtendModeTabs } from '../../src/components/booking/ExtendModeTabs';
 import { PaymentPolicyNotice } from '../../src/components/legal/PaymentPolicyNotice';
+import { parseTimeWindowId } from '../../src/constants/bookingPricing';
 import { Card } from '../../src/components/ui/Card';
 import { Header } from '../../src/components/ui/Header';
 import { Screen } from '../../src/components/ui/Screen';
@@ -155,7 +156,12 @@ export default function ExtendScreen() {
         booking.id,
         mode === 'minutes'
           ? { minutes: selectedMinutes }
-          : { hours: selectedHours }
+          : {
+              hours: selectedHours,
+              timeWindowId: selectedPackageId
+                ? parseTimeWindowId(selectedPackageId)
+                : undefined,
+            }
       );
       dispatch(setActiveBooking(updated));
       router.back();

@@ -12,4 +12,8 @@ export class CreateBookingDto {
   @IsOptional()
   @IsISO8601()
   startAt?: string;
+
+  @IsOptional()
+  @IsString()
+  timeWindowId?: string;
 }

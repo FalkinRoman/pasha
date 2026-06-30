@@ -83,7 +83,7 @@ export interface PresetQuote {
   basePriceRub: number;
   totalPriceRub: number;
   discountRub: number;
-  badge: string | null;
+  discountPercent: number;
   label?: string | null;
   recommended: boolean;
 }
@@ -112,7 +112,7 @@ export interface ExtendHourQuote {
   basePriceRub: number;
   totalPriceRub: number;
   discountRub: number;
-  badge: string | null;
+  discountPercent: number;
   label?: string | null;
 }
 
@@ -124,7 +124,7 @@ export interface ExtendPackageQuote {
   basePriceRub: number;
   totalPriceRub: number;
   discountRub: number;
-  badge: string | null;
+  discountPercent: number;
 }
 
 export interface ExtendQuote {

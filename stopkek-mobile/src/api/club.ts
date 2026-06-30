@@ -39,7 +39,6 @@ export type ClubPricingPackage = {
   minHours: number;
   discountPercent: number;
   label: string;
-  badge: string | null;
   recommended: boolean;
 };
 

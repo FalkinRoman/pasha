@@ -108,7 +108,6 @@ export class ClubService {
         minHours: p.minHours,
         discountPercent: p.discountPercent,
         label: p.label,
-        badge: p.badge,
         recommended: p.recommended,
       })),
       timeWindows: timeWindows.map((w) => ({

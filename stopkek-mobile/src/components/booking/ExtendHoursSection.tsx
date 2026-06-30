@@ -1,5 +1,5 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { formatPricingBadge } from '../../constants/bookingPricing';
+import { formatDiscountBadge } from '../../constants/bookingPricing';
 import { colors } from '../../theme/colors';
 import { radius, spacing } from '../../theme/spacing';
 import { typography } from '../../theme/typography';
@@ -42,14 +42,7 @@ export function ExtendHoursSection({
             {presets.map((meta) => {
               const active = !selectedPackageId && selectedHours === meta.hours;
               const hasDiscount = meta.totalPriceRub < meta.basePriceRub;
-              const badgeText = formatPricingBadge(
-                meta.badge,
-                meta.basePriceRub > 0
-                  ? Math.round(
-                      ((meta.basePriceRub - meta.totalPriceRub) / meta.basePriceRub) * 100
-                    )
-                  : 0
-              );
+              const badgeText = formatDiscountBadge(meta.discountPercent);
               return (
                 <Pressable
                   key={meta.hours}
@@ -94,7 +87,7 @@ export function ExtendHoursSection({
             {packagePresets.map((meta) => {
               const active = selectedPackageId === meta.packageId;
               const hasDiscount = meta.totalPriceRub < meta.basePriceRub;
-              const badgeText = formatPricingBadge(meta.badge);
+              const badgeText = formatDiscountBadge(meta.discountPercent);
               return (
                 <Pressable
                   key={meta.packageId}

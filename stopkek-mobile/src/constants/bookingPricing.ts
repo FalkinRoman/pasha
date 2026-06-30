@@ -84,11 +84,24 @@ export function buildTimePackages(
   });
 }
 
-/** Текст бейджа: из админки или −X% */
-export function formatPricingBadge(badge: string | null | undefined, discountPct?: number) {
-  if (badge?.trim()) return badge.trim();
+/** id NightPricing из activePackageId вида tw-{id} */
+export function parseTimeWindowId(activePackageId: string | null | undefined) {
+  if (!activePackageId?.startsWith('tw-')) return undefined;
+  return activePackageId.slice(3);
+}
+
+/** Бейдж −X% только из процента скидки пакета в БД */
+export function formatDiscountBadge(discountPct?: number) {
   if (discountPct != null && discountPct > 0) return `−${discountPct}%`;
   return null;
+}
+
+/** Скидка для кнопки N ч — только пакет с minHours === N (1 ч без пакета = 0) */
+export function getPresetPackageDiscount(
+  hours: number,
+  packages: readonly { minHours: number; discountPercent: number }[]
+) {
+  return packages.find((p) => p.minHours === hours)?.discountPercent ?? 0;
 }
 
 /** Часы для кнопок «Сколько играть»: 1 ч + пакеты из админки. */

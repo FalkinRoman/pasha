@@ -17,8 +17,10 @@ import {
   buildDurationPresetHours,
   buildTimePackages,
   calcBookingPrice,
-  formatPricingBadge,
+  formatDiscountBadge,
+  getPresetPackageDiscount,
   getTierDiscountForHours,
+  parseTimeWindowId,
   resolveBookingStartDate,
 } from '../../src/constants/bookingPricing';
 import { useClubPricing } from '../../src/hooks/useClubPricing';
@@ -109,12 +111,13 @@ export default function TimeScreen() {
     if (!seat?.id || hoursError) return;
     let cancelled = false;
     setQuoteLoading(true);
-    quoteBooking(seat.id, effectiveHours, startAtIso)
+    const timeWindowId = parseTimeWindowId(activePackageId);
+    quoteBooking(seat.id, effectiveHours, startAtIso, timeWindowId)
       .then((q) => { if (!cancelled) dispatch(setPriceQuote(q)); })
       .catch(() => { if (!cancelled) dispatch(setPriceQuote(null)); })
       .finally(() => { if (!cancelled) setQuoteLoading(false); });
     return () => { cancelled = true; };
-  }, [seat?.id, effectiveHours, startAtIso, hoursError, dispatch]);
+  }, [seat?.id, effectiveHours, startAtIso, activePackageId, hoursError, dispatch]);
 
   const selectPreset = (h: number) => {
     setUseCustom(false);
@@ -166,24 +169,13 @@ export default function TimeScreen() {
     [pricePerHour, customHours, durationPackages]
   );
   const customDiscount = getTierDiscountForHours(customHours, durationPackages);
-  const customBadgePkg = useMemo(() => {
-    let match: (typeof durationPackages)[number] | undefined;
-    for (const p of durationPackages) {
-      if (customHours >= p.minHours) match = p;
-    }
-    return match;
-  }, [customHours, durationPackages]);
 
   const presetRows = useMemo(() => {
     return durationPresetHours.map((hours) => {
       const fromQuote = priceQuote?.presets?.find((p) => p.hours === hours);
-      const pkg = durationPackages.find((p) => p.minHours === hours);
-      const discountPct =
-        hours === 1
-          ? 0
-          : fromQuote && fromQuote.basePriceRub > 0
-            ? Math.round((fromQuote.discountRub / fromQuote.basePriceRub) * 100)
-            : pkg?.discountPercent ?? getTierDiscountForHours(hours, durationPackages);
+      const packageDiscountPct =
+        fromQuote?.discountPercent ??
+        getPresetPackageDiscount(hours, durationPackages);
       const pricing = fromQuote
         ? {
             original: fromQuote.basePriceRub,
@@ -191,8 +183,17 @@ export default function TimeScreen() {
             discount: fromQuote.discountRub,
             hasDiscount: fromQuote.discountRub > 0,
           }
-        : calcBookingPrice(pricePerHour, hours, discountPct);
-      return { hours, discountPct, pricing, badge: pkg?.badge ?? fromQuote?.badge ?? null };
+        : calcBookingPrice(
+            pricePerHour,
+            hours,
+            getTierDiscountForHours(hours, durationPackages)
+          );
+      return {
+        hours,
+        packageDiscountPct,
+        pricing,
+        badgeText: formatDiscountBadge(packageDiscountPct),
+      };
     });
   }, [durationPresetHours, priceQuote, durationPackages, pricePerHour]);
 
@@ -208,9 +209,7 @@ export default function TimeScreen() {
             hasDiscount: quoted.discountRub > 0,
           }
         : calcBookingPrice(pricePerHour, p.hours, p.discountPct);
-      const badge = quoted
-        ? formatPricingBadge(null, quoted.discountPercent)
-        : formatPricingBadge(null, p.discountPct);
+      const badge = formatDiscountBadge(quoted?.discountPercent ?? p.discountPct);
       return { pkg: p, pricing, badge };
     });
   }, [timePackages, priceQuote, pricePerHour]);
@@ -266,9 +265,8 @@ export default function TimeScreen() {
       <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>Сколько играть</Text>
       <View style={styles.presetsBlock}>
         <View style={styles.presets}>
-          {presetRows.map(({ hours, discountPct, pricing, badge }) => {
+          {presetRows.map(({ hours, pricing, badgeText }) => {
             const active  = !activePackageId && !customActive && durationHours === hours;
-            const badgeText = formatPricingBadge(badge, discountPct);
             return (
               <Pressable key={hours} style={[styles.preset, active && styles.presetActive]} onPress={() => selectPreset(hours)}>
                 {badgeText && (
@@ -327,7 +325,7 @@ export default function TimeScreen() {
             {customActive && customDiscount > 0 && (
               <View style={[styles.discBadgeInline, customActive && styles.discBadgeActive]}>
                 <Text style={[styles.discBadgeText, customActive && styles.discBadgeTextActive]}>
-                  {formatPricingBadge(customBadgePkg?.badge ?? null, customDiscount)}
+                  {formatDiscountBadge(customDiscount)}
                 </Text>
               </View>
             )}

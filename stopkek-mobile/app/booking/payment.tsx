@@ -14,6 +14,7 @@ import { StopkekLoader } from '../../src/components/ui/StopkekLoader';
 import { useAppDispatch, useAppSelector } from '../../src/store/hooks';
 import { loginSuccess } from '../../src/store/authSlice';
 import { clearDraft, setActiveBooking, setPendingBookingId, setCalculatedPrice } from '../../src/store/bookingSlice';
+import { parseTimeWindowId } from '../../src/constants/bookingPricing';
 import { reloadFloorMap } from '../../src/utils/reloadFloorMap';
 import { colors } from '../../src/theme/colors';
 import { radius, spacing } from '../../src/theme/spacing';
@@ -22,7 +23,7 @@ import { formatMoney } from '../../src/utils/format';
 
 export default function PaymentScreen() {
   const dispatch = useAppDispatch();
-  const { calculatedPrice, pendingBookingId, selectedSeatIds, seats, durationHours, startAt } = useAppSelector(
+  const { calculatedPrice, pendingBookingId, selectedSeatIds, seats, durationHours, startAt, activePackageId } = useAppSelector(
     (s) => s.booking
   );
   const balance = useAppSelector((s) => s.auth.user?.balance ?? 0);
@@ -54,7 +55,7 @@ export default function PaymentScreen() {
     bookingIdRef.current = null;
     dispatch(setPendingBookingId(null));
 
-    createBooking(seat.id, durationHours, startAt)
+    createBooking(seat.id, durationHours, startAt, parseTimeWindowId(activePackageId))
       .then((b) => {
         if (cancelled) return;
         dispatch(setPendingBookingId(b.id));
@@ -72,7 +73,7 @@ export default function PaymentScreen() {
     return () => {
       cancelled = true;
     };
-  }, [seat?.id, durationHours, startAt, dispatch]);
+  }, [seat?.id, durationHours, startAt, activePackageId, dispatch]);
 
   // При уходе с экрана без оплаты — отменяем бронь и освобождаем кабинку
   useEffect(() => {

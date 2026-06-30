@@ -20,25 +20,34 @@ export class PricingService {
     clubId: string,
     pricePerHour: number,
     durationHours: number,
-    startAt: Date
+    startAt: Date,
+    timeWindowId?: string | null
   ): Promise<QuoteResponse> {
     const [packages, timeWindows] = await Promise.all([
       this.loadPackages(clubId, zoneId),
       this.loadTimeWindows(clubId, zoneId),
     ]);
-    const breakdown = this.calculate(pricePerHour, durationHours, startAt, packages, timeWindows);
+    const breakdown = this.calculate(
+      pricePerHour,
+      durationHours,
+      startAt,
+      packages,
+      timeWindows,
+      timeWindowId
+    );
     const presetHours = this.buildPresetHours(packages);
     const presets = presetHours.map((h) => {
       const p = this.calculate(pricePerHour, h, startAt, packages, timeWindows);
-      const pkg = this.pickPackage(packages, h);
+      const pkgChip = packages.find((pkg) => pkg.active && pkg.minHours === h);
+      const pkgTier = this.pickPackage(packages, h);
       return {
         hours: h,
         basePriceRub: Math.round(p.basePriceKopecks / 100),
         totalPriceRub: Math.round(p.totalPriceKopecks / 100),
         discountRub: Math.round(p.discountAmountKopecks / 100),
-        badge: pkg?.badge ?? p.packageBadge,
-        label: pkg?.label ?? null,
-        recommended: pkg?.recommended ?? false,
+        discountPercent: pkgChip?.discountPercent ?? 0,
+        label: pkgTier?.label ?? null,
+        recommended: pkgTier?.recommended ?? false,
       } satisfies PresetQuote;
     });
     const windowPresets = this.buildWindowPresets(
@@ -90,7 +99,14 @@ export class PricingService {
       .map((win) => {
         const hours = this.windowDurationHours(win.startHour, win.endHour);
         const pkgStart = this.resolveWindowStart(referenceStart, win.startHour);
-        const q = this.calculate(pricePerHour, hours, pkgStart, packages, timeWindows);
+        const q = this.calculate(
+          pricePerHour,
+          hours,
+          pkgStart,
+          packages,
+          timeWindows,
+          win.id
+        );
         return {
           packageId: `tw-${win.id}`,
           label: this.timeWindowPackageLabel(win.startHour),
@@ -154,47 +170,57 @@ export class PricingService {
     durationHours: number,
     startAt: Date,
     packages: DurationPackage[],
-    timeWindows: NightPricing[]
+    timeWindows: NightPricing[],
+    timeWindowId?: string | null
   ): PriceBreakdown {
     const durationMinutes = Math.round(durationHours * 60);
     const endAt = new Date(startAt.getTime() + durationMinutes * 60_000);
     const basePriceKopecks = Math.round(pricePerHour * durationHours * 100);
+    const discounts: PricingDiscountLine[] = [];
+
+    if (timeWindowId) {
+      const win = timeWindows.find((w) => w.id === timeWindowId && w.active);
+      if (win && win.discountPercent > 0) {
+        const windowDiscount = Math.round(
+          (basePriceKopecks * win.discountPercent) / 100
+        );
+        discounts.push({
+          type: 'night',
+          label: `${this.timeWindowPackageLabel(win.startHour)} (${this.formatNightWindow(win.startHour, win.endHour)})`,
+          amountKopecks: windowDiscount,
+        });
+        const discountAmountKopecks = windowDiscount;
+        return {
+          pricePerHour,
+          durationHours,
+          nightMinutes: durationMinutes,
+          basePriceKopecks,
+          discountAmountKopecks,
+          totalPriceKopecks: Math.max(0, basePriceKopecks - discountAmountKopecks),
+          discounts,
+          packageBadge: null,
+          packageLabel: this.timeWindowPackageLabel(win.startHour),
+          recommended: false,
+        };
+      }
+    }
 
     const pkg = this.pickPackage(packages, durationHours);
     let packageDiscount = 0;
     if (pkg && pkg.discountPercent > 0) {
       packageDiscount = Math.round((basePriceKopecks * pkg.discountPercent) / 100);
     }
-
-    const discounts: PricingDiscountLine[] = [];
     if (packageDiscount > 0 && pkg) {
       discounts.push({ type: 'package', label: pkg.label, amountKopecks: packageDiscount });
     }
 
-    let totalWindowMinutes = 0;
-    let totalWindowDiscount = 0;
-    for (const win of timeWindows) {
-      if (!win.active || win.discountPercent <= 0) continue;
-      const mins = this.countNightMinutes(startAt, endAt, win.startHour, win.endHour);
-      if (mins <= 0) continue;
-      const discount = Math.round((mins / 60) * pricePerHour * 100 * (win.discountPercent / 100));
-      totalWindowMinutes += mins;
-      totalWindowDiscount += discount;
-      const h = Math.round((mins / 60) * 10) / 10;
-      discounts.push({
-        type: 'night',
-        label: `${this.timeWindowLabel(win.startHour)} (${this.formatNightWindow(win.startHour, win.endHour)}, ${h} ч)`,
-        amountKopecks: discount,
-      });
-    }
-
-    const discountAmountKopecks = packageDiscount + totalWindowDiscount;
+    const discountAmountKopecks = packageDiscount;
     const totalPriceKopecks = Math.max(0, basePriceKopecks - discountAmountKopecks);
 
     return {
       pricePerHour,
       durationHours,
-      nightMinutes: totalWindowMinutes,
+      nightMinutes: 0,
       basePriceKopecks,
       discountAmountKopecks,
       totalPriceKopecks,

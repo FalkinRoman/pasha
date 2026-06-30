@@ -36,7 +36,12 @@ export class BookingsController {
 
   @Post('quote')
   quote(@Body() dto: QuoteBookingDto) {
-    return this.bookings.quote(dto.seatId, dto.durationHours, dto.startAt);
+    return this.bookings.quote(
+      dto.seatId,
+      dto.durationHours,
+      dto.startAt,
+      dto.timeWindowId
+    );
   }
 
   @Post()
@@ -45,7 +50,8 @@ export class BookingsController {
       u.userId,
       dto.seatId,
       dto.durationHours,
-      dto.startAt
+      dto.startAt,
+      dto.timeWindowId
     );
   }
 
