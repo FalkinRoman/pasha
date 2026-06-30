@@ -20,4 +20,9 @@ export class ClubController {
   getFloorMap() {
     return this.club.getFloorMap();
   }
+
+  @Get('pricing')
+  getPricing() {
+    return this.club.getPricing();
+  }
 }

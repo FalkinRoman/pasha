@@ -15,7 +15,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   DOOR_EARLY_MIN,
   NO_SHOW_GRACE_MIN,
-  WALK_IN_START_MIN,
   BOOKING_MAX_DAYS_AHEAD,
 } from './session.constants';
 
@@ -61,10 +60,6 @@ export class BookingsService {
 
   private doorWindowStart(startAt: Date) {
     return new Date(startAt.getTime() - DOOR_EARLY_MIN * 60_000);
-  }
-
-  private isWalkIn(startAt: Date, now = new Date()) {
-    return startAt.getTime() <= now.getTime() + WALK_IN_START_MIN * 60_000;
   }
 
   private inDoorWindow(startAt: Date, endAt: Date, now = new Date()) {
@@ -244,7 +239,12 @@ export class BookingsService {
       if (sessionPhase === 'awaiting_arrival') return 'arrival';
       return sessionPhase === 'playing' ? 'arrival' : sessionPhase;
     }
-    if (status === 'active') return 'playing';
+    if (status === 'active') {
+      if (now.getTime() < startAt.getTime()) {
+        return this.inDoorWindow(startAt, endAt, now) ? 'arrival' : 'awaiting_arrival';
+      }
+      return 'playing';
+    }
     return sessionPhase;
   }
 
@@ -275,12 +275,6 @@ export class BookingsService {
       });
     });
 
-    const seatNum = updated.seats[0]?.seatNumber ?? 0;
-    void this.notifications.notifySessionStarted(
-      booking.userId,
-      bookingId,
-      seatNum
-    );
     return updated;
   }
 
@@ -451,7 +445,7 @@ export class BookingsService {
       throw new BadRequestException('Некорректное время начала');
     }
     const now = new Date();
-    if (startAt.getTime() < now.getTime() - 60_000) {
+    if (startAt.getTime() < now.getTime() - 30_000) {
       throw new BadRequestException('Время начала не может быть в прошлом');
     }
     const durationMinutes = Math.round(durationHours * 60);
@@ -546,9 +540,8 @@ export class BookingsService {
     }
 
     const now = new Date();
-    const walkIn = this.isWalkIn(booking.startAt, now);
+    const sessionDue = now.getTime() >= booking.startAt.getTime();
     const inWindow = this.inDoorWindow(booking.startAt, booking.endAt, now);
-    const scheduledReady = !walkIn && now >= booking.startAt;
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const existing = await tx.transaction.findFirst({
@@ -570,22 +563,18 @@ export class BookingsService {
         });
       }
 
-      if (walkIn || scheduledReady) {
+      if (sessionDue) {
         await tx.seat.update({
           where: { id: seat.id },
           data: { status: 'occupied' },
         });
-        const startedAt = walkIn ? now : booking.startAt;
-        const endAt = walkIn
-          ? new Date(now.getTime() + booking.durationMinutes * 60_000)
-          : booking.endAt;
         return tx.booking.update({
           where: { id: bookingId },
           data: {
             status: 'active',
             sessionPhase: 'playing',
-            startedAt,
-            endAt,
+            startedAt: booking.startAt,
+            endAt: booking.endAt,
           },
           include: { seats: { include: { seat: { include: { zone: true } } } } },
         });
@@ -607,12 +596,23 @@ export class BookingsService {
       await this.recomputeSeatDbStatus(s.seatId);
     }
 
-    if (updated.status === 'active') {
-      const seatNum = updated.seats[0]?.seatNumber ?? 0;
-      void this.notifications.notifySessionStarted(userId, bookingId, seatNum);
-    }
-
     return this.formatBooking(updated);
+  }
+
+  /** Push «приятной игры» — только после разблокировки своего зарезервированного ПК. */
+  async notifyPcUnlocked(bookingId: string, seatNumber: number) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { seats: true },
+    });
+    if (!booking) return;
+    const reserved = booking.seats[0]?.seatNumber;
+    if (!reserved || reserved !== seatNumber) return;
+    void this.notifications.notifySessionStarted(
+      booking.userId,
+      bookingId,
+      seatNumber
+    );
   }
 
   private async getOngoingBooking(userId: string, bookingId: string) {
@@ -941,7 +941,7 @@ export class BookingsService {
     );
     const gameRunning =
       booking.status === 'active' &&
-      phase === 'playing' &&
+      now.getTime() >= booking.startAt.getTime() &&
       booking.startedAt != null &&
       now.getTime() >= booking.startedAt.getTime();
     const doorOpen = this.inDoorWindow(booking.startAt, booking.endAt, now);
@@ -960,7 +960,10 @@ export class BookingsService {
       timerMode = 'playing';
       displayRemainingMs = untilEndMs;
       timerLabel = 'осталось';
-    } else if (booking.status === 'paid') {
+    } else if (
+      booking.status === 'paid' ||
+      (booking.status === 'active' && untilStartMs > 0)
+    ) {
       if (doorOpensMs > 0) {
         timerMode = 'until_door';
         displayRemainingMs = doorOpensMs;
@@ -971,7 +974,7 @@ export class BookingsService {
         timerLabel = 'до начала';
       } else {
         timerMode = 'until_start';
-        displayRemainingMs = untilEndMs;
+        displayRemainingMs = Math.max(untilEndMs, 0);
         timerLabel = 'до старта';
       }
     } else {

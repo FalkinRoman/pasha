@@ -33,3 +33,28 @@ export async function fetchClub() {
 export async function fetchFloorMap() {
   return apiFetch<FloorMapResponse>('/club/floor-map');
 }
+
+export type ClubPricingPackage = {
+  id: string;
+  minHours: number;
+  discountPercent: number;
+  label: string;
+  badge: string | null;
+  recommended: boolean;
+};
+
+export type ClubPricingWindow = {
+  id: string;
+  startHour: number;
+  endHour: number;
+  discountPercent: number;
+};
+
+export type ClubPricing = {
+  packages: ClubPricingPackage[];
+  timeWindows: ClubPricingWindow[];
+};
+
+export async function fetchClubPricing() {
+  return apiFetch<ClubPricing>('/club/pricing');
+}

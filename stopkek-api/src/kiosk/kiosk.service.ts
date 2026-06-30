@@ -134,6 +134,8 @@ export class KioskService {
       data: { pcUnlockedAt: new Date() },
     });
 
+    await this.bookings.notifyPcUnlocked(bookingId, seatNumber);
+
     return this.getSeatState(seatNumber);
   }
 

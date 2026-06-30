@@ -852,7 +852,7 @@ export class AdminService {
         discountPercent: dto.discountPercent,
         label: dto.label.trim(),
         badge: dto.badge?.trim() || null,
-        recommended: dto.recommended ?? false,
+        ...(dto.recommended !== undefined ? { recommended: dto.recommended } : {}),
         ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}),
         ...(dto.active !== undefined ? { active: dto.active } : {}),
       },

@@ -41,6 +41,14 @@ export default function ActiveSessionScreen() {
     }, [refresh])
   );
 
+  // Пока ждём startAt — подтягиваем статус с сервера
+  useEffect(() => {
+    if (!booking || booking.gameRunning) return;
+    if (booking.timerMode !== 'until_start' && booking.timerMode !== 'until_door') return;
+    const t = setInterval(() => refresh(), 3000);
+    return () => clearInterval(t);
+  }, [booking?.id, booking?.gameRunning, booking?.timerMode, refresh]);
+
   useEffect(() => {
     if (!booking) return;
     const base =
@@ -127,14 +135,17 @@ export default function ActiveSessionScreen() {
     );
   }
 
-  const isPlaying = booking.gameRunning ?? (phase === 'playing' && booking.status === 'active');
+  const isPlaying = booking.gameRunning === true;
   const waiting =
-    phase === 'awaiting_arrival' || (booking.status === 'paid' && !booking.doorWindowOpen);
+    !isPlaying &&
+    (booking.timerMode === 'until_start' ||
+      booking.timerMode === 'until_door' ||
+      phase === 'awaiting_arrival' ||
+      phase === 'arrival' ||
+      (booking.untilStartMs != null && booking.untilStartMs > 0));
   const canCancel = booking.status === 'paid';
 
-  const timerLabel =
-    booking.timerLabel ??
-    (waiting ? 'до начала' : isPlaying ? 'осталось' : 'до старта');
+  const timerLabel = booking.timerLabel ?? (isPlaying ? 'осталось' : 'до начала');
 
   return (
     <Screen scroll>
@@ -162,9 +173,14 @@ export default function ActiveSessionScreen() {
         Забронировано {formatBookingUntil(booking.endAt)}
       </Text>
 
-      {waiting && (
+      {waiting && booking.timerMode === 'until_door' && (
         <Text style={[typography.bodySecondary, styles.hint]}>
           Доступ в клуб откроется за {DOOR_EARLY_MIN} минут до начала брони
+        </Text>
+      )}
+      {waiting && booking.timerMode === 'until_start' && (
+        <Text style={[typography.bodySecondary, styles.hint]}>
+          Сеанс начнётся в выбранное время — дождитесь отсчёта
         </Text>
       )}
 

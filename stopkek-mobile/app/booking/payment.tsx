@@ -37,24 +37,42 @@ export default function PaymentScreen() {
 
   // Создаём бронь только здесь — кабинка резервируется только на экране оплаты
   useEffect(() => {
-    if (!seat || pendingBookingId) {
-      bookingIdRef.current = pendingBookingId;
+    if (!seat) {
+      bookingIdRef.current = null;
       setBookingLoading(false);
       return;
     }
+    if (!startAt) {
+      setBookingError('Не выбрано время начала');
+      setBookingLoading(false);
+      return;
+    }
+
+    let cancelled = false;
     setBookingLoading(true);
     setBookingError('');
-    createBooking(seat.id, durationHours, startAt ?? undefined)
+    bookingIdRef.current = null;
+    dispatch(setPendingBookingId(null));
+
+    createBooking(seat.id, durationHours, startAt)
       .then((b) => {
+        if (cancelled) return;
         dispatch(setPendingBookingId(b.id));
         dispatch(setCalculatedPrice(b.totalPrice));
         bookingIdRef.current = b.id;
       })
       .catch((e) => {
+        if (cancelled) return;
         setBookingError(e instanceof ApiError ? e.message : 'Не удалось зарезервировать место');
       })
-      .finally(() => setBookingLoading(false));
-  }, [seat?.id]);
+      .finally(() => {
+        if (!cancelled) setBookingLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [seat?.id, durationHours, startAt, dispatch]);
 
   // При уходе с экрана без оплаты — отменяем бронь и освобождаем кабинку
   useEffect(() => {

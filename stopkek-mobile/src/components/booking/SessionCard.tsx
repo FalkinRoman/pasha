@@ -15,7 +15,12 @@ interface Props {
 }
 
 export function SessionCard({ booking }: Props) {
-  const isPlaying = booking.gameRunning ?? booking.timerMode === 'playing';
+  const isPlaying = booking.gameRunning === true;
+  const isWaiting =
+    !isPlaying &&
+    (booking.timerMode === 'until_start' ||
+      booking.timerMode === 'until_door' ||
+      (booking.untilStartMs != null && booking.untilStartMs > 0));
   const base =
     booking.displayRemainingMs ??
     (booking.durationMinutes ?? 60) * 60_000;
@@ -43,7 +48,7 @@ export function SessionCard({ booking }: Props) {
       <View style={styles.top}>
         <View>
           <Text style={typography.caption}>
-            {booking.status === 'paid' ? 'Бронь оплачена' : 'Активный сеанс'}
+            {isWaiting ? 'Ожидание начала' : booking.status === 'paid' ? 'Бронь оплачена' : 'Активный сеанс'}
           </Text>
           <Text style={typography.h2}>
             Место #{booking.seatNumbers.join(', ')}
@@ -51,7 +56,11 @@ export function SessionCard({ booking }: Props) {
           <Text style={typography.bodySecondary}>{booking.zoneName}</Text>
           <Text style={styles.until}>Забронировано {formatBookingUntil(booking.endAt)}</Text>
         </View>
-        <Ionicons name="game-controller" size={32} color={colors.accent} />
+        <Ionicons
+          name={isPlaying ? 'game-controller' : 'time-outline'}
+          size={32}
+          color={colors.accent}
+        />
       </View>
       <Text style={[typography.timer, urgent && { color: colors.warning }]}>
         {formatCountdown(remaining)}

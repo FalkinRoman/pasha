@@ -28,7 +28,17 @@ export function calcBookingPrice(pricePerHour: number, hours: number, discountPc
   };
 }
 
-export function getTierDiscountForHours(hours: number) {
+export function getTierDiscountForHours(
+  hours: number,
+  packages?: readonly { minHours: number; discountPercent: number }[]
+) {
+  if (packages?.length) {
+    let discount = 0;
+    for (const p of packages) {
+      if (hours >= p.minHours) discount = p.discountPercent;
+    }
+    return discount;
+  }
   let discount = 0;
   for (const preset of BOOKING_PRESETS) {
     if (hours >= preset.hours) discount = preset.discountPct;
@@ -36,25 +46,73 @@ export function getTierDiscountForHours(hours: number) {
   return discount;
 }
 
+function padHour(h: number) {
+  return String(h).padStart(2, '0');
+}
+
+export function windowDurationHours(startHour: number, endHour: number) {
+  if (endHour > startHour) return endHour - startHour;
+  return 24 - startHour + endHour;
+}
+
+export function timeWindowPackageLabel(startHour: number): string {
+  if (startHour >= 21 || startHour <= 5) return 'Пакет ночь';
+  if (startHour >= 6 && startHour <= 12) return 'Пакет утро';
+  return 'Пакет день';
+}
+
+export function buildTimePackages(
+  windows: readonly { id: string; startHour: number; endHour: number; discountPercent: number }[]
+): BookingPackage[] {
+  if (!windows.length) return [...BOOKING_PACKAGES];
+  return windows.map((w) => {
+    const hours = windowDurationHours(w.startHour, w.endHour);
+    return {
+      id: `tw-${w.id}`,
+      label: timeWindowPackageLabel(w.startHour),
+      window: `${padHour(w.startHour)}:00–${padHour(w.endHour)}:00`,
+      startHour: w.startHour,
+      hours,
+      discountPct: w.discountPercent,
+    };
+  });
+}
+
+/** Часы для кнопок «Сколько играть»: 1 ч + пакеты из админки. */
+export function buildDurationPresetHours(
+  packages: readonly { minHours: number }[]
+): number[] {
+  const hours = new Set<number>([1]);
+  for (const p of packages) hours.add(p.minHours);
+  return [...hours].sort((a, b) => a - b);
+}
+
 export function getBookingSummaryPricing(
   pricePerHour: number,
   durationHours: number,
-  activePackageId: string | null
+  activePackageId: string | null,
+  timePackages: readonly BookingPackage[] = BOOKING_PACKAGES,
+  durationPackages?: readonly { minHours: number; discountPercent: number }[]
 ) {
-  const pkg = BOOKING_PACKAGES.find((p) => p.id === activePackageId) ?? null;
+  const pkg = timePackages.find((p) => p.id === activePackageId) ?? null;
   if (pkg) return { pkg, ...calcBookingPrice(pricePerHour, pkg.hours, pkg.discountPct) };
   return {
     pkg: null as BookingPackage | null,
-    ...calcBookingPrice(pricePerHour, durationHours, getTierDiscountForHours(durationHours)),
+    ...calcBookingPrice(
+      pricePerHour,
+      durationHours,
+      getTierDiscountForHours(durationHours, durationPackages)
+    ),
   };
 }
 
 export function resolveBookingStartDate(
   pickedDate: Date,
   activePackageId: string | null,
+  timePackages: readonly BookingPackage[] = BOOKING_PACKAGES,
   now = new Date()
 ) {
-  const pkg = BOOKING_PACKAGES.find((p) => p.id === activePackageId);
+  const pkg = timePackages.find((p) => p.id === activePackageId);
   if (!pkg) return pickedDate;
   const d = new Date(pickedDate);
   d.setHours(pkg.startHour, 0, 0, 0);

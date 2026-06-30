@@ -29,7 +29,7 @@ export default function ScanPcScreen() {
   const gateRef = useRef<ScanGate>('idle');
   const lastPayloadRef = useRef('');
 
-  const seatNum = booking?.seatNumbers[0];
+  const mySeat = booking?.seatNumbers?.[0];
 
   const showAlert = useCallback((title: string, message: string, onOk?: () => void) => {
     gateRef.current = 'alert';
@@ -63,14 +63,18 @@ export default function ScanPcScreen() {
         showAlert('Не тот QR', 'Наведите на QR на мониторе этого ПК');
         return;
       }
+      if (!mySeat) {
+        showAlert('Нет места', 'В активной брони не указан номер ПК');
+        return;
+      }
       if (data.v !== 2 || !data.challengeId || data.type !== 'stopkek-unlock') {
         showAlert('Не тот QR', 'Это не QR stopkek с монитора');
         return;
       }
-      if (seatNum && data.seat && data.seat !== seatNum) {
+      if (!data.seat || data.seat !== mySeat) {
         showAlert(
           'Другой ПК',
-          `Ваша бронь — место #${seatNum}, на мониторе — #${data.seat}`
+          `Ваша бронь — место #${mySeat}, на мониторе — #${data.seat ?? '—'}`
         );
         return;
       }
@@ -87,7 +91,7 @@ export default function ScanPcScreen() {
         setUnlocking(false);
       }
     },
-    [booking, seatNum, showAlert]
+    [booking, mySeat, showAlert]
   );
 
   if (!booking) {
@@ -116,7 +120,7 @@ export default function ScanPcScreen() {
     <Screen>
       <Header title="Сканируйте QR" back />
       <Text style={[typography.bodySecondary, styles.center, styles.mb]}>
-        Наведите на QR на экране ПК #{seatNum ?? '—'}
+        Наведите на QR на экране ПК #{mySeat ?? '—'}
       </Text>
       <View style={styles.cameraWrap}>
         <CameraView

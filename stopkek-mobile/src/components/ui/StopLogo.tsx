@@ -1,18 +1,18 @@
 import { Image, StyleSheet, View } from 'react-native';
-import { colors } from '../../theme/colors';
 
-const logoSource = require('../../../assets/brand/logo-stopkek.png');
+/** Тот же знак, что и иконка на рабочем столе (assets/icon.png). */
+const logoSource = require('../../../assets/icon.png');
 
 interface Props {
   size?: number;
-  /** Показывать тёмную подложку вокруг лого (по умолчанию true) */
+  /** Рамка вокруг лого (по умолчанию выкл — у знака свой фон). */
   darkBg?: boolean;
 }
 
-export function StopLogo({ size = 80, darkBg = true }: Props) {
-  const padding = Math.round(size * 0.15);
+export function StopLogo({ size = 80, darkBg = false }: Props) {
+  const padding = darkBg ? Math.round(size * 0.15) : 0;
   const containerSize = size + padding * 2;
-  const borderRadius = Math.round(containerSize * 0.22);
+  const borderRadius = darkBg ? Math.round(containerSize * 0.22) : 0;
 
   return (
     <View
@@ -24,9 +24,9 @@ export function StopLogo({ size = 80, darkBg = true }: Props) {
     >
       <Image
         source={logoSource}
-        style={{ width: size, height: size }}
+        style={{ width: size, height: size, borderRadius: Math.round(size * 0.12) }}
         resizeMode="contain"
-        accessibilityLabel="стопкек"
+        accessibilityLabel="стопКЕК"
       />
     </View>
   );
@@ -36,10 +36,11 @@ const styles = StyleSheet.create({
   wrap: {
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   darkBg: {
-    backgroundColor: colors.bgElevated,
+    backgroundColor: '#0A0A0A',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
 });

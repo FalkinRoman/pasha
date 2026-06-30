@@ -62,6 +62,40 @@ export class ClubService {
     return this.mapClub(club);
   }
 
+  /** Пакеты и окна скидок для мобилки (из БД, как в админке). */
+  async getPricing() {
+    const club = await this.prisma.club.findFirst();
+    if (!club) throw new NotFoundException('Клуб не найден');
+
+    const [packages, timeWindows] = await Promise.all([
+      this.prisma.durationPackage.findMany({
+        where: { clubId: club.id, active: true, zoneId: null },
+        orderBy: [{ sortOrder: 'asc' }, { minHours: 'asc' }],
+      }),
+      this.prisma.nightPricing.findMany({
+        where: { clubId: club.id, active: true, zoneId: null },
+        orderBy: { startHour: 'asc' },
+      }),
+    ]);
+
+    return {
+      packages: packages.map((p) => ({
+        id: p.id,
+        minHours: p.minHours,
+        discountPercent: p.discountPercent,
+        label: p.label,
+        badge: p.badge,
+        recommended: p.recommended,
+      })),
+      timeWindows: timeWindows.map((w) => ({
+        id: w.id,
+        startHour: w.startHour,
+        endHour: w.endHour,
+        discountPercent: w.discountPercent,
+      })),
+    };
+  }
+
   async getClubSettings() {
     const club = await this.prisma.club.findFirst({
       include: { zones: { orderBy: { sortOrder: 'asc' } } },

@@ -10,11 +10,13 @@ import {
   View,
 } from 'react-native';
 import { quoteBooking } from '../../src/api/bookings';
+import { fetchClubPricing } from '../../src/api/club';
 import {
   BOOKING_MAX_HOURS,
   BOOKING_MIN_HOURS,
-  BOOKING_PACKAGES,
-  BOOKING_PRESETS,
+  BookingPackage,
+  buildDurationPresetHours,
+  buildTimePackages,
   calcBookingPrice,
   getBookingSummaryPricing,
   getTierDiscountForHours,
@@ -34,16 +36,33 @@ import { formatDurationHours, formatMoney, formatSessionDay, formatSessionRange,
 
 export default function TimeScreen() {
   const dispatch = useAppDispatch();
-  const { selectedSeatIds, seats, zones, durationHours, activePackageId } = useAppSelector((s) => s.booking);
+  const { selectedSeatIds, seats, zones, durationHours, activePackageId, priceQuote } = useAppSelector(
+    (s) => s.booking
+  );
   const seat         = seats.find((s) => s.id === selectedSeatIds[0]);
   const zone         = zones.find((z) => z.id === seat?.zoneId);
   const pricePerHour = zone?.pricePerHour ?? 150;
 
   const [pickedDate,   setPickedDate]   = useState(() => { const d = new Date(); d.setSeconds(0,0); return d; });
   const [quoteLoading, setQuoteLoading] = useState(false);
+  const [clubPricing, setClubPricing] = useState<Awaited<ReturnType<typeof fetchClubPricing>> | null>(null);
+
+  useEffect(() => {
+    fetchClubPricing().then(setClubPricing).catch(() => {});
+  }, []);
+
+  const timePackages = useMemo(
+    () => buildTimePackages(clubPricing?.timeWindows ?? []),
+    [clubPricing]
+  );
+  const durationPresetHours = useMemo(
+    () => buildDurationPresetHours(clubPricing?.packages ?? []),
+    [clubPricing]
+  );
+  const durationPackages = clubPricing?.packages ?? [];
 
   const [useCustom, setUseCustom] = useState(
-    () => !activePackageId && !BOOKING_PRESETS.some((p) => p.hours === durationHours)
+    () => !activePackageId && !durationPresetHours.some((h) => h === durationHours)
   );
   const [customHoursText, setCustomHoursText] = useState(() => String(durationHours));
   const customActive = useCustom && !activePackageId;
@@ -70,15 +89,22 @@ export default function TimeScreen() {
   const maxDate = useMemo(() => maxBookingDate(), []);
 
   const startDate = useMemo(
-    () => resolveBookingStartDate(pickedDate, activePackageId),
-    [pickedDate, activePackageId]
+    () => resolveBookingStartDate(pickedDate, activePackageId, timePackages),
+    [pickedDate, activePackageId, timePackages]
   );
 
   const endDate    = useMemo(() => new Date(startDate.getTime() + effectiveHours * 3_600_000), [startDate, effectiveHours]);
   const startAtIso = startDate.toISOString();
   const summaryPricing = useMemo(
-    () => getBookingSummaryPricing(pricePerHour, effectiveHours, activePackageId),
-    [pricePerHour, effectiveHours, activePackageId]
+    () =>
+      getBookingSummaryPricing(
+        pricePerHour,
+        effectiveHours,
+        activePackageId,
+        timePackages,
+        durationPackages
+      ),
+    [pricePerHour, effectiveHours, activePackageId, timePackages, durationPackages]
   );
   const pkg = summaryPricing.pkg;
 
@@ -105,7 +131,7 @@ export default function TimeScreen() {
     setCustomHoursText(String(h));
   };
 
-  const selectPackage = (p: typeof BOOKING_PACKAGES[number]) => {
+  const selectPackage = (p: BookingPackage) => {
     const isActive = activePackageId === p.id;
     setUseCustom(false);
     dispatch(setActivePackageId(isActive ? null : p.id));
@@ -139,10 +165,37 @@ export default function TimeScreen() {
   };
 
   const customPricing = useMemo(
-    () => calcBookingPrice(pricePerHour, customHours, getTierDiscountForHours(customHours)),
-    [pricePerHour, customHours]
+    () =>
+      calcBookingPrice(
+        pricePerHour,
+        customHours,
+        getTierDiscountForHours(customHours, durationPackages)
+      ),
+    [pricePerHour, customHours, durationPackages]
   );
-  const customDiscount = getTierDiscountForHours(customHours);
+  const customDiscount = getTierDiscountForHours(customHours, durationPackages);
+
+  const presetRows = useMemo(() => {
+    return durationPresetHours.map((hours) => {
+      const fromQuote = priceQuote?.presets?.find((p) => p.hours === hours);
+      const pkg = durationPackages.find((p) => p.minHours === hours);
+      const discountPct =
+        hours === 1
+          ? 0
+          : fromQuote && fromQuote.basePriceRub > 0
+            ? Math.round((fromQuote.discountRub / fromQuote.basePriceRub) * 100)
+            : pkg?.discountPercent ?? getTierDiscountForHours(hours, durationPackages);
+      const pricing = fromQuote
+        ? {
+            original: fromQuote.basePriceRub,
+            discounted: fromQuote.totalPriceRub,
+            discount: fromQuote.discountRub,
+            hasDiscount: fromQuote.discountRub > 0,
+          }
+        : calcBookingPrice(pricePerHour, hours, discountPct);
+      return { hours, discountPct, pricing, badge: pkg?.badge ?? fromQuote?.badge ?? null };
+    });
+  }, [durationPresetHours, priceQuote, durationPackages, pricePerHour]);
 
   return (
     <Screen scroll>
@@ -195,9 +248,8 @@ export default function TimeScreen() {
       <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>Сколько играть</Text>
       <View style={styles.presetsBlock}>
         <View style={styles.presets}>
-          {BOOKING_PRESETS.map(({ hours, discountPct }) => {
+          {presetRows.map(({ hours, discountPct, pricing }) => {
             const active  = !activePackageId && !customActive && durationHours === hours;
-            const pricing = calcBookingPrice(pricePerHour, hours, discountPct);
             return (
               <Pressable key={hours} style={[styles.preset, active && styles.presetActive]} onPress={() => selectPreset(hours)}>
                 {discountPct > 0 && (
@@ -269,7 +321,7 @@ export default function TimeScreen() {
       {/* Пакеты */}
       <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>Пакеты</Text>
       <View style={styles.packages}>
-        {BOOKING_PACKAGES.map((p) => {
+        {timePackages.map((p) => {
           const active  = activePackageId === p.id;
           const pricing = calcBookingPrice(pricePerHour, p.hours, p.discountPct);
           return (
