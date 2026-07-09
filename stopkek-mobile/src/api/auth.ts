@@ -9,6 +9,20 @@ export type CallRequestResponse = {
   devCode?: string;
 };
 
+export type CallcheckRequestResponse = {
+  sessionId: string;
+  phone: string;
+  callPhone: string;
+  callPhonePretty: string;
+  expiresInSec: number;
+  retryAfterSec: number;
+};
+
+type CallcheckPollPending = {
+  status: 'pending';
+  expiresInSec: number;
+};
+
 /** Один in-flight requestCall на ключ (Strict Mode / двойной mount) */
 const inflightCalls = new Map<string, Promise<CallRequestResponse>>();
 
@@ -70,6 +84,34 @@ export async function verifyCall(phone: string, sessionId: string, code: string)
     accessToken: data.accessToken,
     refreshToken: data.refreshToken,
     needsProfileSetup: data.needsProfileSetup,
+  };
+}
+
+export async function requestCallcheck(phone: string) {
+  return apiFetch<CallcheckRequestResponse>('/auth/callcheck/request', {
+    method: 'POST',
+    body: JSON.stringify({ phone }),
+  });
+}
+
+export async function pollCallcheck(phone: string, sessionId: string) {
+  const data = await apiFetch<CallcheckPollPending | LoginResponse>(
+    '/auth/callcheck/poll',
+    {
+      method: 'POST',
+      body: JSON.stringify({ phone, sessionId }),
+    }
+  );
+  if ('status' in data && data.status === 'pending') {
+    return { status: 'pending' as const, expiresInSec: data.expiresInSec };
+  }
+  const login = data as LoginResponse;
+  return {
+    status: 'confirmed' as const,
+    user: mapUser(login.user),
+    accessToken: login.accessToken,
+    refreshToken: login.refreshToken,
+    needsProfileSetup: login.needsProfileSetup,
   };
 }
 

@@ -11,6 +11,26 @@ type CodeCallResponse = {
   status_text?: string;
 };
 
+type CallcheckAddResponse = {
+  status: string;
+  status_code?: number;
+  check_id?: string;
+  call_phone?: string;
+  call_phone_pretty?: string;
+  call_phone_html?: string;
+  status_text?: string;
+};
+
+type CallcheckStatusResponse = {
+  status: string;
+  status_code?: number;
+  check_status?: string | number;
+  check_status_text?: string;
+  status_text?: string;
+};
+
+export type CallcheckStatus = 'pending' | 'confirmed' | 'expired';
+
 type SmsSendResponse = {
   status: string;
   status_code?: number;
@@ -61,6 +81,57 @@ export class SmsRuService {
       code: normalizeCallCode(data.code),
       callId: String(data.call_id),
     };
+  }
+
+  /**
+   * Пользователь звонит на выданный номер; мы ждём входящий с его phone.
+   * https://sms.ru/api/call (callcheck/add)
+   */
+  async callcheckAdd(phoneDigits: string) {
+    const url = new URL('https://sms.ru/callcheck/add');
+    url.searchParams.set('api_id', this.apiId);
+    url.searchParams.set('phone', phoneDigits);
+    url.searchParams.set('json', '1');
+
+    const res = await fetch(url.toString());
+    const data = (await res.json()) as CallcheckAddResponse;
+    if (data.status !== 'OK' || !data.check_id || !data.call_phone) {
+      this.logger.warn(`callcheck/add failed: ${JSON.stringify(data)}`);
+      throw new BadGatewayException(data.status_text ?? 'SMS.ru callcheck/add error');
+    }
+    this.logger.log(
+      `callcheck/add OK phone=${phoneDigits} check_id=${data.check_id} call_phone=${data.call_phone}`
+    );
+    return {
+      checkId: String(data.check_id),
+      callPhone: String(data.call_phone),
+      callPhonePretty:
+        data.call_phone_pretty?.trim() ||
+        formatRuPhonePretty(String(data.call_phone)),
+    };
+  }
+
+  /**
+   * Статус callcheck: 400 — ждём, 401 — подтверждён, 402 — истёк.
+   * https://sms.ru/api/call (callcheck/status)
+   */
+  async callcheckStatus(checkId: string): Promise<CallcheckStatus> {
+    const url = new URL('https://sms.ru/callcheck/status');
+    url.searchParams.set('api_id', this.apiId);
+    url.searchParams.set('check_id', checkId);
+    url.searchParams.set('json', '1');
+
+    const res = await fetch(url.toString());
+    const data = (await res.json()) as CallcheckStatusResponse;
+    if (data.status !== 'OK') {
+      this.logger.warn(`callcheck/status failed: ${JSON.stringify(data)}`);
+      throw new BadGatewayException(data.status_text ?? 'SMS.ru callcheck/status error');
+    }
+
+    const code = String(data.check_status ?? '');
+    if (code === '401') return 'confirmed';
+    if (code === '402') return 'expired';
+    return 'pending';
   }
 
   /**
@@ -120,6 +191,18 @@ export class SmsRuService {
     const res = await fetch(url.toString());
     return (await res.json()) as SmsSendResponse;
   }
+}
+
+function formatRuPhonePretty(digits: string): string {
+  const d = digits.replace(/\D/g, '');
+  if (d.length === 11 && (d.startsWith('7') || d.startsWith('8'))) {
+    const n = d.startsWith('8') ? '7' + d.slice(1) : d;
+    return `+7 (${n.slice(1, 4)}) ${n.slice(4, 7)}-${n.slice(7, 9)}-${n.slice(9, 11)}`;
+  }
+  if (d.length === 10) {
+    return `+7 (${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6, 8)}-${d.slice(8, 10)}`;
+  }
+  return digits.startsWith('+') ? digits : `+${d}`;
 }
 
 /** SMS.ru иногда отдаёт code числом (8570 вместо "8570") */

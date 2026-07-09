@@ -33,6 +33,16 @@ export class AuthController {
     return this.auth.verifySms(dto);
   }
 
+  @Post('callcheck/request')
+  requestCallcheck(@Body() dto: CallRequestDto) {
+    return this.auth.requestCallcheck(dto);
+  }
+
+  @Post('callcheck/poll')
+  pollCallcheck(@Body() dto: CallcheckPollDto) {
+    return this.auth.pollCallcheck(dto);
+  }
+
   @Post('refresh')
   refresh(@Body() body: { refreshToken: string }) {
     return this.auth.refresh(body?.refreshToken ?? '');

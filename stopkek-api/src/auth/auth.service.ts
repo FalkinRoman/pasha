@@ -14,6 +14,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { normalizeCallCode, SmsRuService } from '../smsru/smsru.service';
 import { CallRequestDto } from './dto/call-request.dto';
 import { CallVerifyDto } from './dto/call-verify.dto';
+import { CallcheckPollDto } from './dto/callcheck-poll.dto';
 
 type OtpSession = {
   phone: string;
@@ -21,6 +22,14 @@ type OtpSession = {
   exp: number;
   attempts: number;
   smsCallId?: string;
+};
+
+type CallcheckSession = {
+  phone: string;
+  checkId: string;
+  exp: number;
+  /** dev без SMS.ru — poll сразу подтверждает */
+  mockConfirm?: boolean;
 };
 
 type AdminLoginCode = {
@@ -37,8 +46,10 @@ export class AuthService {
   private readonly logger = new Logger(AuthService.name);
   private readonly callSessions = new Map<string, OtpSession>();
   private readonly smsSessions = new Map<string, OtpSession>();
+  private readonly callcheckSessions = new Map<string, CallcheckSession>();
   private readonly adminCodesByPhone = new Map<string, AdminLoginCode>();
   private readonly lastRequestByPhone = new Map<string, number>();
+  private readonly lastCallcheckByPhone = new Map<string, number>();
   private readonly callInFlightByPhone = new Map<
     string,
     Promise<{
@@ -49,10 +60,22 @@ export class AuthService {
       devCode?: string;
     }>
   >();
+  private readonly callcheckInFlightByPhone = new Map<
+    string,
+    Promise<{
+      sessionId: string;
+      phone: string;
+      callPhone: string;
+      callPhonePretty: string;
+      expiresInSec: number;
+      retryAfterSec: number;
+    }>
+  >();
   private readonly mockCodes: Set<string>;
   private readonly reviewPhone: string;
   private readonly reviewCode: string;
   private readonly ttlSec: number;
+  private readonly callcheckTtlSec: number;
   private readonly hmacSecret: string;
   private readonly isDev: boolean;
   private readonly phoneCooldownMs: number;
@@ -73,6 +96,7 @@ export class AuthService {
       this.logger.log(`Apple/review login enabled for ${this.reviewPhone}`);
     }
     this.ttlSec = Number(this.config.get('CALL_CODE_TTL_SEC', 300));
+    this.callcheckTtlSec = Number(this.config.get('CALLCHECK_TTL_SEC', 300));
     this.hmacSecret = this.config.get<string>('JWT_SECRET', 'dev-secret');
     this.isDev = this.config.get('NODE_ENV') !== 'production';
     const cooldownSec = Number(
@@ -229,6 +253,132 @@ export class AuthService {
 
   async verifySms(dto: CallVerifyDto) {
     return this.verifyOtp(dto, this.smsSessions);
+  }
+
+  /** Вход: пользователь звонит на номер от SMS.ru (callcheck) */
+  async requestCallcheck(dto: CallRequestDto) {
+    const phone = normalizePhone(dto.phone);
+    const inflight = this.callcheckInFlightByPhone.get(phone);
+    if (inflight) return inflight;
+
+    const promise = this.doRequestCallcheck(phone).finally(() => {
+      this.callcheckInFlightByPhone.delete(phone);
+    });
+    this.callcheckInFlightByPhone.set(phone, promise);
+    return promise;
+  }
+
+  private async doRequestCallcheck(phone: string) {
+    const digits = phoneDigits(phone);
+    const sessionId = randomUUID();
+
+    if (this.isReviewLogin(phone)) {
+      this.callcheckSessions.set(sessionId, {
+        phone,
+        checkId: `review-${sessionId}`,
+        exp: Date.now() + this.callcheckTtlSec * 1000,
+        mockConfirm: true,
+      });
+      this.logger.log(`callcheck/request review phone=${phone}`);
+      return {
+        sessionId,
+        phone,
+        callPhone: '78005008275',
+        callPhonePretty: '+7 (800) 500-82-75',
+        expiresInSec: this.callcheckTtlSec,
+        retryAfterSec: Math.ceil(this.phoneCooldownMs / 1000),
+      };
+    }
+
+    const last = this.lastCallcheckByPhone.get(phone);
+    if (last && Date.now() - last < this.phoneCooldownMs) {
+      const waitSec = Math.ceil((this.phoneCooldownMs - (Date.now() - last)) / 1000);
+      throw new HttpException(
+        { message: `Повторный запрос через ${waitSec} сек`, retryAfterSec: waitSec },
+        HttpStatus.TOO_MANY_REQUESTS
+      );
+    }
+
+    this.logger.log(`callcheck/request phone=${phone} smsru=${this.smsRu.enabled}`);
+    this.lastCallcheckByPhone.set(phone, Date.now());
+
+    let checkId: string;
+    let callPhone: string;
+    let callPhonePretty: string;
+    let mockConfirm = false;
+
+    try {
+      if (this.smsRu.enabled) {
+        const added = await this.smsRu.callcheckAdd(digits);
+        checkId = added.checkId;
+        callPhone = added.callPhone;
+        callPhonePretty = added.callPhonePretty;
+        this.logger.log(`callcheck/request OK checkId=${checkId}`);
+      } else if (this.isDev) {
+        checkId = `dev-${sessionId}`;
+        callPhone = '78005008275';
+        callPhonePretty = '+7 (800) 500-82-75';
+        mockConfirm = true;
+        this.logger.warn('callcheck/request: SMSRU_API_ID не задан — dev mock');
+      } else {
+        this.lastCallcheckByPhone.delete(phone);
+        throw new ServiceUnavailableException(
+          'Вход по звонку временно недоступен. Обратитесь в поддержку.'
+        );
+      }
+    } catch (e) {
+      this.lastCallcheckByPhone.delete(phone);
+      throw e;
+    }
+
+    this.callcheckSessions.set(sessionId, {
+      phone,
+      checkId,
+      exp: Date.now() + this.callcheckTtlSec * 1000,
+      ...(mockConfirm ? { mockConfirm: true } : {}),
+    });
+
+    return {
+      sessionId,
+      phone,
+      callPhone,
+      callPhonePretty,
+      expiresInSec: this.callcheckTtlSec,
+      retryAfterSec: Math.ceil(this.phoneCooldownMs / 1000),
+    };
+  }
+
+  async pollCallcheck(dto: CallcheckPollDto) {
+    const phone = normalizePhone(dto.phone);
+    const session = this.callcheckSessions.get(dto.sessionId);
+
+    if (!session || session.phone !== phone) {
+      throw new UnauthorizedException('Сессия не найдена');
+    }
+    if (session.exp < Date.now()) {
+      this.callcheckSessions.delete(dto.sessionId);
+      throw new UnauthorizedException('Время ожидания звонка истекло');
+    }
+
+    if (session.mockConfirm) {
+      this.callcheckSessions.delete(dto.sessionId);
+      return this.finishLogin(phone);
+    }
+
+    const status = await this.smsRu.callcheckStatus(session.checkId);
+    if (status === 'confirmed') {
+      this.callcheckSessions.delete(dto.sessionId);
+      return this.finishLogin(phone);
+    }
+    if (status === 'expired') {
+      this.callcheckSessions.delete(dto.sessionId);
+      throw new UnauthorizedException('Время ожидания звонка истекло');
+    }
+
+    return {
+      status: 'pending' as const,
+      expiresInSec: Math.max(0, Math.ceil((session.exp - Date.now()) / 1000)),
+    };
   }
 
   private async verifyOtp(dto: CallVerifyDto, store: Map<string, OtpSession>) {

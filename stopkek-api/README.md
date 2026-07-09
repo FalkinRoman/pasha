@@ -28,6 +28,7 @@ npm run bootstrap:club
 
 - Health: `GET http://localhost:3001/api/health`
 - Flash-call auth: `POST /api/auth/call/request`, `POST /api/auth/call/verify`
+- Callcheck auth (пользователь звонит): `POST /api/auth/callcheck/request`, `POST /api/auth/callcheck/poll`
 - Карта: `GET /api/club/floor-map`
 
 Демо-код: `1234` (см. `MOCK_CALL_CODES` в `.env`).
