@@ -1,12 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
-import { requestCall, verifyCall } from '../../src/api/auth';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Animated, AppState, Linking, StyleSheet, Text, View } from 'react-native';
+import { pollCallcheck, requestCallcheck } from '../../src/api/auth';
 import { ApiError } from '../../src/api/client';
 import { setAccessToken } from '../../src/api/client';
 import { AuthSupportHint } from '../../src/components/support/AuthSupportHint';
-import { CodeInput } from '../../src/components/auth/CodeInput';
 import { Screen } from '../../src/components/ui/Screen';
 import { StopButton } from '../../src/components/ui/StopButton';
 import { saveTokens } from '../../src/storage/authStorage';
@@ -15,113 +14,120 @@ import { loginSuccess } from '../../src/store/authSlice';
 import { colors } from '../../src/theme/colors';
 import { spacing } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
+import { formatPhone } from '../../src/utils/format';
 import { pickRouteParam } from '../../src/utils/routeParams';
 
-const CODE_LEN = 4;
+const POLL_MS = 2500;
+
+function displayPhone(raw: string | null | undefined) {
+  if (!raw) return 'вашего телефона';
+  const digits = raw.replace(/\D/g, '');
+  return formatPhone(digits.length ? digits : '7');
+}
 
 export default function VerifyCallScreen() {
   const dispatch = useAppDispatch();
   const params = useLocalSearchParams<{
     phone?: string | string[];
     sessionId?: string | string[];
-    devCode?: string | string[];
+    callPhone?: string | string[];
+    callPhonePretty?: string | string[];
+    expiresInSec?: string | string[];
     retryAfterSec?: string | string[];
   }>();
   const pendingPhone = useAppSelector((s) => s.auth.pendingPhone);
   const phone = pickRouteParam(params.phone) || pendingPhone;
-  const initialSessionId = pickRouteParam(params.sessionId) ?? '';
-  const initialDevCode = pickRouteParam(params.devCode) ?? null;
+  const [sessionId, setSessionId] = useState(pickRouteParam(params.sessionId) ?? '');
+  const [callPhone, setCallPhone] = useState(pickRouteParam(params.callPhone) ?? '');
+  const [callPhonePretty, setCallPhonePretty] = useState(
+    pickRouteParam(params.callPhonePretty) ?? ''
+  );
   const initialRetryAfter = Number(pickRouteParam(params.retryAfterSec)) || 15;
-
-  const [sessionId, setSessionId] = useState(initialSessionId);
-  const [devCode, setDevCode] = useState<string | null>(initialDevCode);
-  const [calling, setCalling] = useState(!initialSessionId);
-  const [callTimeout, setCallTimeout] = useState(false);
-  const [countdown, setCountdown] = useState(initialSessionId ? initialRetryAfter : 0);
-  const [code, setCode] = useState('');
+  const [expiresInSec, setExpiresInSec] = useState(
+    Number(pickRouteParam(params.expiresInSec)) || 300
+  );
+  const [countdown, setCountdown] = useState(initialRetryAfter);
+  const [waiting, setWaiting] = useState(true);
   const [error, setError] = useState('');
+  const pollInFlight = useRef(false);
+  const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const expiresTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const pulse = useRef(new Animated.Value(1)).current;
   const pulseLoop = useRef<Animated.CompositeAnimation | null>(null);
-  const callTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const bootstrappedRef = useRef(Boolean(initialSessionId));
 
-  const finishLogin = async (
-    user: Parameters<typeof loginSuccess>[0]['user'],
-    accessToken: string,
-    needsProfileSetup: boolean,
-    refreshToken?: string
-  ) => {
-    setAccessToken(accessToken);
-    await saveTokens(accessToken, refreshToken ?? null);
-    dispatch(loginSuccess({ user, accessToken, needsProfileSetup }));
-    if (needsProfileSetup) router.replace('/(auth)/setup-name');
-    else router.replace('/(tabs)/home');
-  };
+  const finishLogin = useCallback(
+    async (
+      user: Parameters<typeof loginSuccess>[0]['user'],
+      accessToken: string,
+      needsProfileSetup: boolean,
+      refreshToken?: string
+    ) => {
+      if (pollTimer.current) clearInterval(pollTimer.current);
+      if (expiresTimer.current) clearInterval(expiresTimer.current);
+      setAccessToken(accessToken);
+      await saveTokens(accessToken, refreshToken ?? null);
+      dispatch(loginSuccess({ user, accessToken, needsProfileSetup }));
+      if (needsProfileSetup) router.replace('/(auth)/setup-name');
+      else router.replace('/(tabs)/home');
+    },
+    [dispatch]
+  );
 
-  const applyCallResponse = (res: Awaited<ReturnType<typeof requestCall>>) => {
-    setSessionId(res.sessionId);
-    setDevCode(res.devCode ?? null);
-    setCountdown(res.retryAfterSec ?? 15);
-    if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
-    callTimeoutRef.current = setTimeout(() => setCallTimeout(true), 12_000);
-    setTimeout(() => setCalling(false), 2500);
-  };
-
-  const startCallFlow = async (targetPhone: string) => {
-    setCalling(true);
-    setCallTimeout(false);
-    setCode('');
-    setError('');
-    if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
+  const doPoll = useCallback(async () => {
+    if (!phone || !sessionId || pollInFlight.current) return;
+    pollInFlight.current = true;
     try {
-      const res = await requestCall(targetPhone);
-      applyCallResponse(res);
-    } catch (e) {
-      if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
-      if (e instanceof ApiError && e.status === 429 && e.body && typeof e.body === 'object') {
-        const body = e.body as { message?: { retryAfterSec?: number; message?: string } | string };
-        const nested = typeof body.message === 'object' ? body.message : null;
-        const wait = nested?.retryAfterSec ?? 15;
-        setCountdown(wait);
-        setError(nested?.message ?? e.message);
-      } else if (e instanceof ApiError && e.status >= 500) {
-        setError('Сервис звонков временно недоступен. Попробуйте позже.');
-      } else {
-        setError(e instanceof ApiError ? e.message : 'Не удалось позвонить');
+      const res = await pollCallcheck(phone, sessionId);
+      if (res.status === 'confirmed') {
+        setWaiting(false);
+        await finishLogin(res.user, res.accessToken, res.needsProfileSetup, res.refreshToken);
+        return;
       }
-      setCalling(false);
+      setExpiresInSec(res.expiresInSec);
+      setError('');
+    } catch (e) {
+      setWaiting(false);
+      setError(e instanceof ApiError ? e.message : 'Не удалось проверить звонок');
+      if (pollTimer.current) clearInterval(pollTimer.current);
+    } finally {
+      pollInFlight.current = false;
     }
-  };
+  }, [phone, sessionId, finishLogin]);
 
   useEffect(() => {
-    if (bootstrappedRef.current) return;
-    if (!phone) {
-      const t = setTimeout(() => {
-        setError('Не удалось получить номер — вернитесь и попробуйте снова');
-        setCalling(false);
-      }, 1500);
-      return () => clearTimeout(t);
-    }
-    if (initialSessionId) {
-      bootstrappedRef.current = true;
-      callTimeoutRef.current = setTimeout(() => setCallTimeout(true), 12_000);
-      setTimeout(() => setCalling(false), 2500);
-      return () => {
-        if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
-      };
-    }
-    bootstrappedRef.current = true;
-    startCallFlow(phone);
-  }, [phone, initialSessionId]);
+    if (!phone || !sessionId) return;
+    void doPoll();
+    pollTimer.current = setInterval(() => void doPoll(), POLL_MS);
+    return () => {
+      if (pollTimer.current) clearInterval(pollTimer.current);
+    };
+  }, [phone, sessionId, doPoll]);
 
   useEffect(() => {
-    if (countdown <= 0 || calling) return;
+    if (expiresTimer.current) clearInterval(expiresTimer.current);
+    expiresTimer.current = setInterval(() => {
+      setExpiresInSec((s) => Math.max(0, s - 1));
+    }, 1000);
+    return () => {
+      if (expiresTimer.current) clearInterval(expiresTimer.current);
+    };
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (countdown <= 0 || waiting) return;
     const t = setInterval(() => setCountdown((c) => c - 1), 1000);
     return () => clearInterval(t);
-  }, [calling, countdown]);
+  }, [countdown, waiting]);
 
   useEffect(() => {
-    if (!calling) {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') doPoll();
+    });
+    return () => sub.remove();
+  }, [doPoll]);
+
+  useEffect(() => {
+    if (!waiting) {
       pulseLoop.current?.stop();
       pulse.setValue(1);
       return;
@@ -134,94 +140,81 @@ export default function VerifyCallScreen() {
     );
     pulseLoop.current.start();
     return () => pulseLoop.current?.stop();
-  }, [calling, pulse]);
+  }, [waiting, pulse]);
 
-  const submitCode = async (value: string) => {
-    setCode(value);
+  const dial = () => {
+    if (!callPhone) return;
+    Linking.openURL(`tel:${callPhone}`);
+  };
+
+  const restart = async () => {
+    if (!phone || (countdown > 0 && waiting)) return;
     setError('');
-    if (value.length < CODE_LEN || !phone) return;
-    if (!sessionId) {
-      setError('Сессия не создана — нажмите «Позвонить снова»');
-      return;
-    }
+    setWaiting(true);
     try {
-      const res = await verifyCall(phone, sessionId, value);
-      await finishLogin(res.user, res.accessToken, res.needsProfileSetup, res.refreshToken);
+      const res = await requestCallcheck(phone);
+      setSessionId(res.sessionId);
+      setCallPhone(res.callPhone);
+      setCallPhonePretty(res.callPhonePretty);
+      setExpiresInSec(res.expiresInSec);
+      setCountdown(res.retryAfterSec ?? 15);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Неверные цифры');
-      setCode('');
+      setWaiting(false);
+      setError(e instanceof ApiError ? e.message : 'Не удалось обновить номер');
     }
   };
 
-  const resend = () => {
-    if (calling || (countdown > 0 && !callTimeout) || !phone) return;
-    if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
-    startCallFlow(phone);
+  const mmss = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
   };
 
   return (
     <Screen scroll>
       <View style={styles.iconWrap}>
-        {calling && (
+        {waiting && (
           <Animated.View style={[styles.pulseRing, { transform: [{ scale: pulse }] }]} />
         )}
-        <View
-          style={[
-            styles.iconCircle,
-            !calling && styles.iconCircleIdle,
-            !calling && code.length > 0 && styles.iconCircleActive,
-          ]}
-        >
-          <Ionicons
-            name={calling ? 'call' : 'keypad'}
-            size={36}
-            color={!calling && code.length > 0 ? colors.accentBright : colors.accent}
-          />
+        <View style={styles.iconCircle}>
+          <Ionicons name="call-outline" size={36} color={colors.accent} />
         </View>
       </View>
 
-      <Text style={[typography.h1, styles.center]}>
-        {calling ? 'Входящий звонок' : 'Код из звонка'}
-      </Text>
+      <Text style={[typography.h1, styles.center]}>Позвоните для входа</Text>
       <Text style={[typography.bodySecondary, styles.center, styles.mb]}>
-        {calling
-          ? `Звоним на ${phone || 'ваш номер'}… Не сбрасывайте`
-          : 'Введите последние 4 цифры звонка'}
+        С номера {displayPhone(phone)}. Нажмите «Позвонить», дождитесь сброса и вернитесь в
+        приложение.
       </Text>
 
-      {!calling && (
-        <>
-          <CodeInput
-            value={code}
-            onChange={submitCode}
-            error={Boolean(error)}
-            autoFocus
-          />
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-          {__DEV__ && devCode ? (
-            <Text style={[typography.caption, styles.demo]}>Dev-код: {devCode}</Text>
-          ) : null}
-        </>
-      )}
+      <View style={styles.numberCard}>
+        <Text style={typography.caption}>Номер для звонка</Text>
+        <Text style={styles.number}>{callPhonePretty || callPhone}</Text>
+        <StopButton title="Позвонить" onPress={dial} style={styles.dialBtn} />
+      </View>
 
-      {calling && (
+      {waiting ? (
         <View style={styles.waiting}>
-          <Text style={typography.caption}>Звонок сбросится сам — это бесплатно</Text>
-          {callTimeout && (
-            <Text style={[typography.caption, styles.timeoutHint]}>
-              Звонок задерживается — нажмите «Позвонить снова» ниже
+          <Text style={[typography.caption, styles.center, styles.waitingText]}>
+            Ожидаем звонок…
+          </Text>
+          {expiresInSec > 0 ? (
+            <Text style={[typography.caption, styles.center, styles.timer]}>
+              Осталось {mmss(expiresInSec)}
             </Text>
-          )}
+          ) : null}
         </View>
-      )}
+      ) : null}
+
+      {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <View style={styles.footer}>
-        {countdown > 0 && !calling && !callTimeout ? (
+        {countdown > 0 && !waiting ? (
           <Text style={[typography.caption, styles.center]}>
-            Повторный звонок через {countdown} сек
+            Новый номер через {countdown} сек
           </Text>
         ) : (
-          <StopButton title="Позвонить снова" variant="ghost" onPress={resend} disabled={calling} />
+          <StopButton title="Получить номер снова" variant="ghost" onPress={restart} />
         )}
         <StopButton title="Изменить номер" variant="ghost" onPress={() => router.back()} />
         <AuthSupportHint />
@@ -232,7 +225,7 @@ export default function VerifyCallScreen() {
 
 const styles = StyleSheet.create({
   center: { textAlign: 'center' },
-  mb: { marginBottom: spacing.xl },
+  mb: { marginBottom: spacing.lg },
   iconWrap: { alignItems: 'center', justifyContent: 'center', height: 120, marginVertical: spacing.lg },
   pulseRing: {
     position: 'absolute',
@@ -251,14 +244,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconCircleIdle: { borderColor: colors.border },
-  iconCircleActive: {
-    borderColor: colors.accentBright,
-    backgroundColor: '#1f1010',
+  numberCard: {
+    backgroundColor: colors.bgElevated,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
   },
+  number: {
+    ...typography.h1,
+    fontSize: 28,
+    color: colors.accentBright,
+    textAlign: 'center',
+  },
+  dialBtn: { alignSelf: 'stretch', marginTop: spacing.sm },
+  waiting: { alignItems: 'center', paddingVertical: spacing.md },
+  waitingText: { color: colors.textSecondary },
+  timer: { color: colors.accentBright, marginTop: spacing.xs },
   error: { ...typography.caption, color: colors.danger, textAlign: 'center', marginTop: spacing.md },
-  timeoutHint: { color: colors.accentBright, textAlign: 'center', marginTop: spacing.sm },
-  demo: { textAlign: 'center', marginTop: spacing.md, color: colors.textDisabled },
-  waiting: { alignItems: 'center', paddingVertical: spacing.xl },
   footer: { marginTop: 'auto', gap: spacing.sm, paddingTop: spacing.xl },
 });

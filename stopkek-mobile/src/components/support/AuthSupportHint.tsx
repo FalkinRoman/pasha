@@ -9,7 +9,7 @@ export function AuthSupportHint() {
   return (
     <View style={styles.wrap}>
       <Pressable onPress={() => router.push('/support')}>
-        <Text style={styles.link}>Не приходит звонок? Поддержка</Text>
+        <Text style={styles.link}>Не получается войти? Поддержка</Text>
       </Pressable>
     </View>
   );

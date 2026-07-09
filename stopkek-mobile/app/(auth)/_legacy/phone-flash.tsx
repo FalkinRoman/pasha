@@ -1,22 +1,26 @@
+/**
+ * LEGACY: входящий flash-call (код из 4 цифр). Не используется в UI.
+ * Оставлен для возможного отката. Основной вход — callcheck в phone.tsx.
+ */
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Linking, StyleSheet, Text, View } from 'react-native';
-import { requestCallcheck } from '../../src/api/auth';
-import { ApiError } from '../../src/api/client';
-import { LEGAL_URLS } from '../../src/constants/legal';
-import { Input } from '../../src/components/ui/Input';
-import { Screen } from '../../src/components/ui/Screen';
-import { StopButton } from '../../src/components/ui/StopButton';
-import { AuthSupportHint } from '../../src/components/support/AuthSupportHint';
-import { StopLogo } from '../../src/components/ui/StopLogo';
-import { useAppDispatch } from '../../src/store/hooks';
-import { setPendingPhone } from '../../src/store/authSlice';
-import { colors } from '../../src/theme/colors';
-import { spacing } from '../../src/theme/spacing';
-import { typography } from '../../src/theme/typography';
-import { formatPhone, phoneDigits } from '../../src/utils/format';
+import { requestCallDeduped } from '../../../src/api/auth';
+import { ApiError } from '../../../src/api/client';
+import { LEGAL_URLS } from '../../../src/constants/legal';
+import { Input } from '../../../src/components/ui/Input';
+import { Screen } from '../../../src/components/ui/Screen';
+import { StopButton } from '../../../src/components/ui/StopButton';
+import { AuthSupportHint } from '../../../src/components/support/AuthSupportHint';
+import { StopLogo } from '../../../src/components/ui/StopLogo';
+import { useAppDispatch } from '../../../src/store/hooks';
+import { setPendingPhone } from '../../../src/store/authSlice';
+import { colors } from '../../../src/theme/colors';
+import { spacing } from '../../../src/theme/spacing';
+import { typography } from '../../../src/theme/typography';
+import { formatPhone, phoneDigits } from '../../../src/utils/format';
 
-export default function PhoneCallcheckScreen() {
+export default function PhoneFlashLegacyScreen() {
   const dispatch = useAppDispatch();
   const [phone, setPhone] = useState('+7');
   const [error, setError] = useState('');
@@ -34,20 +38,19 @@ export default function PhoneCallcheckScreen() {
       setError('Введите номер полностью');
       return;
     }
+    const nonce = String(Date.now());
     setLoading(true);
     setError('');
     try {
-      const res = await requestCallcheck(normalized);
+      const res = await requestCallDeduped(normalized, nonce);
       dispatch(setPendingPhone(normalized));
       router.push({
-        pathname: '/(auth)/verify-callcheck',
+        pathname: '/(auth)/_legacy/verify-call-flash',
         params: {
           phone: normalized,
           sessionId: res.sessionId,
-          callPhone: res.callPhone,
-          callPhonePretty: res.callPhonePretty,
-          expiresInSec: String(res.expiresInSec),
           retryAfterSec: String(res.retryAfterSec ?? 15),
+          ...(res.devCode ? { devCode: res.devCode } : {}),
         },
       });
     } catch (e) {
@@ -56,7 +59,7 @@ export default function PhoneCallcheckScreen() {
         const nested = typeof body.message === 'object' ? body.message : null;
         setError(nested?.message ?? e.message);
       } else {
-        setError(e instanceof ApiError ? e.message : 'Не удалось начать вход');
+        setError(e instanceof ApiError ? e.message : 'Не удалось позвонить');
       }
     } finally {
       setLoading(false);
@@ -67,10 +70,9 @@ export default function PhoneCallcheckScreen() {
     <Screen scroll>
       <View style={styles.top}>
         <StopLogo size={64} />
-        <Text style={[typography.h1, styles.title]}>Вход звонком</Text>
+        <Text style={[typography.h1, styles.title]}>Вход</Text>
         <Text style={typography.bodySecondary}>
-          Укажите номер — мы дадим телефон, на который нужно позвонить с этого номера. Звонок
-          бесплатный, сбросится сам.
+          Подтвердим номер входящим звонком — введёте последние 4 цифры
         </Text>
       </View>
       <Input
@@ -84,7 +86,7 @@ export default function PhoneCallcheckScreen() {
       />
       <View style={styles.hint}>
         <Text style={typography.caption}>
-          Продолжая, вы соглашаетесь с{' '}
+          Нажимая «Позвонить мне», вы соглашаетесь с{' '}
           <Text style={styles.link} onPress={() => Linking.openURL(LEGAL_URLS.privacy)}>
             политикой конфиденциальности
           </Text>
@@ -95,16 +97,10 @@ export default function PhoneCallcheckScreen() {
         </Text>
       </View>
       <StopButton
-        title={loading ? 'Готовим номер…' : 'Продолжить'}
+        title={loading ? 'Звоним…' : 'Позвонить мне'}
         onPress={submit}
         style={styles.cta}
         disabled={loading}
-      />
-      <StopButton
-        title="Вход по коду из звонка"
-        variant="ghost"
-        onPress={() => router.replace('/(auth)/phone')}
-        style={styles.back}
       />
       <AuthSupportHint />
     </Screen>
@@ -116,6 +112,5 @@ const styles = StyleSheet.create({
   title: { marginTop: spacing.md },
   hint: { marginTop: spacing.md, marginBottom: spacing.lg },
   link: { color: colors.accentBright, textDecorationLine: 'underline' },
-  cta: { marginTop: spacing.md },
-  back: { marginTop: spacing.sm },
+  cta: { marginTop: 'auto' },
 });

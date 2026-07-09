@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Linking, StyleSheet, Text, View } from 'react-native';
-import { requestCallDeduped } from '../../src/api/auth';
+import { requestCallcheck } from '../../src/api/auth';
 import { ApiError } from '../../src/api/client';
 import { LEGAL_URLS } from '../../src/constants/legal';
 import { Input } from '../../src/components/ui/Input';
@@ -34,19 +34,20 @@ export default function PhoneScreen() {
       setError('Введите номер полностью');
       return;
     }
-    const nonce = String(Date.now());
     setLoading(true);
     setError('');
     try {
-      const res = await requestCallDeduped(normalized, nonce);
+      const res = await requestCallcheck(normalized);
       dispatch(setPendingPhone(normalized));
       router.push({
         pathname: '/(auth)/verify-call',
         params: {
           phone: normalized,
           sessionId: res.sessionId,
+          callPhone: res.callPhone,
+          callPhonePretty: res.callPhonePretty,
+          expiresInSec: String(res.expiresInSec),
           retryAfterSec: String(res.retryAfterSec ?? 15),
-          ...(res.devCode ? { devCode: res.devCode } : {}),
         },
       });
     } catch (e) {
@@ -55,7 +56,7 @@ export default function PhoneScreen() {
         const nested = typeof body.message === 'object' ? body.message : null;
         setError(nested?.message ?? e.message);
       } else {
-        setError(e instanceof ApiError ? e.message : 'Не удалось позвонить');
+        setError(e instanceof ApiError ? e.message : 'Не удалось начать вход');
       }
     } finally {
       setLoading(false);
@@ -67,10 +68,9 @@ export default function PhoneScreen() {
       <View style={styles.top}>
         <StopLogo size={64} />
         <Text style={[typography.h1, styles.title]}>Вход</Text>
-        <Text style={typography.bodySecondary}>
-          Подтвердим номер входящим звонком — введёте последние 4 цифры
-        </Text>
+        <Text style={[typography.bodySecondary, styles.center]}>Введите номер телефона</Text>
       </View>
+
       <Input
         label="Номер телефона"
         value={phone}
@@ -82,7 +82,7 @@ export default function PhoneScreen() {
       />
       <View style={styles.hint}>
         <Text style={typography.caption}>
-          Нажимая «Позвонить мне», вы соглашаетесь с{' '}
+          Продолжая, вы соглашаетесь с{' '}
           <Text style={styles.link} onPress={() => Linking.openURL(LEGAL_URLS.privacy)}>
             политикой конфиденциальности
           </Text>
@@ -93,14 +93,11 @@ export default function PhoneScreen() {
         </Text>
       </View>
       <StopButton
-        title={loading ? 'Звоним…' : 'Позвонить мне'}
+        title={loading ? 'Подождите…' : 'Продолжить'}
         onPress={submit}
         style={styles.cta}
         disabled={loading}
       />
-      <Text style={styles.altLink} onPress={() => router.push('/(auth)/phone-callcheck')}>
-        Другой способ входа — позвонить нам
-      </Text>
       <AuthSupportHint />
     </Screen>
   );
@@ -109,14 +106,8 @@ export default function PhoneScreen() {
 const styles = StyleSheet.create({
   top: { alignItems: 'center', gap: spacing.md, marginBottom: spacing.xl },
   title: { marginTop: spacing.md },
+  center: { textAlign: 'center' },
   hint: { marginTop: spacing.md, marginBottom: spacing.lg },
   link: { color: colors.accentBright, textDecorationLine: 'underline' },
   cta: { marginTop: 'auto' },
-  altLink: {
-    ...typography.caption,
-    color: colors.accentBright,
-    textAlign: 'center',
-    marginTop: spacing.lg,
-    textDecorationLine: 'underline',
-  },
 });

@@ -18,7 +18,7 @@ export default function SupportScreen() {
     <Screen scroll>
       <Header title="Поддержка" back />
       <Text style={[typography.bodySecondary, { marginBottom: spacing.md }]}>
-        Не пришёл звонок для входа или есть вопрос по брони — напишите или позвоните
+        Проблемы со входом или вопрос по брони — напишите или позвоните
       </Text>
       <SupportContactsBlock
         contacts={{
