@@ -3,6 +3,7 @@ import { apiFetch } from './client';
 export type WalletConfig = {
   yookassaEnabled: boolean;
   mockTopupEnabled: boolean;
+  yookassaConfigured: boolean;
   currency: string;
 };
 

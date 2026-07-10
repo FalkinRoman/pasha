@@ -190,6 +190,8 @@ model Club {
   lockHttpBaseUrl  String?
   lockHttpToken    String?
   lockMqttTopic    String?
+  yookassaEnabled  Boolean  @default(true)
+  mockTopupEnabled Boolean  @default(false)
   createdAt        DateTime @default(now())
 
   zones            Zone[]

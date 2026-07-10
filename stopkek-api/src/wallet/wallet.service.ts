@@ -4,33 +4,30 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { PaymentStatus } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { PaymentSettingsService } from '../payments/payment-settings.service';
 import { YooKassaService } from '../payments/yookassa.service';
+import { PrismaService } from '../prisma/prisma.service';
+
+type YooKassaWebhookBody = {
+  event?: string;
+  object?: {
+    id?: string;
+    status?: string;
+    metadata?: { paymentId?: string; userId?: string };
+  };
+};
 
 @Injectable()
 export class WalletService {
-  private readonly mockTopupAllowed: boolean;
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly yookassa: YooKassaService,
-    private readonly config: ConfigService
-  ) {
-    const isDev = this.config.get('NODE_ENV') !== 'production';
-    // В production mock-пополнение работает только при явном WALLET_MOCK_TOPUP=true
-    this.mockTopupAllowed = isDev
-      ? !this.yookassa.enabled || this.config.get('WALLET_MOCK_TOPUP') === 'true'
-      : this.config.get('WALLET_MOCK_TOPUP') === 'true';
-  }
+    private readonly paymentSettings: PaymentSettingsService
+  ) {}
 
   getConfig() {
-    return {
-      yookassaEnabled: this.yookassa.enabled,
-      mockTopupEnabled: this.mockTopupAllowed,
-      currency: 'RUB',
-    };
+    return this.paymentSettings.resolveWalletConfig();
   }
 
   async getTransactions(userId: string) {
@@ -54,9 +51,10 @@ export class WalletService {
 
   /** Создать платёж YooKassa (редирект на оплату) */
   async createTopup(userId: string, amountRub: number) {
-    if (!this.yookassa.enabled) {
+    const cfg = await this.paymentSettings.resolveWalletConfig();
+    if (!cfg.yookassaEnabled) {
       throw new BadRequestException(
-        'YooKassa не настроена. Используйте тестовое пополнение.'
+        'Оплата картой недоступна. Используйте тестовое пополнение или обратитесь в поддержку.'
       );
     }
 
@@ -93,10 +91,11 @@ export class WalletService {
     };
   }
 
-  /** Только если YooKassa не подключена или WALLET_MOCK_TOPUP */
+  /** Тестовое пополнение без списания */
   async mockTopup(userId: string, amountRub: number) {
-    if (!this.mockTopupAllowed) {
-      throw new ForbiddenException('Пополнение временно недоступно');
+    const cfg = await this.paymentSettings.resolveWalletConfig();
+    if (!cfg.mockTopupEnabled) {
+      throw new ForbiddenException('Тестовое пополнение отключено');
     }
 
     const kopecks = amountRub * 100;
@@ -116,7 +115,7 @@ export class WalletService {
       wallet.id,
       kopecks,
       payment.id,
-      'Пополнение баланса'
+      'Тестовое пополнение баланса'
     );
 
     return {
@@ -152,7 +151,28 @@ export class WalletService {
     return this.paymentStatusDto(payment, userId);
   }
 
-  private async completePayment(paymentId: string) {
+  async handleYookassaWebhook(body: YooKassaWebhookBody) {
+    if (body.event !== 'payment.succeeded' || body.object?.status !== 'succeeded') {
+      return { ok: true };
+    }
+
+    const paymentId = body.object.metadata?.paymentId;
+    const providerId = body.object.id;
+
+    const payment = paymentId
+      ? await this.prisma.payment.findUnique({ where: { id: paymentId } })
+      : providerId
+        ? await this.prisma.payment.findFirst({ where: { providerId } })
+        : null;
+
+    if (payment && payment.status !== 'succeeded') {
+      await this.completePayment(payment.id);
+    }
+
+    return { ok: true };
+  }
+
+  async completePayment(paymentId: string) {
     const payment = await this.prisma.payment.findUnique({ where: { id: paymentId } });
     if (!payment || payment.status === 'succeeded') return;
 

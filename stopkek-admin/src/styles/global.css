@@ -217,6 +217,21 @@ select,
   margin-top: 4px;
 }
 
+.card-form label.toggle-row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  cursor: pointer;
+}
+
+.card-form label.toggle-row input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+
 .form-actions {
   display: flex;
   gap: 8px;

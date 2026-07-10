@@ -33,10 +33,12 @@ import { UpdateClubDto } from './dto/update-club.dto';
 import { AdminJwtGuard } from './guards/admin-jwt.guard';
 import { ConfigService } from '@nestjs/config';
 import { ClubService } from '../club/club.service';
+import { PaymentSettingsService } from '../payments/payment-settings.service';
 import { LocksService } from '../locks/locks.service';
 import { KioskTelemetryService } from '../kiosk/kiosk-telemetry.service';
 import { deriveSeatKey } from '../kiosk/kiosk-keys';
 import { UpdateClubLocksDto } from './dto/update-club-locks.dto';
+import { UpdateClubPaymentsDto } from './dto/update-club-payments.dto';
 import { UpsertDurationPackageDto } from './dto/upsert-duration-package.dto';
 import { UpsertNightPricingDto } from './dto/upsert-night-pricing.dto';
 
@@ -47,6 +49,7 @@ export class AdminController {
     private readonly admin: AdminService,
     private readonly club: ClubService,
     private readonly locks: LocksService,
+    private readonly paymentSettings: PaymentSettingsService,
     private readonly kioskTelemetry: KioskTelemetryService,
     private readonly config: ConfigService
   ) {}
@@ -215,6 +218,18 @@ export class AdminController {
   @UseGuards(AdminJwtGuard)
   updateClubLocks(@Body() dto: UpdateClubLocksDto) {
     return this.locks.updateClubLockConfig(dto);
+  }
+
+  @Get('club/payments')
+  @UseGuards(AdminJwtGuard)
+  getClubPayments() {
+    return this.paymentSettings.getClubPaymentSettings();
+  }
+
+  @Patch('club/payments')
+  @UseGuards(AdminJwtGuard)
+  updateClubPayments(@Body() dto: UpdateClubPaymentsDto) {
+    return this.paymentSettings.updateClubPaymentSettings(dto);
   }
 
   @Get('locks/events')

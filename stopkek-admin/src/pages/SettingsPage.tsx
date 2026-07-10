@@ -7,6 +7,7 @@ import {
   uploadClubImage,
 } from '../api/admin';
 import { ClubLocksSettings } from '../components/ClubLocksSettings';
+import { ClubPaymentSettings } from '../components/ClubPaymentSettings';
 
 export function SettingsPage() {
   const [club, setClub] = useState<ClubSettings | null>(null);
@@ -206,6 +207,7 @@ export function SettingsPage() {
             </div>
           </form>
 
+          <ClubPaymentSettings />
           <ClubLocksSettings />
         </>
       )}

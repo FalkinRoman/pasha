@@ -26,11 +26,14 @@ const PRESETS = [500, 1000, 2000, 5000];
 const MIN_AMOUNT = 100;
 const MAX_AMOUNT = 100_000;
 
+type PayMethod = 'yookassa' | 'mock';
+
 export default function TopupScreen() {
   const dispatch = useAppDispatch();
   const user = useAppSelector((s) => s.auth.user);
   const [amountText, setAmountText] = useState('1000');
   const [config, setConfig] = useState<WalletConfig | null>(null);
+  const [method, setMethod] = useState<PayMethod>('yookassa');
   const [loading, setLoading] = useState(false);
   const [pendingPaymentId, setPendingPaymentId] = useState<string | null>(null);
 
@@ -43,9 +46,16 @@ export default function TopupScreen() {
         : '';
   const canPay = amount >= MIN_AMOUNT && amount <= MAX_AMOUNT;
   const topupAvailable = config?.yookassaEnabled || config?.mockTopupEnabled;
+  const showMethodChoice = Boolean(config?.yookassaEnabled && config?.mockTopupEnabled);
 
   useEffect(() => {
-    fetchWalletConfig().then(setConfig).catch(() => {});
+    fetchWalletConfig()
+      .then((cfg) => {
+        setConfig(cfg);
+        if (cfg.yookassaEnabled) setMethod('yookassa');
+        else if (cfg.mockTopupEnabled) setMethod('mock');
+      })
+      .catch(() => {});
   }, []);
 
   const refreshBalance = async () => {
@@ -64,7 +74,7 @@ export default function TopupScreen() {
         await Linking.openURL(res.confirmationUrl);
         Alert.alert(
           'Оплата',
-          'Завершите оплату в браузере. После этого вернитесь в приложение и нажмите «Проверить оплату».',
+          'Завершите оплату в браузере. После оплаты вернитесь в приложение — баланс обновится автоматически.',
           [{ text: 'OK' }]
         );
       } else {
@@ -115,9 +125,20 @@ export default function TopupScreen() {
   };
 
   const onTopup = () => {
-    if (config?.yookassaEnabled) payYooKassa();
+    const effectiveMethod = showMethodChoice
+      ? method
+      : config?.yookassaEnabled
+        ? 'yookassa'
+        : 'mock';
+    if (effectiveMethod === 'yookassa') payYooKassa();
     else payDirect();
   };
+
+  const paymentHint = config?.yookassaEnabled
+    ? 'Карта или СБП · ЮKassa'
+    : config?.mockTopupEnabled
+      ? 'Тестовое пополнение без списания'
+      : '';
 
   return (
     <Screen scroll>
@@ -161,19 +182,41 @@ export default function TopupScreen() {
         />
       </View>
 
+      {showMethodChoice ? (
+        <>
+          <Text style={[typography.caption, styles.sectionLabel]}>Способ оплаты</Text>
+          <Pressable
+            style={[styles.method, method === 'yookassa' && styles.methodActive]}
+            onPress={() => setMethod('yookassa')}
+          >
+            <Text style={typography.body}>Карта / СБП</Text>
+            <Text style={typography.caption}>ЮKassa</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.method, method === 'mock' && styles.methodActive]}
+            onPress={() => setMethod('mock')}
+          >
+            <Text style={typography.body}>Тестовое пополнение</Text>
+            <Text style={typography.caption}>Без списания</Text>
+          </Pressable>
+        </>
+      ) : null}
+
       <Card accent style={styles.totalCard}>
         <Text style={typography.caption}>К оплате</Text>
         <Text style={styles.totalValue}>{canPay ? formatMoney(amount) : '—'}</Text>
-        <Text style={[typography.caption, styles.hint]}>
-          Карта или СБП · от {formatMoney(MIN_AMOUNT)}
-        </Text>
+        {paymentHint ? (
+          <Text style={[typography.caption, styles.hint]}>
+            {paymentHint} · от {formatMoney(MIN_AMOUNT)}
+          </Text>
+        ) : null}
       </Card>
 
       <View style={styles.actions}>
         {topupAvailable ? (
           <>
             <StopButton
-              title="Пополнить"
+              title={method === 'mock' && !config?.yookassaEnabled ? 'Пополнить (тест)' : 'Пополнить'}
               onPress={onTopup}
               disabled={loading || !canPay}
             />
@@ -236,6 +279,18 @@ const styles = StyleSheet.create({
   },
   inputWrap: {
     marginBottom: spacing.lg,
+  },
+  method: {
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.bgCard,
+  },
+  methodActive: {
+    borderColor: colors.accent,
+    backgroundColor: '#1a1010',
   },
   totalCard: {
     paddingVertical: spacing.lg,

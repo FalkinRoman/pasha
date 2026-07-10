@@ -401,6 +401,25 @@ export function updateClubLocks(data: Partial<ClubLocks>) {
   });
 }
 
+export type ClubPayments = {
+  yookassaEnabled: boolean;
+  mockTopupEnabled: boolean;
+  yookassaConfigured: boolean;
+  effectiveYookassaEnabled: boolean;
+  effectiveMockTopupEnabled: boolean;
+};
+
+export function fetchClubPayments() {
+  return api<ClubPayments>('/admin/club/payments');
+}
+
+export function updateClubPayments(data: Pick<ClubPayments, 'yookassaEnabled' | 'mockTopupEnabled'>) {
+  return api<ClubPayments>('/admin/club/payments', {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
 export type LockEventRow = {
   id: string;
   lockType: string;
