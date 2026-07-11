@@ -23,7 +23,7 @@ import { formatMoney } from '../../src/utils/format';
 
 export default function PaymentScreen() {
   const dispatch = useAppDispatch();
-  const { calculatedPrice, pendingBookingId, selectedSeatIds, seats, durationHours, startAt, activePackageId } = useAppSelector(
+  const { calculatedPrice, pendingBookingId, selectedSeatIds, seats, durationHours, startAt, activePackageId, isTest } = useAppSelector(
     (s) => s.booking
   );
   const balance = useAppSelector((s) => s.auth.user?.balance ?? 0);
@@ -55,7 +55,7 @@ export default function PaymentScreen() {
     bookingIdRef.current = null;
     dispatch(setPendingBookingId(null));
 
-    createBooking(seat.id, durationHours, startAt, parseTimeWindowId(activePackageId))
+    createBooking(seat.id, durationHours, startAt, parseTimeWindowId(activePackageId), isTest)
       .then((b) => {
         if (cancelled) return;
         dispatch(setPendingBookingId(b.id));
@@ -73,7 +73,7 @@ export default function PaymentScreen() {
     return () => {
       cancelled = true;
     };
-  }, [seat?.id, durationHours, startAt, activePackageId, dispatch]);
+  }, [seat?.id, durationHours, startAt, activePackageId, isTest, dispatch]);
 
   // При уходе с экрана без оплаты — отменяем бронь и освобождаем кабинку
   useEffect(() => {

@@ -22,6 +22,7 @@ import {
   getTierDiscountForHours,
   parseTimeWindowId,
   resolveBookingStartDate,
+  TEST_BOOKING_HOURS,
 } from '../../src/constants/bookingPricing';
 import { useClubPricing } from '../../src/hooks/useClubPricing';
 import { Card } from '../../src/components/ui/Card';
@@ -29,7 +30,7 @@ import { Header } from '../../src/components/ui/Header';
 import { Screen } from '../../src/components/ui/Screen';
 import { StopButton } from '../../src/components/ui/StopButton';
 import { useAppDispatch, useAppSelector } from '../../src/store/hooks';
-import { setActivePackageId, setCalculatedPrice, setDuration, setPriceQuote, setStartAt } from '../../src/store/bookingSlice';
+import { setActivePackageId, setCalculatedPrice, setDuration, setIsTest, setPriceQuote, setStartAt } from '../../src/store/bookingSlice';
 import { colors } from '../../src/theme/colors';
 import { radius, spacing } from '../../src/theme/spacing';
 import { typography } from '../../src/theme/typography';
@@ -38,7 +39,7 @@ import { formatDurationHours, formatMoney, formatSessionDay, formatSessionRange,
 
 export default function TimeScreen() {
   const dispatch = useAppDispatch();
-  const { selectedSeatIds, seats, zones, durationHours, activePackageId, priceQuote } = useAppSelector(
+  const { selectedSeatIds, seats, zones, durationHours, activePackageId, priceQuote, isTest } = useAppSelector(
     (s) => s.booking
   );
   const seat         = seats.find((s) => s.id === selectedSeatIds[0]);
@@ -112,15 +113,16 @@ export default function TimeScreen() {
     let cancelled = false;
     setQuoteLoading(true);
     const timeWindowId = parseTimeWindowId(activePackageId);
-    quoteBooking(seat.id, effectiveHours, startAtIso, timeWindowId)
+    quoteBooking(seat.id, effectiveHours, startAtIso, timeWindowId, isTest)
       .then((q) => { if (!cancelled) dispatch(setPriceQuote(q)); })
       .catch(() => { if (!cancelled) dispatch(setPriceQuote(null)); })
       .finally(() => { if (!cancelled) setQuoteLoading(false); });
     return () => { cancelled = true; };
-  }, [seat?.id, effectiveHours, startAtIso, activePackageId, hoursError, dispatch]);
+  }, [seat?.id, effectiveHours, startAtIso, activePackageId, hoursError, isTest, dispatch]);
 
   const selectPreset = (h: number) => {
     setUseCustom(false);
+    dispatch(setIsTest(false));
     dispatch(setActivePackageId(null));
     dispatch(setDuration(h));
     setCustomHoursText(String(h));
@@ -129,6 +131,7 @@ export default function TimeScreen() {
   const selectPackage = (p: BookingPackage) => {
     const isActive = activePackageId === p.id;
     setUseCustom(false);
+    dispatch(setIsTest(false));
     dispatch(setActivePackageId(isActive ? null : p.id));
     const next = isActive ? effectiveHours : p.hours;
     dispatch(setDuration(next));
@@ -137,6 +140,7 @@ export default function TimeScreen() {
 
   const activateCustom = () => {
     setUseCustom(true);
+    dispatch(setIsTest(false));
     dispatch(setActivePackageId(null));
     dispatch(setDuration(customHours));
     setCustomHoursText(String(customHours));
@@ -144,6 +148,7 @@ export default function TimeScreen() {
 
   const onCustomHours = (text: string) => {
     setUseCustom(true);
+    dispatch(setIsTest(false));
     dispatch(setActivePackageId(null));
     const digits = text.replace(/\D/g, '');
     setCustomHoursText(digits);
@@ -153,10 +158,20 @@ export default function TimeScreen() {
 
   const stepCustomHours = (delta: number) => {
     setUseCustom(true);
+    dispatch(setIsTest(false));
     dispatch(setActivePackageId(null));
     const next = Math.min(BOOKING_MAX_HOURS, Math.max(BOOKING_MIN_HOURS, customHours + delta));
     setCustomHoursText(String(next));
     dispatch(setDuration(next));
+  };
+
+  // Dev-only: jump straight to a 16-minute booking so notifications / expiry can be
+  // seen without waiting an hour. Server still gates this behind ALLOW_TEST_BOOKINGS.
+  const selectTest = () => {
+    setUseCustom(false);
+    dispatch(setActivePackageId(null));
+    dispatch(setDuration(TEST_BOOKING_HOURS));
+    dispatch(setIsTest(true));
   };
 
   const customPricing = useMemo(
@@ -335,6 +350,16 @@ export default function TimeScreen() {
           </View>
         </Pressable>
         {customActive && hoursError ? <Text style={styles.customError}>{hoursError}</Text> : null}
+        {__DEV__ && (
+          <Pressable
+            style={[styles.testBtn, isTest && styles.testBtnActive]}
+            onPress={selectTest}
+          >
+            <Text style={[styles.testBtnText, isTest && styles.presetTextActive]}>
+              🧪 TEST · 16 мин (только dev)
+            </Text>
+          </Pressable>
+        )}
       </View>
 
       {/* Пакеты */}
@@ -504,6 +529,13 @@ const styles = StyleSheet.create({
   },
   customPrice: { ...typography.caption, fontWeight: '600', fontSize: 13, color: colors.text },
   customError: { ...typography.caption, color: colors.danger, textAlign: 'center' },
+  testBtn: {
+    alignItems: 'center', paddingVertical: 10, borderRadius: radius.md,
+    borderWidth: 1, borderColor: colors.border, borderStyle: 'dashed',
+    backgroundColor: colors.bgMuted,
+  },
+  testBtnActive: { backgroundColor: colors.accent, borderColor: colors.accent, borderStyle: 'solid' },
+  testBtnText: { ...typography.caption, fontWeight: '700', color: colors.textSecondary },
   preset: {
     width: '22%', flexGrow: 1, alignItems: 'center',
     paddingVertical: spacing.md, paddingTop: 20,

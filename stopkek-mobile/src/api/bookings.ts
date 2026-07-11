@@ -5,12 +5,13 @@ export async function quoteBooking(
   seatId: string,
   durationHours: number,
   startAt?: string,
-  timeWindowId?: string
+  timeWindowId?: string,
+  isTest?: boolean
 ) {
   return apiFetch<BookingPriceQuote>('/bookings/quote', {
     method: 'POST',
     auth: true,
-    body: JSON.stringify({ seatId, durationHours, startAt, timeWindowId }),
+    body: JSON.stringify({ seatId, durationHours, startAt, timeWindowId, isTest }),
   });
 }
 
@@ -30,12 +31,13 @@ export async function createBooking(
   seatId: string,
   durationHours: number,
   startAt?: string,
-  timeWindowId?: string
+  timeWindowId?: string,
+  isTest?: boolean
 ) {
   return apiFetch<Booking>('/bookings', {
     method: 'POST',
     auth: true,
-    body: JSON.stringify({ seatId, durationHours, startAt, timeWindowId }),
+    body: JSON.stringify({ seatId, durationHours, startAt, timeWindowId, isTest }),
   });
 }
 

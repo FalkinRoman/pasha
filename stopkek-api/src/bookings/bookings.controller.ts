@@ -40,7 +40,8 @@ export class BookingsController {
       dto.seatId,
       dto.durationHours,
       dto.startAt,
-      dto.timeWindowId
+      dto.timeWindowId,
+      dto.isTest
     );
   }
 
@@ -51,7 +52,8 @@ export class BookingsController {
       dto.seatId,
       dto.durationHours,
       dto.startAt,
-      dto.timeWindowId
+      dto.timeWindowId,
+      dto.isTest
     );
   }
 

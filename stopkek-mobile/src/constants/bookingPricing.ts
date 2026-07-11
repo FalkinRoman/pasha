@@ -10,6 +10,11 @@ export const BOOKING_MAX_DAYS_AHEAD = 7;
 export const BOOKING_MIN_HOURS = 1;
 export const BOOKING_MAX_HOURS = 12;
 
+/** Dev/test only: a 16-minute booking so we can watch notifications / expiry
+ *  without waiting an hour. The server refuses sub-hour bookings unless the test
+ *  gate (ALLOW_TEST_BOOKINGS=1) is on, so this is safe to ship behind __DEV__. */
+export const TEST_BOOKING_HOURS = 16 / 60;
+
 export const BOOKING_PACKAGES = [
   { id: 'night', label: 'Пакет ночь', window: '23:00–08:00', startHour: 23, hours: 9, discountPct: 36 },
   { id: 'morning', label: 'Пакет утро', window: '10:00–16:00', startHour: 10, hours: 6, discountPct: 26 },

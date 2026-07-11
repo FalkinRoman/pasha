@@ -10,6 +10,7 @@ interface BookingState {
   selectedSeatIds: string[];
   startAt: string | null;
   durationHours: number;
+  isTest: boolean;
   activePackageId: string | null;
   calculatedPrice: number;
   priceQuote: BookingPriceQuote | null;
@@ -25,6 +26,7 @@ const initialState: BookingState = {
   selectedSeatIds: [],
   startAt: null,
   durationHours: 1,
+  isTest: false,
   activePackageId: null,
   calculatedPrice: 0,
   priceQuote: null,
@@ -52,6 +54,9 @@ const bookingSlice = createSlice({
     setDuration(state, action: PayloadAction<number>) {
       state.durationHours = action.payload;
     },
+    setIsTest(state, action: PayloadAction<boolean>) {
+      state.isTest = action.payload;
+    },
     setActivePackageId(state, action: PayloadAction<string | null>) {
       state.activePackageId = action.payload;
     },
@@ -73,6 +78,7 @@ const bookingSlice = createSlice({
       state.calculatedPrice = 0;
       state.priceQuote = null;
       state.pendingBookingId = null;
+      state.isTest = false;
     },
     setActiveBooking(state, action: PayloadAction<Booking | null>) {
       state.activeBooking = action.payload;
@@ -103,6 +109,7 @@ export const {
   toggleSeat,
   clearSeatSelection,
   setDuration,
+  setIsTest,
   setActivePackageId,
   setStartAt,
   setCalculatedPrice,

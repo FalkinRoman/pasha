@@ -398,12 +398,25 @@ export class BookingsService {
     return this.formatBooking(booking);
   }
 
+  // Sub-hour / fractional durations are a test-only affordance (16-min bookings so
+  // we don't wait an hour to see notifications / expiry). They are refused unless the
+  // server runs with ALLOW_TEST_BOOKINGS=1 AND the caller explicitly asks (isTest).
+  private assertDurationAllowed(durationHours: number, isTest?: boolean) {
+    const isShort = durationHours < 1 || !Number.isInteger(durationHours);
+    if (!isShort) return;
+    const gateOpen = process.env.ALLOW_TEST_BOOKINGS === '1';
+    if (isTest && gateOpen) return;
+    throw new BadRequestException('Минимальная длительность брони — 1 час');
+  }
+
   async quote(
     seatId: string,
     durationHours: number,
     startAtIso?: string,
-    timeWindowId?: string
+    timeWindowId?: string,
+    isTest?: boolean
   ) {
+    this.assertDurationAllowed(durationHours, isTest);
     const seat = await this.prisma.seat.findUnique({
       where: { id: seatId },
       include: { zone: true },
@@ -431,8 +444,10 @@ export class BookingsService {
     seatId: string,
     durationHours: number,
     startAtIso?: string,
-    timeWindowId?: string
+    timeWindowId?: string,
+    isTest?: boolean
   ) {
+    this.assertDurationAllowed(durationHours, isTest);
     await this.syncSeatStates();
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });

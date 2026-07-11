@@ -123,6 +123,7 @@ export function formatSessionDateLine(d: Date) {
 }
 
 export function formatDurationHours(hours: number) {
+  if (hours < 1) return `${Math.round(hours * 60)} мин`;
   if (hours === 1) return '1 час';
   if (hours >= 2 && hours <= 4) return `${hours} часа`;
   return `${hours} часов`;

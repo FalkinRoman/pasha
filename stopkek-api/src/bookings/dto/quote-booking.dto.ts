@@ -1,11 +1,20 @@
-import { IsInt, IsISO8601, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsISO8601,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 
 export class QuoteBookingDto {
   @IsString()
   seatId!: string;
 
-  @IsInt()
-  @Min(1)
+  // Fractional hours allowed for the 16-min test path; gated in BookingsService.
+  @IsNumber()
+  @Min(0.25)
   @Max(12)
   durationHours!: number;
 
@@ -17,4 +26,9 @@ export class QuoteBookingDto {
   @IsOptional()
   @IsString()
   timeWindowId?: string;
+
+  /** Short (sub-hour) test quote — only honoured when the test gate is enabled. */
+  @IsOptional()
+  @IsBoolean()
+  isTest?: boolean;
 }
