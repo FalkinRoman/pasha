@@ -7,6 +7,7 @@ import { ClubModule } from '../club/club.module';
 import { LocksModule } from '../locks/locks.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { KioskModule } from '../kiosk/kiosk.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { IdentityModule } from '../identity/identity.module';
 import { AdminAuthService } from './admin-auth.service';
 import { AdminJwtStrategy } from './admin-jwt.strategy';
@@ -23,6 +24,7 @@ import { AdminService } from './admin.service';
     LocksModule,
     PaymentsModule,
     KioskModule,
+    NotificationsModule,
     AuthModule,
   ],
   controllers: [AdminController],

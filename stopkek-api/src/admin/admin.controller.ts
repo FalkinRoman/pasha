@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  NotFoundException,
   Param,
   Patch,
   Post,
@@ -36,11 +37,15 @@ import { ClubService } from '../club/club.service';
 import { PaymentSettingsService } from '../payments/payment-settings.service';
 import { LocksService } from '../locks/locks.service';
 import { KioskTelemetryService } from '../kiosk/kiosk-telemetry.service';
+import { KioskService } from '../kiosk/kiosk.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { deriveSeatKey } from '../kiosk/kiosk-keys';
 import { UpdateClubLocksDto } from './dto/update-club-locks.dto';
 import { UpdateClubPaymentsDto } from './dto/update-club-payments.dto';
 import { UpsertDurationPackageDto } from './dto/upsert-duration-package.dto';
 import { UpsertNightPricingDto } from './dto/upsert-night-pricing.dto';
+import { TestNoticeDto } from './dto/test-notice.dto';
+import { TestPushDto } from './dto/test-push.dto';
 
 @Controller('admin')
 export class AdminController {
@@ -51,6 +56,8 @@ export class AdminController {
     private readonly locks: LocksService,
     private readonly paymentSettings: PaymentSettingsService,
     private readonly kioskTelemetry: KioskTelemetryService,
+    private readonly kiosk: KioskService,
+    private readonly notifications: NotificationsService,
     private readonly config: ConfigService
   ) {}
 
@@ -104,6 +111,40 @@ export class AdminController {
     }
     const master = this.config.get<string>('KIOSK_API_KEY', '').trim();
     return { seatNumber: n, key: master ? deriveSeatKey(master, n) : null };
+  }
+
+  /** Send a test toast to a specific kiosk PC; it appears on that PC's next poll. */
+  @Post('kiosk/:seatNumber/test-notice')
+  @UseGuards(AdminJwtGuard)
+  testNotice(
+    @Param('seatNumber') seatNumber: string,
+    @Body() dto: TestNoticeDto
+  ) {
+    const n = Number(seatNumber);
+    if (!Number.isFinite(n) || n < 1) {
+      throw new NotFoundException('seatNumber required');
+    }
+    const { id } = this.kiosk.enqueueToast(n, dto.text);
+    return { ok: true, seatNumber: n, toastId: id };
+  }
+
+  /** Send a test push to the user with this phone; returns Expo diagnostics. */
+  @Post('notifications/test-push')
+  @UseGuards(AdminJwtGuard)
+  async testPush(@Body() dto: TestPushDto) {
+    const user = await this.admin.findUserByPhone(dto.phone);
+    if (!user) {
+      throw new NotFoundException('Пользователь с таким номером не найден');
+    }
+    const result = await this.notifications.sendTestToUser(
+      user.id,
+      dto.title?.trim() || 'Тест уведомления',
+      dto.body?.trim() || 'Проверка пуш-уведомлений стопкек'
+    );
+    return {
+      user: { id: user.id, name: user.name, phone: user.phone },
+      ...result,
+    };
   }
 
   @Post('seats')

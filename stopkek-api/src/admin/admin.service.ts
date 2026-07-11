@@ -376,6 +376,21 @@ export class AdminService {
     return { ok: true };
   }
 
+  /** Resolve a user by (fuzzy) phone for the admin test-push tool. */
+  async findUserByPhone(phone: string) {
+    const digits = phone.replace(/\D/g, '');
+    if (!digits) return null;
+    return this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { phone: { contains: digits } },
+          { deletedPhone: { contains: digits } },
+        ],
+      },
+      select: { id: true, name: true, phone: true },
+    });
+  }
+
   async listUsers(search?: string) {
     const q = search?.trim();
     const users = await this.prisma.user.findMany({

@@ -9,10 +9,19 @@ type ExpoMessage = {
   data?: Record<string, string>;
 };
 
+type ExpoTicket = {
+  status: 'ok' | 'error';
+  id?: string;
+  message?: string;
+  details?: { error?: string } & Record<string, unknown>;
+};
+
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
   private readonly expoUrl = 'https://exp.host/--/api/v2/push/send';
+  private readonly expoReceiptsUrl =
+    'https://exp.host/--/api/v2/push/getReceipts';
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -53,8 +62,8 @@ export class NotificationsService {
     };
   }
 
-  private async sendExpo(messages: ExpoMessage[]) {
-    if (!messages.length) return;
+  private async sendExpo(messages: ExpoMessage[]): Promise<ExpoTicket[]> {
+    if (!messages.length) return [];
     try {
       const res = await fetch(this.expoUrl, {
         method: 'POST',
@@ -64,12 +73,87 @@ export class NotificationsService {
         },
         body: JSON.stringify(messages),
       });
+      const text = await res.text();
       if (!res.ok) {
-        this.logger.warn(`Expo push HTTP ${res.status}`);
+        this.logger.warn(`Expo push HTTP ${res.status}: ${text.slice(0, 500)}`);
+        return [];
       }
+      const tickets: ExpoTicket[] = JSON.parse(text)?.data ?? [];
+      const errors = tickets.filter((t) => t.status === 'error');
+      if (errors.length) {
+        this.logger.warn(`Expo push tickets with errors: ${JSON.stringify(errors)}`);
+      }
+      return tickets;
     } catch (e) {
       this.logger.warn(`Expo push failed: ${e}`);
+      return [];
     }
+  }
+
+  /** Poll Expo push receipts — this is where real delivery failures (e.g. an
+   *  expired FCM credential → DeviceNotRegistered / MessageRateExceeded) surface. */
+  private async getReceipts(
+    ids: string[]
+  ): Promise<Record<string, { status: string; message?: string; details?: unknown }>> {
+    if (!ids.length) return {};
+    try {
+      const res = await fetch(this.expoReceiptsUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ ids }),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        this.logger.warn(`Expo receipts HTTP ${res.status}: ${text.slice(0, 500)}`);
+        return {};
+      }
+      return JSON.parse(text)?.data ?? {};
+    } catch (e) {
+      this.logger.warn(`Expo receipts failed: ${e}`);
+      return {};
+    }
+  }
+
+  /**
+   * Admin "test push" — send straight to a user's devices, bypassing pref flags
+   * and the booking-based dedup log, and return a diagnostic (token count, Expo
+   * tickets, delivery receipts) so the reason a push does/doesn't arrive is visible
+   * in the admin UI and API logs.
+   */
+  async sendTestToUser(userId: string, title: string, body: string) {
+    const tokens = await this.prisma.pushToken.findMany({ where: { userId } });
+    if (!tokens.length) {
+      this.logger.warn(`test push: user ${userId} has no registered push tokens`);
+      return { ok: false, reason: 'no_tokens' as const, tokenCount: 0, tickets: [], receipts: {} };
+    }
+
+    const tickets = await this.sendExpo(
+      tokens.map((t) => ({ to: t.token, title, body, data: { type: 'test' } }))
+    );
+
+    const ids = tickets.filter((t) => t.id).map((t) => t.id as string);
+    let receipts: Record<string, { status: string; message?: string; details?: unknown }> = {};
+    if (ids.length) {
+      // Expo needs a moment to produce receipts; a short wait is enough for a manual test.
+      await new Promise((r) => setTimeout(r, 1500));
+      receipts = await this.getReceipts(ids);
+    }
+
+    const okTickets = tickets.filter((t) => t.status === 'ok').length;
+    this.logger.log(
+      `test push to ${userId}: tokens=${tokens.length} okTickets=${okTickets} ` +
+        `tickets=${JSON.stringify(tickets)} receipts=${JSON.stringify(receipts)}`
+    );
+    return {
+      ok: okTickets > 0,
+      reason: okTickets > 0 ? ('sent' as const) : ('rejected' as const),
+      tokenCount: tokens.length,
+      tickets,
+      receipts,
+    };
   }
 
   private async pushToUser(

@@ -596,3 +596,28 @@ export function upsertNightPricing(body: {
 export function deleteNightPricing(id: string) {
   return api<{ ok: boolean }>(`/admin/pricing/night/${id}`, { method: 'DELETE' });
 }
+
+// --- Test notifications ------------------------------------------------------
+
+export function sendTestNotice(seatNumber: number, text: string) {
+  return api<{ ok: boolean; seatNumber: number; toastId: string }>(
+    `/admin/kiosk/${seatNumber}/test-notice`,
+    { method: 'POST', body: JSON.stringify({ text }) }
+  );
+}
+
+export type TestPushResult = {
+  user: { id: string; name: string; phone: string };
+  ok: boolean;
+  reason: 'sent' | 'rejected' | 'no_tokens';
+  tokenCount: number;
+  tickets: { status: string; id?: string; message?: string; details?: unknown }[];
+  receipts: Record<string, { status: string; message?: string; details?: unknown }>;
+};
+
+export function sendTestPush(phone: string, title?: string, body?: string) {
+  return api<TestPushResult>('/admin/notifications/test-push', {
+    method: 'POST',
+    body: JSON.stringify({ phone, title, body }),
+  });
+}

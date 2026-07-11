@@ -8,6 +8,7 @@ import {
 } from '../api/admin';
 import { ClubLocksSettings } from '../components/ClubLocksSettings';
 import { ClubPaymentSettings } from '../components/ClubPaymentSettings';
+import { TestNotifications } from '../components/TestNotifications';
 
 export function SettingsPage() {
   const [club, setClub] = useState<ClubSettings | null>(null);
@@ -209,6 +210,7 @@ export function SettingsPage() {
 
           <ClubPaymentSettings />
           <ClubLocksSettings />
+          <TestNotifications />
         </>
       )}
     </>
