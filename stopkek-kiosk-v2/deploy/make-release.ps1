@@ -44,8 +44,8 @@ foreach ($f in 'install.ps1', 'УСТАНОВИТЬ.cmd', 'УСТАНОВКА.tx
 # Step scripts into deploy\
 foreach ($f in '01-create-player-account.ps1', '02-apply-policies.ps1',
                '03-install-agent-task.ps1', '04-applocker-games.ps1',
-               '05-install-shell-task.ps1', 'setup-all.ps1', 'uninstall.ps1',
-               'config.template.json') {
+               '05-install-shell-task.ps1', '06-applocker-off.ps1',
+               'setup-all.ps1', 'uninstall.ps1', 'config.template.json') {
     Copy-Item (Join-Path $PSScriptRoot $f) (Join-Path $bundle 'deploy') -Force
 }
 

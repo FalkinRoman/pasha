@@ -11,10 +11,10 @@
        installs the SYSTEM agent task + the player-session shell task (via setup-all.ps1);
     4. hardens C:\stopkek ACLs so the player can't overwrite the agent/shell exe or read
        the kioskKey/PIN in config.json;
-    5. runs AppLocker in AUDIT mode (auto-discovers game folders on every drive).
+    5. turns AppLocker OFF so the player can install/download/run games from ANY folder
+       (06-applocker-off.ps1). All other hardening stays in place.
 
-  After this: reboot, play every game once, then run enforce:
-    powershell -NoProfile -Command "Set-ExecutionPolicy -Scope Process RemoteSigned -Force; & '<bundle>\deploy\04-applocker-games.ps1' -LockAcls"
+  After this: reboot — that's it. Games can be installed and launched from anywhere.
 
 .PARAMETER SeatNumber
   Seat number for THIS PC (1..6). Prompted if omitted.
@@ -146,16 +146,16 @@ Write-Host "=== Закрываю ACL $Target ===" -ForegroundColor Magenta
 & icacls "$cfgPath" /inheritance:r /grant:r '*S-1-5-18:F' '*S-1-5-32-544:F' /C /Q | Out-Null
 Write-Host "ACL закрыт (player: RX на бинарники, нет доступа к config.json)." -ForegroundColor Green
 
-# --- AppLocker in AUDIT mode (RemoteSigned: Bypass would disable the classifier) ------
-Write-Host "=== AppLocker (аудит, авто-поиск игр на всех дисках) ===" -ForegroundColor Magenta
-& powershell.exe -NoProfile -Command "Set-ExecutionPolicy -Scope Process RemoteSigned -Force; & '$deploy\04-applocker-games.ps1' -AuditOnly"
+# --- AppLocker OFF: разрешить установку/запуск игр из любой папки ---------------------
+# (RemoteSigned: Bypass режет AV-классификатор.) Прочая защита остаётся: политики
+# блокировки, ACL C:\stopkek, watchdog, подложка.
+Write-Host "=== AppLocker: отключаю (игры запускаются из любой папки) ===" -ForegroundColor Magenta
+& powershell.exe -NoProfile -Command "Set-ExecutionPolicy -Scope Process RemoteSigned -Force; & '$deploy\06-applocker-off.ps1'"
 
 Write-Host @"
 
 ГОТОВО. Дальше:
   1) Перезагрузи ПК -> на экране входа плитка 'player' -> замок с QR.
-  2) Зайди под player, запусти КАЖДУЮ игру/лаунчер по разу.
-  3) Включи жёсткий AppLocker (enforce):
-       powershell -NoProfile -Command "Set-ExecutionPolicy -Scope Process RemoteSigned -Force; & '$deploy\04-applocker-games.ps1' -LockAcls"
+  2) Игры можно ставить/качать и запускать из любой папки (AppLocker выключен).
   Снять киоск целиком:  $deploy\uninstall.ps1 -RemoveUser
 "@ -ForegroundColor Cyan

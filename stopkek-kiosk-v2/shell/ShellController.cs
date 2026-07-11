@@ -21,6 +21,7 @@ public sealed class ShellController : IDisposable
     private TimerWidget? _widget;
     private ToastWindow? _toast;
     private string? _lastToastId;
+    private readonly VoiceAnnouncer _voice = new();
 
     private KioskMode? _mode;
     private bool _disposed;
@@ -61,6 +62,8 @@ public sealed class ShellController : IDisposable
             case KioskMode.Active:
             case KioskMode.Grace:
                 if (changed) EnterUnlocked();
+                // First slip into grace = the paid time just ran out — say it out loud.
+                if (changed && view.Mode == KioskMode.Grace && !_preview) _voice.Announce("time-up");
                 EnsureWidget();
                 _widget!.UpdateView(view);
                 break;
@@ -93,6 +96,17 @@ public sealed class ShellController : IDisposable
         w.Closed += (_, _) => { if (ReferenceEquals(_toast, w)) _toast = null; };
         w.Show();
         ShellLog.Write($"toast shown: {view.ToastText}");
+
+        // Time-warning toasts arrive from the API with id "warn-<bookingId>-<mins>"
+        // (mins is 15/5/1) — voice the matching clip. No server change needed.
+        AnnounceWarn(id);
+    }
+
+    private void AnnounceWarn(string toastId)
+    {
+        if (!toastId.StartsWith("warn-", StringComparison.Ordinal)) return;
+        var mins = toastId[(toastId.LastIndexOf('-') + 1)..];
+        if (mins is "15" or "5" or "1") _voice.Announce($"time-{mins}");
     }
 
     private void EnterLocked(bool fromSession)

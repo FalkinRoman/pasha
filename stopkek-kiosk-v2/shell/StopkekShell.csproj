@@ -19,4 +19,11 @@
     <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
   </PropertyGroup>
 
+  <!-- Pre-recorded Russian voice clips (time-15/5/1, time-up) copied next to the exe. -->
+  <ItemGroup>
+    <Content Include="voice\*.wav">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>
