@@ -31,7 +31,10 @@ if ($NoAutoLogon) { $acct.NoAutoLogon = $true }
 
 Write-Host "=== STEP 2/4: lockdown policies ===" -ForegroundColor Magenta
 Write-Warning "The player account must be logged OFF for policy application."
-& "$here\02-apply-policies.ps1" -User $User
+# The club wallpaper sits in the install root (<root>\wallpaper.jpg), which is the agent's
+# grandparent dir — pass it explicitly so a non-default -Target still gets the wallpaper.
+$wallpaper = Join-Path (Split-Path (Split-Path $AgentExe -Parent) -Parent) 'wallpaper.jpg'
+& "$here\02-apply-policies.ps1" -User $User -WallpaperPath $wallpaper
 
 Write-Host "=== STEP 3/4: install agent task (SYSTEM) ===" -ForegroundColor Magenta
 & "$here\03-install-agent-task.ps1" -ExePath $AgentExe
@@ -39,6 +42,9 @@ Write-Host "=== STEP 3/4: install agent task (SYSTEM) ===" -ForegroundColor Mage
 if ($ShellExe) {
     Write-Host "=== STEP 4/4: install shell task (player session) ===" -ForegroundColor Magenta
     & "$here\05-install-shell-task.ps1" -ShellExe $ShellExe -User $User
+
+    # "Run as admin via stopKEK" shortcuts (Desktop + SendTo).
+    & "$here\08-run-as-admin-shortcuts.ps1" -User $User -ShellExe $ShellExe
 } else {
     Write-Host "=== STEP 4/4: shell task SKIPPED (no -ShellExe) ===" -ForegroundColor DarkYellow
     Write-Host "  Run later: .\05-install-shell-task.ps1 -ShellExe <path> -User $User"

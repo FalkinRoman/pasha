@@ -106,6 +106,19 @@ New-Item -ItemType Directory -Force -Path (Join-Path $Target 'shell') | Out-Null
 Copy-Item (Join-Path $srcAgent '*') (Join-Path $Target 'agent') -Recurse -Force
 Copy-Item (Join-Path $srcShell '*') (Join-Path $Target 'shell') -Recurse -Force
 
+# Club wallpaper (заставка рабочего стола player) — set later by 02-apply-policies.ps1.
+$wallSrc = Join-Path $deploy 'wallpaper.jpg'
+if (Test-Path $wallSrc) {
+    Copy-Item $wallSrc (Join-Path $Target 'wallpaper.jpg') -Force
+    Write-Host "Заставка скопирована: $Target\wallpaper.jpg" -ForegroundColor Green
+}
+
+# --- Hidden admin for password-free elevation ----------------------------------------
+# Creates the 'stopkek-svc' local admin and returns its random password; the agent uses it to
+# run programs "от администратора" for the player. Stored only in the ACL-locked config.json.
+Write-Host "=== Создаю скрытого админа для запуска программ от админа ===" -ForegroundColor Magenta
+$svc = & "$deploy\07-create-elevate-admin.ps1"
+
 # --- Write config.json for this seat -------------------------------------------------
 $cfgPath = Join-Path $Target 'agent\config.json'
 $cfg = [ordered]@{
@@ -119,6 +132,8 @@ $cfg = [ordered]@{
     shellPath        = (Join-Path $Target 'shell\stopkek-shell.exe')
     watchdogEnabled  = $true
     adminExitPinHash = $AdminExitPinHash
+    elevateUser      = $svc.User
+    elevatePassword  = $svc.Password
 }
 ($cfg | ConvertTo-Json) | Set-Content -Path $cfgPath -Encoding UTF8
 Write-Host "config.json записан: место №$SeatNumber, $ApiUrl" -ForegroundColor Green
@@ -157,5 +172,7 @@ Write-Host @"
 ГОТОВО. Дальше:
   1) Перезагрузи ПК -> на экране входа плитка 'player' -> замок с QR.
   2) Игры можно ставить/качать и запускать из любой папки (AppLocker выключен).
+  3) Программу «от администратора» (без пароля): ПКМ по файлу -> Отправить ->
+     «Запустить от stopKEK», либо ярлык на рабочем столе «Запустить программу от админа».
   Снять киоск целиком:  $deploy\uninstall.ps1 -RemoveUser
 "@ -ForegroundColor Cyan

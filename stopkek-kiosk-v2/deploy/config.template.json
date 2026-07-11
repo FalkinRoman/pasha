@@ -8,5 +8,7 @@
   "lockOnStartup": true,
   "shellPath": "C:\\stopkek\\shell\\stopkek-shell.exe",
   "watchdogEnabled": true,
-  "adminExitPinHash": ""
+  "adminExitPinHash": "",
+  "elevateUser": "",
+  "elevatePassword": ""
 }

@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using StopkekAgent.Api;
 using StopkekAgent.Config;
 using StopkekAgent.Core;
+using StopkekAgent.Elevation;
 using StopkekAgent.Ipc;
 using StopkekAgent.Watchdog;
 
@@ -23,6 +24,7 @@ public sealed class Worker : BackgroundService
     private readonly ShellWatchdog _watchdog;
     private readonly ILogger<Worker> _log;
     private readonly IpcServer _ipc;
+    private readonly ElevationServer? _elevation;
     private readonly Stopwatch _clock = Stopwatch.StartNew();
 
     // Admin "panic exit": once the correct PIN is entered, the agent stops gating for the
@@ -49,6 +51,9 @@ public sealed class Worker : BackgroundService
         _watchdog = watchdog;
         _log = log;
         _ipc = new IpcServer(log, HandleCommandAsync);
+        _elevation = cfg.ElevateEnabled
+            ? new ElevationServer(cfg.ElevateUser, cfg.ElevatePassword, log)
+            : null;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -58,6 +63,7 @@ public sealed class Worker : BackgroundService
             _cfg.SeatNumber, _cfg.ApiUrl, _cfg.PollIntervalSec, _cfg.GraceSeconds);
 
         _ipc.Start(stoppingToken);
+        _elevation?.Start(stoppingToken);
 
         // Publish the fail-secure boot view immediately.
         PublishView(_machine.Current);
@@ -114,6 +120,7 @@ public sealed class Worker : BackgroundService
 
         _watchdog.Stop();
         await _ipc.DisposeAsync();
+        if (_elevation is not null) await _elevation.DisposeAsync();
         _log.LogInformation("stopkek-agent stopped");
     }
 

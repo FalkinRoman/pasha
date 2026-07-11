@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Revert Phase 0: remove the service, undo player policies, disable auto-logon.
   For bench/dev cleanup. Run elevated.
@@ -6,6 +6,7 @@
 [CmdletBinding()]
 param(
     [string]$User = 'player',
+    [string]$ElevateUser = 'stopkek-svc',   # hidden admin created by 07-create-elevate-admin.ps1
     [string]$TaskName = 'StopkekAgent',
     [switch]$RemoveUser
 )
@@ -52,9 +53,30 @@ try {
     Write-Warning "Could not clear player policies: $_"
 }
 
-if ($RemoveUser -and (Get-LocalUser -Name $User -ErrorAction SilentlyContinue)) {
-    Remove-LocalUser -Name $User
-    Write-Host "Removed user '$User'." -ForegroundColor Green
+# Elevation shortcuts (Public desktop, Default profile template, player profile).
+$profileList = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList'
+$roots = @((Join-Path $env:PUBLIC 'Desktop'), (Get-ItemProperty $profileList).Default)
+if ($profilePath) { $roots += $profilePath }
+foreach ($r in $roots) {
+    foreach ($rel in @('Запустить программу от админа.lnk',
+                       'Desktop\Запустить программу от админа.lnk',
+                       'AppData\Roaming\Microsoft\Windows\SendTo\Запустить от stopKEK.lnk')) {
+        Remove-Item (Join-Path $r $rel) -Force -ErrorAction SilentlyContinue
+    }
+}
+Write-Host "Elevation shortcuts removed." -ForegroundColor Green
+
+if ($RemoveUser) {
+    foreach ($u in @($User, $ElevateUser)) {
+        if (Get-LocalUser -Name $u -ErrorAction SilentlyContinue) {
+            Remove-LocalUser -Name $u
+            Write-Host "Removed user '$u'." -ForegroundColor Green
+        }
+    }
+    # Un-hide the elevation admin from the sign-in screen (the account itself is gone).
+    Remove-ItemProperty `
+        'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\SpecialAccounts\UserList' `
+        -Name $ElevateUser -ErrorAction SilentlyContinue
 }
 
 Write-Host "Uninstall complete. Reboot recommended." -ForegroundColor Cyan

@@ -72,7 +72,22 @@ public sealed class LockWindow : Window
             VerticalAlignment = System.Windows.VerticalAlignment.Center,
         };
 
-        // Logo: stop + КЕК
+        // Brand logo image above the wordmark (from assets\logo-stopkek.png next to the exe).
+        var logoImg = TryLoadLogo();
+        if (logoImg is not null)
+        {
+            stack.Children.Add(new Image
+            {
+                Source = logoImg,
+                Width = _isPrimary ? 140 : 100,
+                Height = _isPrimary ? 140 : 100,
+                Stretch = Stretch.Uniform,
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+                Margin = new Thickness(0, 0, 0, _isPrimary ? 18 : 12),
+            });
+        }
+
+        // Wordmark: стоп + КЕК (Cyrillic — mirrors BRAND_NAME 'стопКЕК' from the app).
         var logo = new TextBlock
         {
             FontSize = _isPrimary ? 88 : 64,
@@ -80,7 +95,7 @@ public sealed class LockWindow : Window
             HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
             Margin = new Thickness(0, 0, 0, 8),
         };
-        logo.Inlines.Add(new Run("stop") { Foreground = Brand.Brush(Brand.Text) });
+        logo.Inlines.Add(new Run("стоп") { Foreground = Brand.Brush(Brand.Text) });
         logo.Inlines.Add(new Run("КЕК") { Foreground = Brand.Brush(Brand.Accent) });
         stack.Children.Add(logo);
 
@@ -123,7 +138,7 @@ public sealed class LockWindow : Window
 
             stack.Children.Add(new TextBlock
             {
-                Text = "Откройте приложение stopКЕК  →  Сеанс  →  «Сканировать QR на мониторе»",
+                Text = "Откройте приложение стопКЕК  →  Сеанс  →  «Сканировать QR на мониторе»",
                 FontSize = 18,
                 Foreground = Brand.Brush(Brand.Text),
                 HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
@@ -313,6 +328,25 @@ public sealed class LockWindow : Window
             _qrImage.Visibility = Visibility.Collapsed;
             _qrFallback.Visibility = Visibility.Visible;
         }
+    }
+
+    // Load the brand logo shipped next to the exe. Missing/broken file -> no image (text
+    // wordmark still shows), so an install without the asset degrades gracefully.
+    private static BitmapImage? TryLoadLogo()
+    {
+        try
+        {
+            var path = Path.Combine(AppContext.BaseDirectory, "assets", "logo-stopkek.png");
+            if (!File.Exists(path)) return null;
+            var bi = new BitmapImage();
+            bi.BeginInit();
+            bi.UriSource = new Uri(path, UriKind.Absolute);
+            bi.CacheOption = BitmapCacheOption.OnLoad;
+            bi.EndInit();
+            bi.Freeze();
+            return bi;
+        }
+        catch { return null; }
     }
 
     private static BitmapImage? TryDecode(string? data)

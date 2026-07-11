@@ -13,6 +13,14 @@ public static class Program
     {
         InstallCrashLogging();
 
+        // "Запустить от stopKEK": elevate-a-program mode. Not the overlay — talk to the agent
+        // over the elevation pipe and exit. Must be handled before any overlay/app setup.
+        if (args.Contains("--run", StringComparer.OrdinalIgnoreCase))
+        {
+            ShellLog.Write("shell --run (elevate mode)");
+            return ElevateClient.Run(args);
+        }
+
         // Per-monitor DPI awareness MUST be set before any window so WPF layout (DIP)
         // and our SetWindowPos (physical px) agree; otherwise content is laid out for a
         // scaled-too-wide surface and clips off-screen. Manifest is unreliable here

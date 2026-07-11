@@ -24,6 +24,10 @@
     <Content Include="voice\*.wav">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- Brand logo shown on the lock overlay. Loaded from disk at runtime (no-op if missing). -->
+    <Content Include="assets\*.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

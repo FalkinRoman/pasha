@@ -45,6 +45,18 @@ public sealed class KioskConfig
 
     public bool AdminExitEnabled => !string.IsNullOrWhiteSpace(AdminExitPinHash);
 
+    /// <summary>
+    /// Hidden local admin account used to launch programs "as administrator" for the
+    /// standard-user player without a password prompt (see ElevationServer). Created by the
+    /// installer; the password stays here only because config.json is ACL-locked to
+    /// SYSTEM/Admins (the player cannot read it). Empty = elevation feature disabled.
+    /// </summary>
+    public string ElevateUser { get; set; } = "";
+    public string ElevatePassword { get; set; } = "";
+
+    public bool ElevateEnabled =>
+        !string.IsNullOrWhiteSpace(ElevateUser) && !string.IsNullOrWhiteSpace(ElevatePassword);
+
     public TimeSpan PollInterval => TimeSpan.FromSeconds(Math.Clamp(PollIntervalSec, 2, 60));
     public TimeSpan Grace => TimeSpan.FromSeconds(Math.Max(0, GraceSeconds));
 

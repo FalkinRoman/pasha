@@ -16,7 +16,10 @@
   Player account name. Default: stopkek-player
 #>
 [CmdletBinding()]
-param([string]$User = 'player')
+param(
+    [string]$User = 'player',
+    [string]$WallpaperPath = 'C:\stopkek\wallpaper.jpg'
+)
 
 $ErrorActionPreference = 'Stop'
 
@@ -63,6 +66,19 @@ try {
     Set-Policy 'Explorer' 'NoClose'                1   # no shutdown from Start
     Set-Policy 'Explorer' 'NoDrives'               0
     Write-Host "Player policies applied." -ForegroundColor Green
+
+    # Default desktop wallpaper for the player (the club branding image). Takes effect at the
+    # player's next sign-in. Fill (WallpaperStyle=10) so it covers any resolution.
+    if (Test-Path $WallpaperPath) {
+        $desk = "Registry::$hiveRoot\Control Panel\Desktop"
+        if (-not (Test-Path $desk)) { New-Item -Path $desk -Force | Out-Null }
+        New-ItemProperty -Path $desk -Name 'Wallpaper'      -Value $WallpaperPath -PropertyType String -Force | Out-Null
+        New-ItemProperty -Path $desk -Name 'WallpaperStyle' -Value '10'           -PropertyType String -Force | Out-Null
+        New-ItemProperty -Path $desk -Name 'TileWallpaper'  -Value '0'            -PropertyType String -Force | Out-Null
+        Write-Host "Wallpaper set for player: $WallpaperPath" -ForegroundColor Green
+    } else {
+        Write-Host "Wallpaper file not found ($WallpaperPath) - skipped." -ForegroundColor DarkYellow
+    }
 }
 finally {
     [gc]::Collect(); Start-Sleep -Milliseconds 300
