@@ -69,7 +69,7 @@ if (Get-LocalUser -Name $User -ErrorAction SilentlyContinue) {
 } else {
     Write-Host "Creating hidden admin '$User'." -ForegroundColor Cyan
     New-LocalUser -Name $User -Password $secure -FullName 'StopKEK Service' `
-        -Description 'Hidden admin for stopKEK elevation (no interactive use)' `
+        -Description 'Hidden admin for stopKEK elevation' `
         -PasswordNeverExpires | Out-Null
 }
 
