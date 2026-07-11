@@ -25,6 +25,11 @@ public sealed class KioskView
     public long GraceRemainingMs { get; set; }
 
     public string? Notice { get; set; }
+
+    /// <summary>One-shot toast text; shown once whenever <see cref="ToastId"/> changes.</summary>
+    public string? ToastText { get; set; }
+    public string? ToastId { get; set; }
+
     public string? Message { get; set; }
     public bool AdminExitEnabled { get; set; }
     public long Revision { get; set; }

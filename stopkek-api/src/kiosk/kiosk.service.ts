@@ -22,11 +22,17 @@ type QrChallenge = {
 
 const CODE_TTL_MS = 5 * 60_000;
 const CHALLENGE_TTL_MS = 2 * 60_000;
+// A queued toast is offered on the seat's next few state polls (agent dedups by id).
+const TOAST_TTL_MS = 30_000;
 
 @Injectable()
 export class KioskService {
   private readonly codes = new Map<string, PcCodeEntry>();
   private readonly challenges = new Map<string, QrChallenge>();
+  private readonly toasts = new Map<
+    number,
+    { text: string; id: string; exp: number }
+  >();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -180,6 +186,44 @@ export class KioskService {
     return image;
   }
 
+  /**
+   * Queue a one-shot toast to slide in on a kiosk PC. Delivered inside the
+   * seat's next state polls until the TTL lapses; the agent shows it once
+   * (dedup by id). Used by the admin "test notification to PC" button.
+   */
+  enqueueToast(seatNumber: number, text: string) {
+    const id = randomUUID();
+    this.toasts.set(seatNumber, { text, id, exp: Date.now() + TOAST_TTL_MS });
+    return { id };
+  }
+
+  private adminToast(seatNumber: number): { text: string; id: string } | undefined {
+    const t = this.toasts.get(seatNumber);
+    if (!t) return undefined;
+    if (t.exp < Date.now()) {
+      this.toasts.delete(seatNumber);
+      return undefined;
+    }
+    return { text: t.text, id: t.id };
+  }
+
+  // Time-running-out warning as a toast. A stable id per (booking, threshold)
+  // makes the agent show each threshold exactly once as time crosses it.
+  private warnToast(
+    bookingId: string,
+    session: { gameRunning: boolean; displayRemainingMs: number }
+  ): { text: string; id: string } | undefined {
+    if (!session.gameRunning) return undefined;
+    const ms = session.displayRemainingMs;
+    const mins =
+      ms <= 0 ? 0 : ms <= 60_000 ? 1 : ms <= 5 * 60_000 ? 5 : ms <= 15 * 60_000 ? 15 : 0;
+    if (!mins) return undefined;
+    return {
+      text: `Осталось меньше ${mins} мин — продлите в приложении`,
+      id: `warn-${bookingId}-${mins}`,
+    };
+  }
+
   async getSeatState(seatNumber: number) {
     await this.bookings.syncSeatStatesForKiosk();
     const seat = await this.prisma.seat.findFirst({ where: { number: seatNumber } });
@@ -210,6 +254,7 @@ export class KioskService {
         qrPayload,
         qrImage: await this.renderQrImage(qrPayload),
         qrRefreshSec: Math.floor(CHALLENGE_TTL_MS / 1000),
+        toast: this.adminToast(seatNumber),
       };
     }
 
@@ -229,6 +274,7 @@ export class KioskService {
         state: 'expired' as const,
         seatNumber,
         session,
+        toast: this.adminToast(seatNumber),
       };
     }
 
@@ -240,6 +286,7 @@ export class KioskService {
       seatNumber,
       session,
       notice: warn15 ? 'Осталось меньше 15 минут — продлите в приложении' : undefined,
+      toast: this.adminToast(seatNumber) ?? this.warnToast(row.id, session),
     };
   }
 

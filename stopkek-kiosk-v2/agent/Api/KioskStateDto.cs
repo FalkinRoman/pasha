@@ -23,6 +23,15 @@ public sealed class KioskStateDto
     // active / expired
     [JsonPropertyName("session")] public SessionDto? Session { get; set; }
     [JsonPropertyName("notice")] public string? Notice { get; set; }
+
+    /// <summary>One-shot toast to slide in on the right (any state). Shown once per Id.</summary>
+    [JsonPropertyName("toast")] public ToastDto? Toast { get; set; }
+}
+
+public sealed class ToastDto
+{
+    [JsonPropertyName("text")] public string Text { get; set; } = "";
+    [JsonPropertyName("id")] public string Id { get; set; } = "";
 }
 
 public sealed class SessionDto

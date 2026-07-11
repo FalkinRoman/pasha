@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows;
 using StopkekShell.Ipc;
@@ -18,6 +19,8 @@ public sealed class ShellController : IDisposable
     private readonly List<LockWindow> _locks = new();
     private readonly bool _preview;
     private TimerWidget? _widget;
+    private ToastWindow? _toast;
+    private string? _lastToastId;
 
     private KioskMode? _mode;
     private bool _disposed;
@@ -48,7 +51,10 @@ public sealed class ShellController : IDisposable
         switch (view.Mode)
         {
             case KioskMode.Locked:
-                if (changed) EnterLocked();
+                // Was a paid session just ended (time ran out / grace expired / "end session")?
+                // If so we clean the seat for the next customer; a boot-time lock must not.
+                var fromSession = _mode is KioskMode.Active or KioskMode.Grace;
+                if (changed) EnterLocked(fromSession);
                 foreach (var w in _locks) w.UpdateView(view);
                 break;
 
@@ -65,14 +71,39 @@ public sealed class ShellController : IDisposable
                 break;
         }
         _mode = view.Mode;
+
+        // Toasts are independent of mode: show one whenever the agent hands us a new id.
+        MaybeShowToast(view);
     }
 
-    private void EnterLocked()
+    // The agent carries a one-shot toast inside every KioskView snapshot. It keeps
+    // the same ToastId across polls until a new toast is queued, so we fire exactly
+    // once per id — over the game (Active) or over the lock screen (test push).
+    private void MaybeShowToast(KioskView view)
+    {
+        if (_preview) return;
+        var id = view.ToastId;
+        if (string.IsNullOrEmpty(id) || id == _lastToastId) return;
+        _lastToastId = id;
+        if (string.IsNullOrEmpty(view.ToastText)) return;
+
+        try { _toast?.Close(); } catch { /* already gone */ }
+        var w = new ToastWindow(view.ToastText);
+        _toast = w;
+        w.Closed += (_, _) => { if (ReferenceEquals(_toast, w)) _toast = null; };
+        w.Show();
+        ShellLog.Write($"toast shown: {view.ToastText}");
+    }
+
+    private void EnterLocked(bool fromSession)
     {
         // Pull the player out of any fullscreen game, then raise the locks.
         if (!_preview)
         {
             MinimiseForeground();
+            // A real session end (not a boot-time lock) closes everything the
+            // player opened, so the next customer starts from a clean desktop.
+            if (fromSession) TerminatePlayerApps();
             _hook.Enable();
         }
         EnsureLockWindows();
@@ -83,6 +114,46 @@ public sealed class ShellController : IDisposable
         }
         _widget?.Hide();
         ShellLog.Write($"EnterLocked: {_locks.Count} lock window(s) shown");
+    }
+
+    // Processes we must never kill or the session/desktop breaks. Names are the
+    // Process.ProcessName form (no .exe), compared case-insensitively.
+    private static readonly HashSet<string> KeepAlive = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "explorer", "stopkek-shell",
+        "dwm", "winlogon", "csrss", "wininit", "services", "lsass", "smss",
+        "sihost", "ctfmon", "fontdrvhost", "taskhostw", "runtimebroker",
+        "searchhost", "startmenuexperiencehost", "shellexperiencehost",
+        "textinputhost", "applicationframehost", "dllhost", "conhost", "svchost",
+    };
+
+    /// <summary>
+    /// Close every app the player launched in THIS interactive session. The shell
+    /// runs as the limited <c>player</c> user, so Kill only succeeds on that user's
+    /// own processes — a natural blast-radius fence. System/desktop processes are
+    /// whitelisted; anything else (games, launchers, browsers) is terminated.
+    /// </summary>
+    private void TerminatePlayerApps()
+    {
+        int mySession;
+        int myPid = Environment.ProcessId;
+        try { mySession = Process.GetCurrentProcess().SessionId; }
+        catch { return; }
+
+        int killed = 0;
+        foreach (var p in Process.GetProcesses())
+        {
+            try
+            {
+                if (p.Id == myPid || p.SessionId != mySession) continue;
+                if (KeepAlive.Contains(p.ProcessName)) continue;
+                p.Kill(entireProcessTree: true);
+                killed++;
+            }
+            catch { /* protected/exited/not-ours — leave it */ }
+            finally { p.Dispose(); }
+        }
+        ShellLog.Write($"TerminatePlayerApps: killed {killed} process(es) in session {mySession}");
     }
 
     private void EnterUnlocked()
@@ -128,6 +199,7 @@ public sealed class ShellController : IDisposable
         _source.Dispose();
         foreach (var w in _locks) w.Close();
         _widget?.Close();
+        _toast?.Close();
     }
 
     private const int SW_FORCEMINIMIZE = 11;

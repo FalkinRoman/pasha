@@ -106,6 +106,8 @@ public sealed class SessionStateMachine
             BalanceRub = s?.BalanceRub ?? 0,
             RemainingMs = remaining,
             Notice = state.Notice,
+            ToastText = state.Toast?.Text,
+            ToastId = state.Toast?.Id,
             Revision = ++_revision,
         };
     }
@@ -139,6 +141,8 @@ public sealed class SessionStateMachine
             RemainingMs = 0,
             GraceRemainingMs = graceLeft,
             Notice = "Время вышло — продлите в приложении",
+            ToastText = state.Toast?.Text,
+            ToastId = state.Toast?.Id,
             Revision = ++_revision,
         };
     }
@@ -174,6 +178,8 @@ public sealed class SessionStateMachine
             QrRefreshSec = state.QrRefreshSec ?? 120,
             QrImageBase64 = state.QrImage,
             Message = message,
+            ToastText = state.Toast?.Text,
+            ToastId = state.Toast?.Id,
             Revision = ++_revision,
         };
     }

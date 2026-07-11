@@ -42,6 +42,12 @@ public sealed record KioskView
     /// <summary>Server-provided non-blocking notice (e.g. "осталось меньше 15 минут").</summary>
     public string? Notice { get; init; }
 
+    /// <summary>One-shot toast text to slide in on the right. Null when there is nothing new.</summary>
+    public string? ToastText { get; init; }
+
+    /// <summary>Id of the current toast; the shell shows a toast once whenever this changes.</summary>
+    public string? ToastId { get; init; }
+
     /// <summary>Human-readable status line for offline / setup problems.</summary>
     public string? Message { get; init; }
 
