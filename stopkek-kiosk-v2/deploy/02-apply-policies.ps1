@@ -5,7 +5,8 @@
 .DESCRIPTION
   Applies policies to the PLAYER account only (by loading their NTUSER.DAT hive),
   plus a couple of machine-wide ones. This neutralises the obvious escape hatches:
-  Task Manager, regedit, Run, control panel, manual lock/logoff, fast user switching.
+  Task Manager, regedit, Run, control panel, Win+L. Sign-out / shutdown / switch-user are
+  deliberately left available (see the note by the policy list).
 
   Combined with the standard-user account (step 1) and the SYSTEM agent service
   (step 3), the player has no supported way to kill the overlay for free play.
@@ -13,7 +14,10 @@
   Run elevated. The player must be LOGGED OFF (so their hive isn't loaded).
 
 .PARAMETER User
-  Player account name. Default: stopkek-player
+  Player account name. Default: player
+
+.PARAMETER WallpaperPath
+  Club wallpaper for the player desktop. Default: C:\stopkek\wallpaper.jpg
 #>
 [CmdletBinding()]
 param(
@@ -61,10 +65,14 @@ try {
     Set-Policy 'System'   'DisableChangePassword'  1
     Set-Policy 'Explorer' 'NoRun'                  1   # no Run dialog
     Set-Policy 'Explorer' 'NoControlPanel'         1
-    Set-Policy 'Explorer' 'NoLogoff'               1
-    Set-Policy 'Explorer' 'StartMenuLogOff'        1
-    Set-Policy 'Explorer' 'NoClose'                1   # no shutdown from Start
     Set-Policy 'Explorer' 'NoDrives'               0
+
+    # Sign-out / shutdown / switch-user stay AVAILABLE to the player, on every club PC (owner's
+    # call, 2026-06-27): the admin must be able to reach their own account from the player seat.
+    # Ctrl+Alt+Del cannot be covered by the overlay anyway, so hiding these bought little.
+    Set-Policy 'Explorer' 'NoLogoff'               0
+    Set-Policy 'Explorer' 'StartMenuLogOff'        0
+    Set-Policy 'Explorer' 'NoClose'                0
     Write-Host "Player policies applied." -ForegroundColor Green
 
     # Default desktop wallpaper for the player (the club branding image). Takes effect at the
@@ -89,7 +97,8 @@ finally {
 # --- Machine-wide ------------------------------------------------------------
 $sys = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System'
 if (-not (Test-Path $sys)) { New-Item -Path $sys -Force | Out-Null }
-# Disable fast user switching (no jumping to another session).
-New-ItemProperty -Path $sys -Name 'HideFastUserSwitching' -Value 1 -PropertyType DWord -Force | Out-Null
+# Fast user switching stays ON: "Сменить пользователя" is how the admin gets to their account
+# from the player seat. Same decision as NoLogoff/NoClose above.
+New-ItemProperty -Path $sys -Name 'HideFastUserSwitching' -Value 0 -PropertyType DWord -Force | Out-Null
 
 Write-Host "All policies applied. Reboot for full effect." -ForegroundColor Green
