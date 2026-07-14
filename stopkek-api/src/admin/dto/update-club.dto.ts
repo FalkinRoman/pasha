@@ -30,4 +30,20 @@ export class UpdateClubDto {
   @IsOptional()
   @IsEmail()
   supportEmail?: string;
+
+  @IsOptional()
+  @IsString()
+  operatorName?: string;
+
+  @IsOptional()
+  @IsString()
+  inn?: string;
+
+  @IsOptional()
+  @IsString()
+  ogrnip?: string;
+
+  @IsOptional()
+  @IsString()
+  legalAddress?: string;
 }

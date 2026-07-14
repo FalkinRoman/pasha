@@ -30,7 +30,7 @@
           <div class="club-badge-icon">📍</div>
           <div>
             <strong>Как нас найти</strong>
-            <span>141407, Московская обл., г. Химки, Юбилейный просп., 1, корп. 5</span>
+            <span data-club="address">141407, Московская обл., г. Химки, Юбилейный просп., 1, корп. 5</span>
           </div>
         </div>
 
@@ -39,12 +39,12 @@
 
         <h2>Контакты</h2>
         <ul>
-          <li>Оператор: ИП Левков Павел Олегович</li>
-          <li>ИНН: 774395265597 · ОГРНИП: 321774600480472</li>
-          <li>Email: <a href="mailto:stopkeksprt@yandex.ru">stopkeksprt@yandex.ru</a></li>
-          <li>Телефон: <a href="tel:+79152199799">+7 (915) 219-97-99</a></li>
-          <li>Клуб: Юбилейный просп., 1, корп. 5, Химки</li>
-          <li>Юр. адрес: 125183, Москва, Большая Академическая, 73/3, кв. 231</li>
+          <li>Оператор: <span data-club="operatorName">ИП Левков Павел Олегович</span></li>
+          <li><span data-club="innOgrnipColon">ИНН: 774395265597 · ОГРНИП: 321774600480472</span></li>
+          <li>Email: <a data-club="supportEmail" data-club-link="mailto" href="mailto:stopkeksprt@yandex.ru">stopkeksprt@yandex.ru</a></li>
+          <li>Телефон: <a data-club="supportPhone" data-club-link="tel" href="tel:+79152199799">+7 (915) 219-97-99</a></li>
+          <li>Клуб: <span data-club="address">Юбилейный просп., 1, корп. 5, Химки</span></li>
+          <li>Юр. адрес: <span data-club="legalAddress">125183, Москва, Большая Академическая, 73/3, кв. 231</span></li>
         </ul>
 
         <h2>Приложение</h2>
@@ -52,23 +52,24 @@
         Сайт: <a href="https://stopkek.site">stopkek.site</a></p>
 
         <h2>Режим работы</h2>
-        <p>24/7</p>
+        <p data-club="hours">24/7</p>
 
         <footer class="site-footer site-footer--legal">
           <div class="footer-legal">
-            <p><strong>ИП Левков Павел Олегович</strong></p>
-            <p>ИНН 774395265597 · ОГРНИП 321774600480472</p>
-            <p>Юридический адрес: 125183, г. Москва, ул. Большая Академическая, д. 73/3, кв. 231</p>
-            <p>Клуб: 141407, Московская обл., г. Химки, Юбилейный просп., 1, корп. 5</p>
-            <p>
+            <p><strong data-club="operatorName">ИП Левков Павел Олегович</strong></p>
+            <p data-club="innOgrnip">ИНН 774395265597 · ОГРНИП 321774600480472</p>
+            <p data-club="legalAddressLine">Юридический адрес: 125183, г. Москва, ул. Большая Академическая, д. 73/3, кв. 231</p>
+            <p data-club="clubAddressLine">Клуб: 141407, Московская обл., г. Химки, Юбилейный просп., 1, корп. 5</p>
+            <p data-club-contacts>
               <a href="mailto:stopkeksprt@yandex.ru">stopkeksprt@yandex.ru</a>
               · <a href="tel:+79152199799">+7 (915) 219-97-99</a>
             </p>
           </div>
-          <p class="footer-copy">© 2026 стопкек · <a href="/">stopkek.site</a></p>
+          <p class="footer-copy" data-club="copyright">© 2026 стопкек · <a href="/">stopkek.site</a></p>
         </footer>
       </div>
     </div>
   </div>
+  <script src="/site/club-info.js"></script>
 </body>
 </html>

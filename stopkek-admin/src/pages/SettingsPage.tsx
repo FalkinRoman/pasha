@@ -19,6 +19,10 @@ export function SettingsPage() {
   const [supportPhone, setSupportPhone] = useState('');
   const [supportTelegram, setSupportTelegram] = useState('');
   const [supportEmail, setSupportEmail] = useState('');
+  const [operatorName, setOperatorName] = useState('');
+  const [inn, setInn] = useState('');
+  const [ogrnip, setOgrnip] = useState('');
+  const [legalAddress, setLegalAddress] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -38,6 +42,10 @@ export function SettingsPage() {
         setSupportPhone(c.supportPhone ?? '');
         setSupportTelegram(c.supportTelegram ?? '');
         setSupportEmail(c.supportEmail ?? '');
+        setOperatorName(c.operatorName ?? '');
+        setInn(c.inn ?? '');
+        setOgrnip(c.ogrnip ?? '');
+        setLegalAddress(c.legalAddress ?? '');
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Ошибка загрузки'))
       .finally(() => setLoading(false));
@@ -61,6 +69,10 @@ export function SettingsPage() {
         supportPhone: supportPhone.trim(),
         supportTelegram: supportTelegram.trim(),
         supportEmail: supportEmail.trim(),
+        operatorName: operatorName.trim(),
+        inn: inn.trim(),
+        ogrnip: ogrnip.trim(),
+        legalAddress: legalAddress.trim(),
       });
       setClub(updated);
       setMessage('Сохранено');
@@ -94,7 +106,7 @@ export function SettingsPage() {
     <>
       <h1 className="page-title">Настройки клуба</h1>
       <p className="muted page-subtitle">
-        Адрес, часы работы, фото и контакты поддержки — отображаются в приложении
+        Адрес, контакты и реквизиты — в приложении и на сайте stopkek.site
       </p>
 
       {loading ? (
@@ -196,6 +208,47 @@ export function SettingsPage() {
                 value={supportEmail}
                 onChange={(e) => setSupportEmail(e.target.value)}
                 placeholder="support@stopkek.ru"
+              />
+            </label>
+
+            <h3>Сайт stopkek.site</h3>
+            <p className="muted form-hint">
+              Реквизиты ИП и контакты в футере на главной, /support, /privacy, /terms, /offer
+            </p>
+            <label>
+              Оператор (ИП / юр. лицо)
+              <input
+                className="input"
+                value={operatorName}
+                onChange={(e) => setOperatorName(e.target.value)}
+                placeholder="ИП Иванов Иван Иванович"
+              />
+            </label>
+            <label>
+              ИНН
+              <input
+                className="input"
+                value={inn}
+                onChange={(e) => setInn(e.target.value)}
+                placeholder="774395265597"
+              />
+            </label>
+            <label>
+              ОГРНИП / ОГРН
+              <input
+                className="input"
+                value={ogrnip}
+                onChange={(e) => setOgrnip(e.target.value)}
+                placeholder="321774600480472"
+              />
+            </label>
+            <label>
+              Юридический адрес
+              <input
+                className="input"
+                value={legalAddress}
+                onChange={(e) => setLegalAddress(e.target.value)}
+                placeholder="125183, г. Москва, ул. …"
               />
             </label>
 

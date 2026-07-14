@@ -20,6 +20,11 @@ async function main() {
       rating: 5,
       hours: '24/7',
       supportEmail: 'stopkeksprt@yandex.ru',
+      supportPhone: '+7 (915) 219-97-99',
+      operatorName: 'ИП Левков Павел Олегович',
+      inn: '774395265597',
+      ogrnip: '321774600480472',
+      legalAddress: '125183, г. Москва, ул. Большая Академическая, д. 73/3, кв. 231',
       mainDoorLockId: 'main-door',
       lockProvider: 'mock',
       zones: {

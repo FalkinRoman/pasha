@@ -302,6 +302,10 @@ export type ClubSettings = {
   supportPhone: string | null;
   supportTelegram: string | null;
   supportEmail: string | null;
+  operatorName: string | null;
+  inn: string | null;
+  ogrnip: string | null;
+  legalAddress: string | null;
 };
 
 export function fetchClubSettings() {

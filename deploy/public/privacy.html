@@ -30,7 +30,7 @@
           <div class="club-badge-icon">📍</div>
           <div>
             <strong>Адрес клуба</strong>
-            <span>141407, Московская обл., г. Химки, Юбилейный просп., 1, корп. 5</span>
+            <span data-club="address">141407, Московская обл., г. Химки, Юбилейный просп., 1, корп. 5</span>
           </div>
         </div>
 
@@ -39,7 +39,7 @@
         <p>Настоящая политика определяет порядок обработки персональных данных пользователей мобильного приложения и сервиса <strong>стопкек</strong>.</p>
 
         <h2>1. Оператор</h2>
-        <p><strong>Индивидуальный предприниматель Левков Павел Олегович</strong><br />
+        <p data-club-html="privacyOperator"><strong>Индивидуальный предприниматель Левков Павел Олегович</strong><br />
         ИНН: 774395265597 · ОГРНИП: 321774600480472<br />
         Юридический адрес: 125183, г. Москва, ул. Большая Академическая, д. 73/3, кв. 231<br />
         Email: <a href="mailto:stopkeksprt@yandex.ru">stopkeksprt@yandex.ru</a><br />
@@ -67,26 +67,27 @@
         <p>Данные хранятся на серверах в РФ. Фото документов доступны только администраторам клуба. Передача третьим лицам — SMS.ru, ЮKassa, хостинг — только для оказания услуги.</p>
 
         <h2>5. Права пользователя</h2>
-        <p>Запрос доступа, уточнения или удаления данных — <a href="mailto:stopkeksprt@yandex.ru">stopkeksprt@yandex.ru</a>. Срок ответа — до 30 дней.</p>
+        <p>Запрос доступа, уточнения или удаления данных — <a data-club="supportEmail" data-club-link="mailto" href="mailto:stopkeksprt@yandex.ru">stopkeksprt@yandex.ru</a>. Срок ответа — до 30 дней.</p>
 
         <h2>6. Cookies</h2>
         <p>Публичные страницы не используют cookies для трекинга.</p>
 
         <footer class="site-footer site-footer--legal">
           <div class="footer-legal">
-            <p><strong>ИП Левков Павел Олегович</strong></p>
-            <p>ИНН 774395265597 · ОГРНИП 321774600480472</p>
-            <p>Юридический адрес: 125183, г. Москва, ул. Большая Академическая, д. 73/3, кв. 231</p>
-            <p>Клуб: 141407, Московская обл., г. Химки, Юбилейный просп., 1, корп. 5</p>
-            <p>
+            <p><strong data-club="operatorName">ИП Левков Павел Олегович</strong></p>
+            <p data-club="innOgrnip">ИНН 774395265597 · ОГРНИП 321774600480472</p>
+            <p data-club="legalAddressLine">Юридический адрес: 125183, г. Москва, ул. Большая Академическая, д. 73/3, кв. 231</p>
+            <p data-club="clubAddressLine">Клуб: 141407, Московская обл., г. Химки, Юбилейный просп., 1, корп. 5</p>
+            <p data-club-contacts>
               <a href="mailto:stopkeksprt@yandex.ru">stopkeksprt@yandex.ru</a>
               · <a href="tel:+79152199799">+7 (915) 219-97-99</a>
             </p>
           </div>
-          <p class="footer-copy">© 2026 стопкек · <a href="/">stopkek.site</a></p>
+          <p class="footer-copy" data-club="copyright">© 2026 стопкек · <a href="/">stopkek.site</a></p>
         </footer>
       </div>
     </div>
   </div>
+  <script src="/site/club-info.js"></script>
 </body>
 </html>

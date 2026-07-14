@@ -192,6 +192,10 @@ model Club {
   lockMqttTopic    String?
   yookassaEnabled  Boolean  @default(true)
   mockTopupEnabled Boolean  @default(false)
+  operatorName     String?
+  inn              String?
+  ogrnip           String?
+  legalAddress     String?
   createdAt        DateTime @default(now())
 
   zones            Zone[]

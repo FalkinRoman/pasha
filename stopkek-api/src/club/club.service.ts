@@ -33,6 +33,10 @@ export class ClubService {
     supportPhone: string | null;
     supportTelegram: string | null;
     supportEmail: string | null;
+    operatorName: string | null;
+    inn: string | null;
+    ogrnip: string | null;
+    legalAddress: string | null;
     zones?: { slug: string; name: string; specs: string; pricePerHour: number }[];
   }) {
     return {
@@ -45,6 +49,10 @@ export class ClubService {
       supportPhone: club.supportPhone,
       supportTelegram: club.supportTelegram,
       supportEmail: club.supportEmail,
+      operatorName: club.operatorName,
+      inn: club.inn,
+      ogrnip: club.ogrnip,
+      legalAddress: club.legalAddress,
       zones: club.zones?.map((z) => ({
         id: z.slug,
         name: z.name,
@@ -154,6 +162,14 @@ export class ClubService {
           : {}),
         ...(dto.supportEmail !== undefined
           ? { supportEmail: dto.supportEmail.trim() || null }
+          : {}),
+        ...(dto.operatorName !== undefined
+          ? { operatorName: dto.operatorName.trim() || null }
+          : {}),
+        ...(dto.inn !== undefined ? { inn: dto.inn.trim() || null } : {}),
+        ...(dto.ogrnip !== undefined ? { ogrnip: dto.ogrnip.trim() || null } : {}),
+        ...(dto.legalAddress !== undefined
+          ? { legalAddress: dto.legalAddress.trim() || null }
           : {}),
       },
       include: { zones: { orderBy: { sortOrder: 'asc' } } },
