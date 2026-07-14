@@ -112,7 +112,7 @@ export function SettingsPage() {
       {loading ? (
         <p className="muted">Загрузка…</p>
       ) : (
-        <>
+        <div className="settings-stack">
           <div className="card settings-photo-card">
             <h3>Фото клуба</h3>
             <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>
@@ -264,7 +264,7 @@ export function SettingsPage() {
           <ClubPaymentSettings />
           <ClubLocksSettings />
           <TestNotifications />
-        </>
+        </div>
       )}
     </>
   );

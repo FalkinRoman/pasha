@@ -188,6 +188,16 @@ select,
   margin-top: 28px;
 }
 
+.card-form h4 {
+  margin: 28px 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.card-form h4:first-of-type {
+  margin-top: 0;
+}
+
 .card-form .form-hint {
   margin: 0 0 16px;
   font-size: 13px;
@@ -215,6 +225,17 @@ select,
 
 .card-form .form-footer .btn {
   margin-top: 4px;
+}
+
+.card-form > .btn {
+  margin-top: 12px;
+  align-self: flex-start;
+}
+
+.test-push-result {
+  margin-top: 16px;
+  font-size: 13px;
+  background: rgba(0, 0, 0, 0.25);
 }
 
 .card-form label.toggle-row {
@@ -496,11 +517,17 @@ select,
 }
 
 .page-subtitle {
-  margin: -8px 0 20px;
+  margin: 0 0 24px;
+}
+
+.settings-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
 .settings-photo-card {
-  margin-bottom: 16px;
+  margin-bottom: 0;
 }
 
 .settings-club-photo {

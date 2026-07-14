@@ -74,7 +74,7 @@ export function TestNotifications() {
         Отладочные инструменты: тост на конкретный ПК и пуш пользователю по номеру
       </p>
 
-      <h4 style={{ marginBottom: 8 }}>Тост на ПК</h4>
+      <h4>Тост на ПК</h4>
       <label>
         ПК (место)
         <select
@@ -111,7 +111,7 @@ export function TestNotifications() {
         </button>
       </div>
 
-      <h4 style={{ margin: '16px 0 8px' }}>Пуш по номеру телефона</h4>
+      <h4>Пуш по номеру телефона</h4>
       <label>
         Телефон
         <input
@@ -142,7 +142,7 @@ export function TestNotifications() {
       </div>
 
       {pushResult ? (
-        <div className="card" style={{ marginTop: 12, fontSize: 13 }}>
+        <div className="card test-push-result">
           <p>
             <b>{pushResult.user.name || 'Без имени'}</b> · {pushResult.user.phone}
           </p>
