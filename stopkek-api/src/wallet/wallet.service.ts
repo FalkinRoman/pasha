@@ -58,6 +58,7 @@ export class WalletService {
       );
     }
 
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const kopecks = amountRub * 100;
     const payment = await this.prisma.payment.create({
       data: {
@@ -68,11 +69,22 @@ export class WalletService {
       },
     });
 
-    const yoo = await this.yookassa.createTopupPayment({
-      amountRub,
-      paymentId: payment.id,
-      userId,
-    });
+    let yoo: Awaited<ReturnType<YooKassaService['createTopupPayment']>>;
+    try {
+      yoo = await this.yookassa.createTopupPayment({
+        amountRub,
+        paymentId: payment.id,
+        userId,
+        customerPhone: user?.phone,
+        customerEmail: user?.email,
+      });
+    } catch (e) {
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: 'failed' },
+      });
+      throw e;
+    }
 
     await this.prisma.payment.update({
       where: { id: payment.id },
