@@ -1,12 +1,14 @@
-<#
+﻿<#
 .SYNOPSIS
-  Phase 0 / step 1 — create the restricted (non-admin) Windows account the club PC
-  runs games under, and enable auto-logon into it.
+  Phase 0 / step 1 — create the Windows account the club PC runs games under,
+  and enable auto-logon into it.
 
 .DESCRIPTION
-  The whole tamper-resistance model rests on this: the player runs as a STANDARD
-  user, so they cannot kill the SYSTEM agent service, cannot open an elevated Task
-  Manager, cannot stop services. Run this elevated (Administrator) once per PC.
+  The player is a LOCAL ADMIN so that any program (installer / launcher / anti-cheat)
+  elevates silently with no password (see 09-enable-silent-admin.ps1 for the UAC
+  side). Tamper-resistance no longer rests on a standard-user account: it rests on
+  the kiosk shell (overlay), the player-hive lockdown policies (no Task Manager /
+  regedit / Run — step 2) and the SYSTEM agent watchdog. Run elevated once per PC.
 
   Auto-logon via plaintext registry is insecure (password is readable). For
   production prefer Sysinternals Autologon.exe, which stores the secret in the LSA:
@@ -60,16 +62,15 @@ if (Get-LocalUser -Name $User -ErrorAction SilentlyContinue) {
         -Description 'Restricted club game account'
 }
 
-# Ensure NON-admin: member of Users only, never Administrators.
+# Make the player a LOCAL ADMIN so programs elevate silently without a password.
 # Reference groups by well-known SID, not by name, so this works on localized Windows
 # (e.g. Russian, where the groups are "Пользователи" / "Администраторы").
+# The silent-UAC side (ConsentPromptBehaviorAdmin=0) is applied by 09-enable-silent-admin.ps1.
 $usersGrp  = Get-LocalGroup -SID 'S-1-5-32-545'   # Users
 $adminsGrp = Get-LocalGroup -SID 'S-1-5-32-544'   # Administrators
-Add-LocalGroupMember -Group $usersGrp -Member $User -ErrorAction SilentlyContinue
-if (Get-LocalGroupMember -Group $adminsGrp -Member $User -ErrorAction SilentlyContinue) {
-    Write-Warning "Removing '$User' from Administrators (must be standard)."
-    Remove-LocalGroupMember -Group $adminsGrp -Member $User
-}
+Add-LocalGroupMember -Group $usersGrp  -Member $User -ErrorAction SilentlyContinue
+Add-LocalGroupMember -Group $adminsGrp -Member $User -ErrorAction SilentlyContinue
+Write-Host "'$User' added to Administrators (silent elevation)." -ForegroundColor Green
 
 $winlogon = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
 if ($NoAutoLogon -or -not $hasPassword) {

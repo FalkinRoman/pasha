@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Phase 0 / step 2 — lock down the restricted player account via registry policy.
 

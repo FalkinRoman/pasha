@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   One-shot Phase 0 + agent install for a fresh club PC. Run elevated.
 
@@ -35,6 +35,11 @@ Write-Warning "The player account must be logged OFF for policy application."
 # grandparent dir — pass it explicitly so a non-default -Target still gets the wallpaper.
 $wallpaper = Join-Path (Split-Path (Split-Path $AgentExe -Parent) -Parent) 'wallpaper.jpg'
 & "$here\02-apply-policies.ps1" -User $User -WallpaperPath $wallpaper
+
+Write-Host "=== STEP 2b/4: silent admin (player + UAC no-prompt) ===" -ForegroundColor Magenta
+# Player becomes a local admin and UAC is set to elevate without prompting, so ANY
+# program (installer / launcher / anti-cheat) runs elevated with no password.
+& "$here\09-enable-silent-admin.ps1" -User $User
 
 Write-Host "=== STEP 3/4: install agent task (SYSTEM) ===" -ForegroundColor Magenta
 & "$here\03-install-agent-task.ps1" -ExePath $AgentExe
