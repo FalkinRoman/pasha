@@ -1,5 +1,5 @@
 /**
- * Пересоздать зоны/места под 6 соло-капсул (осторожно: снимает все брони).
+ * Пересоздать зоны/места под соло-капсулы (осторожно: снимает все брони).
  * npm run floor:reseed
  */
 import { PrismaClient } from '@prisma/client';
@@ -57,7 +57,7 @@ async function main() {
     });
   }
 
-  console.log('Зал обновлён: 1 зона «СОЛО КАПСУЛЫ», 6 мест.');
+  console.log(`Зал обновлён: 1 зона «${SOLO_ZONE.name}», ${buildSoloCapsuleLayouts().length} мест.`);
 }
 
 main()

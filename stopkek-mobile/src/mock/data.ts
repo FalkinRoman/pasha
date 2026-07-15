@@ -1,5 +1,5 @@
 import { Booking, Seat, User, Zone } from '../types';
-import { MAP_H, MAP_W } from '../constants/floorLayout';
+import { buildCapsuleGridLayouts, MAP_H, MAP_W, SOLO_DEFAULT_SEAT_COUNT } from '../constants/floorLayout';
 
 export const MOCK_CLUB = {
   name: 'стопкек',
@@ -23,15 +23,8 @@ export const MOCK_ZONES: Zone[] = [
   },
 ];
 
-/** Координаты как в stopkek-api/prisma/floor-layout.ts (сетка 3×2). */
-const CAPSULES = [
-  { number: 1, x: 69, y: 62, w: 34, h: 34 },
-  { number: 2, x: 163, y: 62, w: 34, h: 34 },
-  { number: 3, x: 257, y: 62, w: 34, h: 34 },
-  { number: 4, x: 69, y: 130, w: 34, h: 34 },
-  { number: 5, x: 163, y: 130, w: 34, h: 34 },
-  { number: 6, x: 257, y: 130, w: 34, h: 34 },
-];
+/** Координаты как в stopkek-api/prisma/floor-layout.ts */
+const CAPSULES = buildCapsuleGridLayouts(SOLO_DEFAULT_SEAT_COUNT);
 
 const statuses: Array<'free' | 'occupied' | 'reserved' | 'repair'> = [
   'free',
@@ -40,6 +33,7 @@ const statuses: Array<'free' | 'occupied' | 'reserved' | 'repair'> = [
   'reserved',
   'free',
   'occupied',
+  'free',
 ];
 
 export const MOCK_SEATS: Seat[] = CAPSULES.map((c, i) => ({

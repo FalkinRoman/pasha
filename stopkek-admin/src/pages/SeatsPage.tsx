@@ -13,7 +13,9 @@ import {
   updateZone,
 } from '../api/admin';
 import { Modal } from '../components/Modal';
+import { FloorMapPreview } from '../components/FloorMapPreview';
 import { TableEmptyRow } from '../components/TableEmptyRow';
+import { fetchFloorMap, FloorMapData } from '../api/admin';
 import { SEAT_STATUS } from '../lib/statusLabels';
 
 const STATUSES = ['free', 'occupied', 'reserved', 'repair'] as const;
@@ -29,6 +31,7 @@ function placeWord(n: number) {
 export function SeatsPage() {
   const [zones, setZones] = useState<ZoneRow[]>([]);
   const [seats, setSeats] = useState<SeatRow[]>([]);
+  const [floor, setFloor] = useState<FloorMapData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -47,9 +50,10 @@ export function SeatsPage() {
     setLoading(true);
     setError('');
     try {
-      const [z, s] = await Promise.all([fetchZones(), fetchSeats()]);
+      const [z, s, f] = await Promise.all([fetchZones(), fetchSeats(), fetchFloorMap()]);
       setZones(z);
       setSeats(s);
+      setFloor(f);
       if (!seatZoneId && z[0]) setSeatZoneId(z[0].id);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Ошибка загрузки');
@@ -211,6 +215,13 @@ export function SeatsPage() {
         {counts.reserved ?? 0} · Ремонт {counts.repair ?? 0}
       </p>
       {error && <p className="error">{error}</p>}
+
+      {floor && floor.seats.length > 0 ? (
+        <section className="card settings-stack" style={{ marginBottom: 24 }}>
+          <h2 className="section-title">Схема зала</h2>
+          <FloorMapPreview seats={floor.seats} zones={floor.zones} />
+        </section>
+      ) : null}
 
       <section className="card" style={{ marginBottom: 16 }}>
         <div className="section-head">

@@ -17,7 +17,7 @@
     powershell -NoProfile -Command "Set-ExecutionPolicy -Scope Process RemoteSigned -Force; & '<bundle>\deploy\04-applocker-games.ps1' -LockAcls"
 
 .PARAMETER SeatNumber
-  Seat number for THIS PC (1..6). Prompted if omitted.
+  Seat number for THIS PC (1..7). Prompted if omitted.
 
 .PARAMETER KioskKey
   Per-seat API key (admin: GET /api/admin/kiosk/seat-key?seatNumber=N). Prompted if omitted.
@@ -79,7 +79,7 @@ $bundledCfg = Join-Path $srcAgent 'config.json'
 if (Test-Path $bundledCfg) {
     try {
         $bc = Get-Content $bundledCfg -Raw | ConvertFrom-Json
-        if (-not $PSBoundParameters.ContainsKey('SeatNumber') -and $bc.seatNumber -ge 1 -and $bc.seatNumber -le 6) {
+        if (-not $PSBoundParameters.ContainsKey('SeatNumber') -and $bc.seatNumber -ge 1 -and $bc.seatNumber -le 7) {
             $SeatNumber = [int]$bc.seatNumber
         }
         if (-not $PSBoundParameters.ContainsKey('KioskKey') -and $bc.kioskKey -and $bc.kioskKey -notlike 'PASTE-*') {
@@ -92,8 +92,8 @@ if (Test-Path $bundledCfg) {
     } catch { }
 }
 
-while ($SeatNumber -lt 1 -or $SeatNumber -gt 6) {
-    $SeatNumber = [int](Read-Host 'Номер места этого ПК (1-6)')
+while ($SeatNumber -lt 1 -or $SeatNumber -gt 7) {
+    $SeatNumber = [int](Read-Host 'Номер места этого ПК (1-7)')
 }
 while ([string]::IsNullOrWhiteSpace($KioskKey) -or $KioskKey -like 'PASTE-*') {
     $KioskKey = (Read-Host "Ключ места №$SeatNumber (kioskKey)").Trim()

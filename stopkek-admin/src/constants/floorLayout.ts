@@ -2,6 +2,7 @@
 export const MAP_W = 360;
 export const MAP_H = 190;
 export const MAP_CENTER_X = MAP_W / 2;
+export const SOLO_DEFAULT_SEAT_COUNT = 7;
 
 export const SOLO_ZONE_SUBTITLE = 'Закрытые капсулы для одного человека.';
 

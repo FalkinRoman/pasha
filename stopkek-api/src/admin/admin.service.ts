@@ -17,6 +17,9 @@ import { BookingsService } from '../bookings/bookings.service';
 import { IdentityService } from '../identity/identity.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSeatDto } from './dto/create-seat.dto';
+import {
+  buildCapsuleGridLayouts,
+} from '../../prisma/floor-layout';
 import { CreateZoneDto } from './dto/create-zone.dto';
 import { UpdateSeatDto } from './dto/update-seat.dto';
 import { UpdateZoneDto } from './dto/update-zone.dto';
@@ -156,20 +159,28 @@ export class AdminService {
       );
     }
 
-    const { x, y } =
+    const { x, y, w, h } =
       dto.x !== undefined && dto.y !== undefined
-        ? { x: dto.x, y: dto.y }
-        : await this.nextSeatPosition(dto.zoneId);
+        ? { x: dto.x, y: dto.y, w: 34, h: 34 }
+        : { x: 0, y: 0, w: 34, h: 34 };
 
-    return this.prisma.seat.create({
+    const seat = await this.prisma.seat.create({
       data: {
         zoneId: dto.zoneId,
         number: dto.number,
         status: dto.status ?? 'free',
         x,
         y,
+        w,
+        h,
       },
     });
+
+    if (dto.x === undefined || dto.y === undefined) {
+      await this.relayoutZoneSeats(dto.zoneId);
+    }
+
+    return this.prisma.seat.findUniqueOrThrow({ where: { id: seat.id } });
   }
 
   async updateSeat(seatId: string, dto: UpdateSeatDto) {
@@ -217,7 +228,9 @@ export class AdminService {
     if (!seat) throw new NotFoundException('Место не найдено');
 
     await this.assertSeatDeletable(seatId, seat.number);
+    const zoneId = seat.zoneId;
     await this.prisma.seat.delete({ where: { id: seatId } });
+    await this.relayoutZoneSeats(zoneId);
     return { ok: true };
   }
 
@@ -313,27 +326,31 @@ export class AdminService {
     }
   }
 
-  private async nextSeatPosition(zoneId: string) {
-    const SEAT_W = 22;
-    const SEAT_H = 22;
-    const STEP = SEAT_W + 4;
-    const GRID_X = 12 + 74 + 10;
-    const GRID_Y = 32;
-
-    const inZone = await this.prisma.seat.findMany({
+  private async relayoutZoneSeats(zoneId: string) {
+    const seats = await this.prisma.seat.findMany({
       where: { zoneId },
-      orderBy: { number: 'desc' },
-      take: 1,
+      orderBy: { number: 'asc' },
     });
+    if (!seats.length) return;
 
-    const zone = await this.prisma.zone.findUnique({ where: { id: zoneId } });
-    const row = zone?.sortOrder ?? 0;
-    const col = inZone.length;
-
-    return {
-      x: GRID_X + col * STEP,
-      y: GRID_Y + row * STEP,
-    };
+    const layouts = buildCapsuleGridLayouts(seats.length);
+    await this.prisma.$transaction(
+      seats.map((seat, index) => {
+        const layout = layouts[index];
+        if (!layout) {
+          throw new BadRequestException('Не удалось вычислить координаты для карты зала');
+        }
+        return this.prisma.seat.update({
+          where: { id: seat.id },
+          data: {
+            x: layout.x,
+            y: layout.y,
+            w: layout.w,
+            h: layout.h,
+          },
+        });
+      })
+    );
   }
 
   async listBookings(status?: BookingStatus) {

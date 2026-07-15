@@ -1,5 +1,5 @@
 /**
- * Одноразовая разметка клуба: 1 зона, 4 соло-капсулы (все free).
+ * Одноразовая разметка клуба: 1 зона, 7 соло-капсул (все free).
  */
 import { PrismaClient } from '@prisma/client';
 import { buildSoloCapsuleLayouts, SOLO_ZONE } from './floor-layout';
@@ -77,7 +77,7 @@ async function main() {
     data: { clubId: club.id, startHour: 10, endHour: 16, discountPercent: 26 },
   });
 
-  console.log('Клуб создан:', club.name, '— 4 соло-капсулы, тарифы по умолчанию.');
+  console.log(`Клуб создан: ${club.name} — ${buildSoloCapsuleLayouts().length} соло-капсул, тарифы по умолчанию.`);
 }
 
 main()

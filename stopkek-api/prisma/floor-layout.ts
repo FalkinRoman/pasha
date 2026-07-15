@@ -1,6 +1,9 @@
 /**
- * Разметка зала: 6 соло-капсул (сетка 3×2) + координаты для SVG.
+ * Разметка зала: соло-капсулы на SVG-холсте MAP_W×MAP_H.
+ * При добавлении мест в админке координаты пересчитываются через buildCapsuleGridLayouts.
  */
+export const SOLO_DEFAULT_SEAT_COUNT = 7;
+
 export const SOLO_ZONE = {
   slug: 'solo',
   name: 'СОЛО КАПСУЛЫ',
@@ -26,32 +29,42 @@ export const MAP_W = 360;
 export const MAP_H = 190;
 export const MAP_CENTER_X = MAP_W / 2;
 
-const ROOM_W = 82;
-const ROOM_H = 54;
-const SEAT_W = 34;
-const SEAT_H = 34;
-const COL_GAP = 12;
-const ROW_GAP = 14;
+export const SEAT_W = 34;
+export const SEAT_H = 34;
 
-// 6 капсул: 3 столбца × 2 ряда. Сетка 270×122 центрируется в холсте 360×190.
-const COLS = 3;
-const ROWS = 2;
+type GridMetrics = {
+  roomW: number;
+  roomH: number;
+  colGap: number;
+  rowGap: number;
+  originY: number;
+};
 
-const GRID_W = ROOM_W * COLS + COL_GAP * (COLS - 1);
-const GRID_H = ROOM_H * ROWS + ROW_GAP * (ROWS - 1);
-const ORIGIN_X = (MAP_W - GRID_W) / 2;
-const ORIGIN_Y = 52;
+/** Сколько капсул в каждом ряду (сверху вниз). */
+export function computeRowDistribution(seatCount: number): number[] {
+  if (seatCount <= 0) return [];
+  if (seatCount <= 4) return [seatCount];
+  if (seatCount === 5) return [3, 2];
+  if (seatCount === 6) return [3, 3];
+  if (seatCount === 7) return [4, 3];
+  if (seatCount === 8) return [4, 4];
 
-// Нумерация слева-направо, сверху-вниз: 1-2-3 верхний ряд, 4-5-6 нижний.
-const CAPSULE_ORIGINS = Array.from({ length: COLS * ROWS }, (_, i) => {
-  const col = i % COLS;
-  const row = Math.floor(i / COLS);
-  return {
-    number: i + 1,
-    roomX: ORIGIN_X + col * (ROOM_W + COL_GAP),
-    roomY: ORIGIN_Y + row * (ROOM_H + ROW_GAP),
-  };
-});
+  const rows: number[] = [];
+  let left = seatCount;
+  while (left > 0) {
+    const n = Math.min(4, left);
+    rows.push(n);
+    left -= n;
+  }
+  return rows;
+}
+
+function gridMetrics(maxColsInRow: number): GridMetrics {
+  if (maxColsInRow <= 3) {
+    return { roomW: 82, roomH: 54, colGap: 12, rowGap: 14, originY: 52 };
+  }
+  return { roomW: 76, roomH: 52, colGap: 10, rowGap: 12, originY: 50 };
+}
 
 export type CapsuleLayout = {
   number: number;
@@ -65,16 +78,44 @@ export type CapsuleLayout = {
   h: number;
 };
 
+/** Координаты для N мест (номера 1…N слева-направо, сверху-вниз). */
+export function buildCapsuleGridLayouts(seatCount: number): CapsuleLayout[] {
+  const rows = computeRowDistribution(seatCount);
+  if (!rows.length) return [];
+
+  const maxCols = Math.max(...rows);
+  const { roomW, roomH, colGap, rowGap, originY } = gridMetrics(maxCols);
+
+  const layouts: CapsuleLayout[] = [];
+  let number = 1;
+  let rowY = originY;
+
+  for (const colsInRow of rows) {
+    const gridW = colsInRow * roomW + (colsInRow - 1) * colGap;
+    const originX = (MAP_W - gridW) / 2;
+
+    for (let col = 0; col < colsInRow; col++) {
+      const roomX = originX + col * (roomW + colGap);
+      layouts.push({
+        number,
+        roomX,
+        roomY: rowY,
+        roomW,
+        roomH,
+        x: roomX + (roomW - SEAT_W) / 2,
+        y: rowY + (roomH - SEAT_H) / 2,
+        w: SEAT_W,
+        h: SEAT_H,
+      });
+      number += 1;
+    }
+
+    rowY += roomH + rowGap;
+  }
+
+  return layouts;
+}
+
 export function buildSoloCapsuleLayouts(): CapsuleLayout[] {
-  return CAPSULE_ORIGINS.map(({ number, roomX, roomY }) => ({
-    number,
-    roomX,
-    roomY,
-    roomW: ROOM_W,
-    roomH: ROOM_H,
-    x: roomX + (ROOM_W - SEAT_W) / 2,
-    y: roomY + (ROOM_H - SEAT_H) / 2,
-    w: SEAT_W,
-    h: SEAT_H,
-  }));
+  return buildCapsuleGridLayouts(SOLO_DEFAULT_SEAT_COUNT);
 }

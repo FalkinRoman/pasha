@@ -17,6 +17,7 @@
     "bootstrap:club": "npx tsx prisma/bootstrap-club.ts",
     "floor:reseed": "npx tsx prisma/reseed-solo-floor.ts",
     "floor:reseed:force": "npx tsx prisma/reseed-solo-floor.ts -- --force",
+    "floor:relayout": "npx tsx prisma/relayout-solo-seats.ts",
     "seed:locks": "npx tsx prisma/seed-locks.ts",
     "seed:pricing": "npx tsx prisma/seed-pricing.ts",
     "reset:pricing": "npx tsx prisma/reset-pricing.ts",
