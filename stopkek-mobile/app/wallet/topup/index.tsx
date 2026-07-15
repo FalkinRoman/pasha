@@ -22,7 +22,8 @@ import { radius, spacing } from '../../../src/theme/spacing';
 import { typography } from '../../../src/theme/typography';
 import { formatMoney } from '../../../src/utils/format';
 
-const PRESETS_BASE = [500, 1000, 2000, 5000];
+const PRESETS = [500, 1000, 2000, 5000];
+const DEFAULT_MIN = 100;
 
 type PayMethod = 'yookassa' | 'mock';
 
@@ -43,18 +44,9 @@ export default function TopupScreen() {
 
   const minAmount =
     effectiveMethod === 'mock'
-      ? (config?.minMockTopupRub ?? 1)
-      : (config?.minTopupRub ?? 10);
+      ? (config?.minMockTopupRub ?? DEFAULT_MIN)
+      : (config?.minTopupRub ?? DEFAULT_MIN);
   const maxAmount = config?.maxTopupRub ?? 100_000;
-
-  const presets = (() => {
-    const quick = effectiveMethod === 'mock'
-      ? [config?.minMockTopupRub ?? 1, config?.minTopupRub ?? 10]
-      : [config?.minTopupRub ?? 10];
-    return [...new Set([...quick, ...PRESETS_BASE])].filter(
-      (p) => p >= minAmount && p <= maxAmount
-    );
-  })();
 
   const amount = Number(amountText.replace(/\D/g, '')) || 0;
   const amountError =
@@ -71,13 +63,8 @@ export default function TopupScreen() {
     fetchWalletConfig()
       .then((cfg) => {
         setConfig(cfg);
-        if (cfg.yookassaEnabled) {
-          setMethod('yookassa');
-          setAmountText(String(cfg.minTopupRub));
-        } else if (cfg.mockTopupEnabled) {
-          setMethod('mock');
-          setAmountText(String(cfg.minMockTopupRub));
-        }
+        if (cfg.yookassaEnabled) setMethod('yookassa');
+        else if (cfg.mockTopupEnabled) setMethod('mock');
       })
       .catch(() => {});
   }, []);
@@ -177,7 +164,7 @@ export default function TopupScreen() {
 
       <Text style={[typography.caption, styles.sectionLabel]}>Сумма пополнения</Text>
       <View style={styles.chips}>
-        {presets.map((p) => (
+        {PRESETS.map((p) => (
           <Pressable
             key={p}
             style={[styles.chip, amount === p && styles.chipActive]}
@@ -213,7 +200,6 @@ export default function TopupScreen() {
             style={[styles.method, method === 'yookassa' && styles.methodActive]}
             onPress={() => {
               setMethod('yookassa');
-              if (config) setAmountText(String(config.minTopupRub));
             }}
           >
             <Text style={typography.body}>Карта / СБП</Text>
@@ -223,7 +209,6 @@ export default function TopupScreen() {
             style={[styles.method, method === 'mock' && styles.methodActive]}
             onPress={() => {
               setMethod('mock');
-              if (config) setAmountText(String(config.minMockTopupRub));
             }}
           >
             <Text style={typography.body}>Тестовое пополнение</Text>

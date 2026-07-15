@@ -9,6 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { SHOW_TEST_BOOKING } from '../../src/config/api';
 import { quoteBooking } from '../../src/api/bookings';
 import {
   BOOKING_MAX_HOURS,
@@ -65,6 +66,12 @@ export default function TimeScreen() {
   );
   const [customHoursText, setCustomHoursText] = useState(() => String(durationHours));
   const customActive = useCustom && !activePackageId;
+
+  useEffect(() => {
+    if (!SHOW_TEST_BOOKING && isTest) {
+      dispatch(setIsTest(false));
+    }
+  }, [dispatch, isTest]);
 
   const customHours = useMemo(() => {
     const n = parseInt(customHoursText.replace(/\D/g, ''), 10);
@@ -350,7 +357,7 @@ export default function TimeScreen() {
           </View>
         </Pressable>
         {customActive && hoursError ? <Text style={styles.customError}>{hoursError}</Text> : null}
-        {__DEV__ && (
+        {SHOW_TEST_BOOKING ? (
           <Pressable
             style={[styles.testBtn, isTest && styles.testBtnActive]}
             onPress={selectTest}
@@ -359,7 +366,7 @@ export default function TimeScreen() {
               🧪 TEST · 16 мин (только dev)
             </Text>
           </Pressable>
-        )}
+        ) : null}
       </View>
 
       {/* Пакеты */}

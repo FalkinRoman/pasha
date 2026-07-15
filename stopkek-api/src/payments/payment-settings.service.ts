@@ -35,11 +35,11 @@ export class PaymentSettingsService {
 
     const minTopupRub = Math.max(
       1,
-      Number(this.config.get('WALLET_TOPUP_MIN_RUB', '10')) || 10
+      Number(this.config.get('WALLET_TOPUP_MIN_RUB', '100')) || 100
     );
     const minMockTopupRub = Math.max(
       1,
-      Number(this.config.get('WALLET_TOPUP_MIN_MOCK_RUB', '1')) || 1
+      Number(this.config.get('WALLET_TOPUP_MIN_MOCK_RUB', '100')) || 100
     );
     const maxTopupRub = Math.max(
       minTopupRub,
