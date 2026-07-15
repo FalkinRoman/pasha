@@ -2,7 +2,7 @@ import { IsInt, Max, Min } from 'class-validator';
 
 export class TopupDto {
   @IsInt()
-  @Min(100)
+  @Min(1)
   @Max(100_000)
   amount!: number;
 }

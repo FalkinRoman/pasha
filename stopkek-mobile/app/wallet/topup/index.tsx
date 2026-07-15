@@ -22,9 +22,7 @@ import { radius, spacing } from '../../../src/theme/spacing';
 import { typography } from '../../../src/theme/typography';
 import { formatMoney } from '../../../src/utils/format';
 
-const PRESETS = [500, 1000, 2000, 5000];
-const MIN_AMOUNT = 100;
-const MAX_AMOUNT = 100_000;
+const PRESETS_BASE = [500, 1000, 2000, 5000];
 
 type PayMethod = 'yookassa' | 'mock';
 
@@ -37,14 +35,35 @@ export default function TopupScreen() {
   const [loading, setLoading] = useState(false);
   const [pendingPaymentId, setPendingPaymentId] = useState<string | null>(null);
 
+  const effectiveMethod: PayMethod = config?.yookassaEnabled && config?.mockTopupEnabled
+    ? method
+    : config?.yookassaEnabled
+      ? 'yookassa'
+      : 'mock';
+
+  const minAmount =
+    effectiveMethod === 'mock'
+      ? (config?.minMockTopupRub ?? 1)
+      : (config?.minTopupRub ?? 10);
+  const maxAmount = config?.maxTopupRub ?? 100_000;
+
+  const presets = (() => {
+    const quick = effectiveMethod === 'mock'
+      ? [config?.minMockTopupRub ?? 1, config?.minTopupRub ?? 10]
+      : [config?.minTopupRub ?? 10];
+    return [...new Set([...quick, ...PRESETS_BASE])].filter(
+      (p) => p >= minAmount && p <= maxAmount
+    );
+  })();
+
   const amount = Number(amountText.replace(/\D/g, '')) || 0;
   const amountError =
-    amount < MIN_AMOUNT
-      ? `Минимум ${formatMoney(MIN_AMOUNT)}`
-      : amount > MAX_AMOUNT
-        ? `Максимум ${formatMoney(MAX_AMOUNT)}`
+    amount < minAmount
+      ? `Минимум ${formatMoney(minAmount)}`
+      : amount > maxAmount
+        ? `Максимум ${formatMoney(maxAmount)}`
         : '';
-  const canPay = amount >= MIN_AMOUNT && amount <= MAX_AMOUNT;
+  const canPay = amount >= minAmount && amount <= maxAmount;
   const topupAvailable = config?.yookassaEnabled || config?.mockTopupEnabled;
   const showMethodChoice = Boolean(config?.yookassaEnabled && config?.mockTopupEnabled);
 
@@ -52,8 +71,13 @@ export default function TopupScreen() {
     fetchWalletConfig()
       .then((cfg) => {
         setConfig(cfg);
-        if (cfg.yookassaEnabled) setMethod('yookassa');
-        else if (cfg.mockTopupEnabled) setMethod('mock');
+        if (cfg.yookassaEnabled) {
+          setMethod('yookassa');
+          setAmountText(String(cfg.minTopupRub));
+        } else if (cfg.mockTopupEnabled) {
+          setMethod('mock');
+          setAmountText(String(cfg.minMockTopupRub));
+        }
       })
       .catch(() => {});
   }, []);
@@ -153,7 +177,7 @@ export default function TopupScreen() {
 
       <Text style={[typography.caption, styles.sectionLabel]}>Сумма пополнения</Text>
       <View style={styles.chips}>
-        {PRESETS.map((p) => (
+        {presets.map((p) => (
           <Pressable
             key={p}
             style={[styles.chip, amount === p && styles.chipActive]}
@@ -187,14 +211,20 @@ export default function TopupScreen() {
           <Text style={[typography.caption, styles.sectionLabel]}>Способ оплаты</Text>
           <Pressable
             style={[styles.method, method === 'yookassa' && styles.methodActive]}
-            onPress={() => setMethod('yookassa')}
+            onPress={() => {
+              setMethod('yookassa');
+              if (config) setAmountText(String(config.minTopupRub));
+            }}
           >
             <Text style={typography.body}>Карта / СБП</Text>
             <Text style={typography.caption}>ЮKassa</Text>
           </Pressable>
           <Pressable
             style={[styles.method, method === 'mock' && styles.methodActive]}
-            onPress={() => setMethod('mock')}
+            onPress={() => {
+              setMethod('mock');
+              if (config) setAmountText(String(config.minMockTopupRub));
+            }}
           >
             <Text style={typography.body}>Тестовое пополнение</Text>
             <Text style={typography.caption}>Без списания</Text>
@@ -207,7 +237,7 @@ export default function TopupScreen() {
         <Text style={styles.totalValue}>{canPay ? formatMoney(amount) : '—'}</Text>
         {paymentHint ? (
           <Text style={[typography.caption, styles.hint]}>
-            {paymentHint} · от {formatMoney(MIN_AMOUNT)}
+            {paymentHint} · от {formatMoney(minAmount)}
           </Text>
         ) : null}
       </Card>

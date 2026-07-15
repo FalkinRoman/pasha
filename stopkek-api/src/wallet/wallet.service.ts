@@ -30,6 +30,22 @@ export class WalletService {
     return this.paymentSettings.resolveWalletConfig();
   }
 
+  private assertTopupAmount(
+    amountRub: number,
+    cfg: Awaited<ReturnType<PaymentSettingsService['resolveWalletConfig']>>,
+    mode: 'yookassa' | 'mock'
+  ) {
+    const min =
+      mode === 'mock' ? cfg.minMockTopupRub : cfg.minTopupRub;
+    const max = cfg.maxTopupRub;
+    if (amountRub < min) {
+      throw new BadRequestException(`Минимальная сумма пополнения — ${min} ₽`);
+    }
+    if (amountRub > max) {
+      throw new BadRequestException(`Максимальная сумма пополнения — ${max} ₽`);
+    }
+  }
+
   async getTransactions(userId: string) {
     const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
     if (!wallet) throw new NotFoundException('Кошелёк не найден');
@@ -57,6 +73,7 @@ export class WalletService {
         'Оплата картой недоступна. Используйте тестовое пополнение или обратитесь в поддержку.'
       );
     }
+    this.assertTopupAmount(amountRub, cfg, 'yookassa');
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const kopecks = amountRub * 100;
@@ -109,6 +126,7 @@ export class WalletService {
     if (!cfg.mockTopupEnabled) {
       throw new ForbiddenException('Тестовое пополнение отключено');
     }
+    this.assertTopupAmount(amountRub, cfg, 'mock');
 
     const kopecks = amountRub * 100;
     const wallet = await this.ensureWallet(userId);

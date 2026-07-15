@@ -5,6 +5,9 @@ export type WalletConfig = {
   mockTopupEnabled: boolean;
   yookassaConfigured: boolean;
   currency: string;
+  minTopupRub: number;
+  minMockTopupRub: number;
+  maxTopupRub: number;
 };
 
 export type Transaction = {

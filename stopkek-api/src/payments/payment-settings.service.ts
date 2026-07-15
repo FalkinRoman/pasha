@@ -8,6 +8,9 @@ export type WalletPaymentConfig = {
   mockTopupEnabled: boolean;
   yookassaConfigured: boolean;
   currency: 'RUB';
+  minTopupRub: number;
+  minMockTopupRub: number;
+  maxTopupRub: number;
 };
 
 @Injectable()
@@ -30,11 +33,27 @@ export class PaymentSettingsService {
     const mockTopupEnabled =
       clubMock || (envMock && !yookassaEnabled) || (isDev && !yookassaConfigured);
 
+    const minTopupRub = Math.max(
+      1,
+      Number(this.config.get('WALLET_TOPUP_MIN_RUB', '10')) || 10
+    );
+    const minMockTopupRub = Math.max(
+      1,
+      Number(this.config.get('WALLET_TOPUP_MIN_MOCK_RUB', '1')) || 1
+    );
+    const maxTopupRub = Math.max(
+      minTopupRub,
+      Number(this.config.get('WALLET_TOPUP_MAX_RUB', '100000')) || 100_000
+    );
+
     return {
       yookassaEnabled,
       mockTopupEnabled,
       yookassaConfigured,
       currency: 'RUB',
+      minTopupRub,
+      minMockTopupRub,
+      maxTopupRub,
     };
   }
 
