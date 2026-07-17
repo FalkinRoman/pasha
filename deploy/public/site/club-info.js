@@ -18,6 +18,65 @@
     return 'tel:+' + d;
   }
 
+  function ensureMeta(attr, key, content) {
+    if (!content) return;
+    var sel = 'meta[' + attr + '="' + key + '"]';
+    var el = document.querySelector(sel);
+    if (!el) {
+      el = document.createElement('meta');
+      el.setAttribute(attr, key);
+      document.head.appendChild(el);
+    }
+    el.setAttribute('content', content);
+  }
+
+  function applySeo(club) {
+    var name = club.name || 'стопКЕК';
+    var path = (location.pathname || '/').replace(/\/+$/, '') || '/';
+    var pageTitles = {
+      '/': club.seoTitle || name + ' — компьютерный клуб',
+      '/support': 'Поддержка — ' + name,
+      '/privacy': 'Политика конфиденциальности — ' + name,
+      '/terms': 'Пользовательское соглашение — ' + name,
+      '/offer': 'Публичная оферта — ' + name,
+    };
+    var title = pageTitles[path] || name + ' — компьютерный клуб';
+    document.title = title;
+
+    var desc =
+      club.seoDescription ||
+      'Компьютерный клуб ' +
+        name +
+        '. Бронь и оплата игровых мест через мобильное приложение. Круглосуточно.';
+    var ogDesc = club.seoOgDescription || 'Компьютерный клуб ' + name + ' · бронь через приложение';
+
+    ensureMeta('name', 'description', desc);
+    ensureMeta('property', 'og:title', title);
+    ensureMeta('property', 'og:description', path === '/' ? ogDesc : desc);
+    ensureMeta('property', 'og:type', 'website');
+    ensureMeta('property', 'og:url', location.href.split('#')[0]);
+    ensureMeta('property', 'og:locale', 'ru_RU');
+    ensureMeta('property', 'og:site_name', name);
+
+    var old = document.getElementById('club-jsonld');
+    if (old) old.remove();
+    var ld = {
+      '@context': 'https://schema.org',
+      '@type': 'Organization',
+      name: name,
+      url: 'https://stopkek.site',
+      description: desc,
+    };
+    if (club.supportPhone) ld.telephone = club.supportPhone;
+    if (club.supportEmail) ld.email = club.supportEmail;
+    // адрес в JSON-LD не кладём — заказчик: SEO без адреса
+    var script = document.createElement('script');
+    script.type = 'application/ld+json';
+    script.id = 'club-jsonld';
+    script.textContent = JSON.stringify(ld);
+    document.head.appendChild(script);
+  }
+
   function composite(key, club) {
     switch (key) {
       case 'innOgrnip':
@@ -35,7 +94,7 @@
       case 'heroTag':
         return club.hours ? 'Компьютерный клуб · ' + club.hours : '';
       case 'copyright':
-        return '© ' + new Date().getFullYear() + ' ' + (club.name || 'стопкек') + ' · stopkek.site';
+        return '© ' + new Date().getFullYear() + ' ' + (club.name || 'стопКЕК') + ' · stopkek.site';
       case 'offerOperatorMeta':
         return club.operatorName && club.inn && club.ogrnip
           ? club.operatorName + ' · ИНН ' + club.inn + ' · ОГРНИП ' + club.ogrnip
@@ -106,6 +165,8 @@
   }
 
   function apply(club) {
+    applySeo(club);
+
     document.querySelectorAll('[data-club]').forEach(function (el) {
       var key = el.getAttribute('data-club');
       if (!key) return;

@@ -15,8 +15,8 @@ async function main() {
 
   const club = await prisma.club.create({
     data: {
-      name: 'стопкек',
-      address: '141407, Московская обл., г. Химки, Юбилейный просп., 1, корп. 5',
+      name: 'стопКЕК',
+      address: 'Москва, ул. Маршала Ерёменко, 5, корп. 4, 111677, этаж 1',
       rating: 5,
       hours: '24/7',
       supportEmail: 'stopkeksprt@yandex.ru',

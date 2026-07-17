@@ -53,6 +53,10 @@ export class ClubService {
       inn: club.inn,
       ogrnip: club.ogrnip,
       legalAddress: club.legalAddress,
+      /** SEO без адреса — только бренд + суть сервиса */
+      seoTitle: `${club.name} — компьютерный клуб`,
+      seoDescription: `Компьютерный клуб ${club.name}. Бронь и оплата игровых мест через мобильное приложение. Круглосуточно.`,
+      seoOgDescription: `Компьютерный клуб ${club.name} · бронь через приложение`,
       zones: club.zones?.map((z) => ({
         id: z.slug,
         name: z.name,
