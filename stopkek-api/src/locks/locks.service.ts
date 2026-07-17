@@ -272,23 +272,65 @@ export class LocksService {
     return this.getClubLockConfig();
   }
 
-  listEvents(page = 1, pageSize = 20) {
+  async listEvents(page = 1, pageSize = 20) {
     const take = Math.min(100, Math.max(1, pageSize));
     const skip = (Math.max(1, page) - 1) * take;
-    return Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.lockEvent.findMany({
         orderBy: { createdAt: 'desc' },
         take,
         skip,
       }),
       this.prisma.lockEvent.count(),
-    ]).then(([items, total]) => ({
+    ]);
+
+    const userIds = [
+      ...new Set(rows.map((r) => r.userId).filter((id): id is string => !!id)),
+    ];
+    const users =
+      userIds.length === 0
+        ? []
+        : await this.prisma.user.findMany({
+            where: { id: { in: userIds } },
+            select: { id: true, phone: true, name: true, deletedPhone: true },
+          });
+    const byId = new Map(users.map((u) => [u.id, u]));
+
+    const items = rows.map((r) => {
+      const u = r.userId ? byId.get(r.userId) : undefined;
+      const phone = u?.phone || u?.deletedPhone || null;
+      const name = u?.name?.trim() || null;
+      let openedBy: string;
+      if (u) {
+        openedBy = name ? `${name} · ${phone}` : phone || 'Клиент';
+      } else if (!r.userId) {
+        openedBy = 'Админ (тест)';
+      } else {
+        openedBy = 'Клиент удалён';
+      }
+      return {
+        id: r.id,
+        lockType: r.lockType,
+        lockTarget: r.lockTarget,
+        provider: r.provider,
+        success: r.success,
+        error: r.error,
+        createdAt: r.createdAt,
+        bookingId: r.bookingId,
+        userId: r.userId,
+        userPhone: phone,
+        userName: name,
+        openedBy,
+      };
+    });
+
+    return {
       items,
       total,
       page: Math.max(1, page),
       pageSize: take,
       totalPages: Math.max(1, Math.ceil(total / take)),
-    }));
+    };
   }
 
   private sleep(ms: number) {

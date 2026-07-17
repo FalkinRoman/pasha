@@ -236,6 +236,7 @@ export function LocksPage() {
             <thead>
               <tr>
                 <th>Время</th>
+                <th>Кто открыл</th>
                 <th>Замок</th>
                 <th>Режим</th>
                 <th>Ок</th>
@@ -245,7 +246,7 @@ export function LocksPage() {
             <tbody>
               {events.length === 0 && (
                 <TableEmptyRow
-                  colSpan={5}
+                  colSpan={6}
                   message={
                     eventsLoading
                       ? 'Загрузка…'
@@ -256,6 +257,7 @@ export function LocksPage() {
               {events.map((ev) => (
                 <tr key={ev.id}>
                   <td>{new Date(ev.createdAt).toLocaleString('ru-RU')}</td>
+                  <td>{ev.openedBy ?? ev.userPhone ?? '—'}</td>
                   <td>{ev.lockTarget}</td>
                   <td>{ev.provider === 'mock' ? 'симуляция' : ev.provider}</td>
                   <td>{ev.success ? 'да' : 'нет'}</td>

@@ -447,6 +447,11 @@ export type LockEventRow = {
   success: boolean;
   error: string | null;
   createdAt: string;
+  bookingId?: string | null;
+  userId?: string | null;
+  userPhone?: string | null;
+  userName?: string | null;
+  openedBy?: string;
 };
 
 export type LockEventsPage = {
