@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import {
   cancelBooking,
@@ -26,6 +26,9 @@ export default function ActiveSessionScreen() {
   const { booking, refresh } = useActiveBookingSync();
   const [remaining, setRemaining] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [doorCooldownSec, setDoorCooldownSec] = useState(0);
+  const [doorCooldownActive, setDoorCooldownActive] = useState(false);
+  const cooldownEndsAt = useRef(0);
   const seatNum = booking?.seatNumbers[0] ?? 0;
   const phase = booking?.sessionPhase ?? 'arrival';
 
@@ -64,13 +67,35 @@ export default function ActiveSessionScreen() {
     refresh,
   ]);
 
+  useEffect(() => {
+    if (!doorCooldownActive) return;
+    const t = setInterval(() => {
+      const left = Math.max(
+        0,
+        Math.ceil((cooldownEndsAt.current - Date.now()) / 1000)
+      );
+      setDoorCooldownSec(left);
+      if (left <= 0) setDoorCooldownActive(false);
+    }, 250);
+    return () => clearInterval(t);
+  }, [doorCooldownActive]);
+
   const onOpenMainDoor = async () => {
-    if (!booking) return;
+    if (!booking || doorCooldownSec > 0) return;
     setLoading(true);
     try {
       const updated = await openSessionDoor(booking.id);
       dispatch(setActiveBooking(updated));
-      Alert.alert('Главная дверь', 'Команда отправлена');
+      const pulse = updated.lockPulseSeconds ?? 5;
+      const cooldown = updated.lockCooldownSeconds ?? 30;
+      cooldownEndsAt.current = Date.now() + cooldown * 1000;
+      setDoorCooldownSec(cooldown);
+      setDoorCooldownActive(true);
+      Alert.alert(
+        'Главная дверь',
+        updated.lockMessage ??
+          `Дверь открыта на ~${pulse} сек. Можно войти.`
+      );
     } catch (e) {
       Alert.alert('Ошибка', e instanceof ApiError ? e.message : 'Не удалось');
     } finally {
@@ -142,8 +167,17 @@ export default function ActiveSessionScreen() {
       phase === 'arrival' ||
       (booking.untilStartMs != null && booking.untilStartMs > 0));
   const canCancel = booking.status === 'paid';
+  const doorReady = !!booking.canOpenMainDoor;
+  const doorSoon =
+    !doorReady &&
+    (booking.timerMode === 'until_door' ||
+      (booking.doorOpensInMs != null && booking.doorOpensInMs > 0));
 
   const timerLabel = booking.timerLabel ?? (isPlaying ? 'осталось' : 'до начала');
+  const doorBtnTitle =
+    doorCooldownSec > 0
+      ? `Подождите ${doorCooldownSec} сек`
+      : 'Открыть главную дверь';
 
   return (
     <Screen scroll>
@@ -173,27 +207,33 @@ export default function ActiveSessionScreen() {
           : formatBookingStartLine(booking.startAt)}
       </Text>
 
-      {waiting && booking.timerMode === 'until_door' && (
+      {waiting && doorSoon && (
         <Text style={[typography.bodySecondary, styles.hint]}>
-          Доступ в клуб откроется за {DOOR_EARLY_MIN} минут до начала брони
+          {booking.doorHint ??
+            `Доступ в клуб откроется за ${DOOR_EARLY_MIN} минут до начала брони`}
         </Text>
       )}
-      {waiting && booking.timerMode === 'until_start' && (
+      {waiting && booking.timerMode === 'until_start' && !doorSoon && (
         <Text style={[typography.bodySecondary, styles.hint]}>
           Сеанс начнётся в выбранное время — дождитесь отсчёта
         </Text>
       )}
+      {doorReady && (
+        <Text style={[typography.bodySecondary, styles.hint]}>
+          {booking.doorHint ?? 'Можно открыть главную дверь клуба'}
+        </Text>
+      )}
 
-      {booking.canOpenMainDoor && (
+      {doorReady && (
         <StopButton
-          title="Открыть главную дверь"
+          title={doorBtnTitle}
           onPress={onOpenMainDoor}
-          disabled={loading}
+          disabled={loading || doorCooldownSec > 0}
           style={styles.action}
         />
       )}
 
-      {(isPlaying || booking.canOpenMainDoor) && (
+      {(isPlaying || doorReady) && (
         <StopButton
           title="Сканировать QR на мониторе"
           variant="ghost"

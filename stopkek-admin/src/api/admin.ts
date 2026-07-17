@@ -392,6 +392,10 @@ export type ClubLocks = {
   lockHttpBaseUrl: string | null;
   lockHttpToken: string | null;
   lockMqttTopic: string | null;
+  pulseSeconds?: number;
+  cooldownSeconds?: number;
+  ready?: boolean;
+  readyHint?: string;
 };
 
 export function fetchClubLocks() {
@@ -403,6 +407,17 @@ export function updateClubLocks(data: Partial<ClubLocks>) {
     method: 'PATCH',
     body: JSON.stringify(data),
   });
+}
+
+export function testLockOpen() {
+  return api<{
+    ok: boolean;
+    lockId: string;
+    provider: string;
+    pulseSeconds: number;
+    simulated: boolean;
+    message: string;
+  }>('/admin/locks/test-open', { method: 'POST' });
 }
 
 export type ClubPayments = {

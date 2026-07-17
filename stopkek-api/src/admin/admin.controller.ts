@@ -261,6 +261,13 @@ export class AdminController {
     return this.locks.updateClubLockConfig(dto);
   }
 
+  /** Тест главной двери без брони (mock = симуляция, http/mqtt = реальный импульс). */
+  @Post('locks/test-open')
+  @UseGuards(AdminJwtGuard)
+  testLockOpen() {
+    return this.locks.testOpen();
+  }
+
   @Get('club/payments')
   @UseGuards(AdminJwtGuard)
   getClubPayments() {

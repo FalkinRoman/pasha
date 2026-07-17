@@ -1,7 +1,19 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LockProvider } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+
+/** Как у Shelly-импульса: дверь «открыта» ~N секунд. Mock и real отдают одно и то же. */
+export const LOCK_PULSE_SECONDS = 5;
+/** Имитация сетевой задержки моста в mock (мс). */
+const MOCK_LATENCY_MS = 450;
+/** Кулдаун повторного открытия из приложения (мс) — зеркало в BookingsService. */
+export const LOCK_OPEN_COOLDOWN_MS = 30_000;
 
 export type OpenLockParams = {
   lockId: string;
@@ -13,6 +25,14 @@ export type OpenLockParams = {
   mqttTopic?: string | null;
 };
 
+export type OpenLockResult = {
+  ok: boolean;
+  error?: string;
+  provider: LockProvider;
+  pulseSeconds: number;
+  simulated: boolean;
+};
+
 @Injectable()
 export class LocksService {
   private readonly logger = new Logger(LocksService.name);
@@ -22,14 +42,17 @@ export class LocksService {
     private readonly config: ConfigService
   ) {}
 
-  async open(params: OpenLockParams): Promise<{ ok: boolean; error?: string }> {
+  async open(params: OpenLockParams): Promise<OpenLockResult> {
     const provider = params.provider ?? 'mock';
     let success = false;
     let error: string | undefined;
 
     try {
       if (provider === 'mock') {
-        this.logger.log(`LOCK MOCK open main-door lockId=${params.lockId}`);
+        await this.sleep(MOCK_LATENCY_MS);
+        this.logger.log(
+          `LOCK MOCK open lockId=${params.lockId} pulse=${LOCK_PULSE_SECONDS}s`
+        );
         success = true;
       } else if (provider === 'http') {
         await this.openHttp(params);
@@ -55,7 +78,57 @@ export class LocksService {
       },
     });
 
-    return { ok: success, error };
+    return {
+      ok: success,
+      error,
+      provider,
+      pulseSeconds: LOCK_PULSE_SECONDS,
+      simulated: provider === 'mock',
+    };
+  }
+
+  /**
+   * Админский тест без брони: шлёт ту же команду, что приложение.
+   * В mock — полный цикл + запись LockEvent. При http/mqtt — реальный импульс.
+   */
+  async testOpen() {
+    const club = await this.prisma.club.findFirst();
+    if (!club) throw new NotFoundException('Клуб не найден');
+
+    const lockId = club.mainDoorLockId?.trim();
+    if (!lockId) {
+      throw new BadRequestException(
+        'Сначала укажи ID замка главной двери и сохрани'
+      );
+    }
+
+    const readiness = this.computeReadiness(club);
+    if (!readiness.ready && club.lockProvider !== 'mock') {
+      throw new BadRequestException(readiness.hint);
+    }
+
+    const result = await this.open({
+      lockId,
+      provider: club.lockProvider,
+      httpBaseUrl: club.lockHttpBaseUrl,
+      httpToken: club.lockHttpToken,
+      mqttTopic: club.lockMqttTopic,
+    });
+
+    if (!result.ok) {
+      throw new BadRequestException(result.error ?? 'Не удалось открыть замок');
+    }
+
+    return {
+      ok: true,
+      lockId,
+      provider: result.provider,
+      pulseSeconds: result.pulseSeconds,
+      simulated: result.simulated,
+      message: result.simulated
+        ? `Mock: команда принята, импульс ~${result.pulseSeconds} с (железа нет)`
+        : `Команда отправлена на мост, импульс ~${result.pulseSeconds} с`,
+    };
   }
 
   private async openHttp(params: OpenLockParams) {
@@ -75,6 +148,7 @@ export class LocksService {
         lockId: params.lockId,
         action: 'open',
         type: 'main',
+        pulseSeconds: LOCK_PULSE_SECONDS,
       }),
     });
     if (!res.ok) {
@@ -89,7 +163,8 @@ export class LocksService {
       params.httpBaseUrl || this.config.get('LOCK_HTTP_BASE_URL') || ''
     ).replace(/\/$/, '');
     if (!base) throw new Error('LOCK_HTTP_BASE_URL (MQTT bridge) не задан');
-    const topicPrefix = params.mqttTopic || this.config.get('LOCK_MQTT_TOPIC', 'stopkek/locks');
+    const topicPrefix =
+      params.mqttTopic || this.config.get('LOCK_MQTT_TOPIC', 'stopkek/locks');
     const topic = `${topicPrefix}/${params.lockId}/open`;
     const token = params.httpToken || this.config.get('LOCK_HTTP_TOKEN', '');
     const res = await fetch(`${base}/publish`, {
@@ -98,7 +173,11 @@ export class LocksService {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ topic, payload: '1' }),
+      body: JSON.stringify({
+        topic,
+        payload: '1',
+        pulseSeconds: LOCK_PULSE_SECONDS,
+      }),
     });
     if (!res.ok) {
       const text = await res.text().catch(() => '');
@@ -109,12 +188,60 @@ export class LocksService {
   async getClubLockConfig() {
     const club = await this.prisma.club.findFirst();
     if (!club) return null;
+    const readiness = this.computeReadiness(club);
     return {
       lockProvider: club.lockProvider,
       mainDoorLockId: club.mainDoorLockId,
       lockHttpBaseUrl: club.lockHttpBaseUrl,
       lockHttpToken: club.lockHttpToken ? '••••••••' : null,
       lockMqttTopic: club.lockMqttTopic,
+      pulseSeconds: LOCK_PULSE_SECONDS,
+      cooldownSeconds: Math.round(LOCK_OPEN_COOLDOWN_MS / 1000),
+      ready: readiness.ready,
+      readyHint: readiness.hint,
+    };
+  }
+
+  private computeReadiness(club: {
+    lockProvider: LockProvider;
+    mainDoorLockId: string | null;
+    lockHttpBaseUrl: string | null;
+    lockHttpToken: string | null;
+    lockMqttTopic: string | null;
+  }): { ready: boolean; hint: string } {
+    if (!club.mainDoorLockId?.trim()) {
+      return {
+        ready: false,
+        hint: 'Укажи ID замка (например main-door) и сохрани',
+      };
+    }
+    if (club.lockProvider === 'mock') {
+      return {
+        ready: true,
+        hint: 'Mock включён: приложение и тест работают без железа. Позже смени на HTTP и впиши URL моста.',
+      };
+    }
+    const base =
+      club.lockHttpBaseUrl?.trim() ||
+      String(this.config.get('LOCK_HTTP_BASE_URL') || '').trim();
+    if (!base) {
+      return {
+        ready: false,
+        hint: 'Для http/mqtt нужен HTTP base URL моста (или LOCK_HTTP_BASE_URL в env)',
+      };
+    }
+    if (club.lockProvider === 'mqtt' && !club.lockMqttTopic?.trim()) {
+      return {
+        ready: true,
+        hint: 'MQTT: topic не задан — будет stopkek/locks по умолчанию',
+      };
+    }
+    return {
+      ready: true,
+      hint:
+        club.lockProvider === 'http'
+          ? 'HTTP: готов к боевому мосту'
+          : 'MQTT: готов (через HTTP-мост /publish)',
     };
   }
 
@@ -141,7 +268,8 @@ export class LocksService {
     if (data.lockMqttTopic !== undefined) {
       update.lockMqttTopic = data.lockMqttTopic.trim() || null;
     }
-    return this.prisma.club.update({ where: { id: club.id }, data: update });
+    await this.prisma.club.update({ where: { id: club.id }, data: update });
+    return this.getClubLockConfig();
   }
 
   listEvents(limit = 50) {
@@ -149,5 +277,9 @@ export class LocksService {
       orderBy: { createdAt: 'desc' },
       take: limit,
     });
+  }
+
+  private sleep(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

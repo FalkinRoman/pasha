@@ -17,6 +17,7 @@ import {
   NO_SHOW_GRACE_MIN,
   BOOKING_MAX_DAYS_AHEAD,
 } from './session.constants';
+import { LOCK_OPEN_COOLDOWN_MS } from '../locks/locks.service';
 
 const PENDING_MS_DEFAULT = 15 * 60 * 1000;
 
@@ -667,15 +668,18 @@ export class BookingsService {
   async openMainDoor(userId: string, bookingId: string) {
     const booking = await this.getOngoingBooking(userId, bookingId);
 
+    const cooldownSec = Math.round(LOCK_OPEN_COOLDOWN_MS / 1000);
     const recent = await this.prisma.lockerLog.findFirst({
       where: {
         bookingId,
         type: 'lock_open_main',
-        createdAt: { gte: new Date(Date.now() - 30_000) },
+        createdAt: { gte: new Date(Date.now() - LOCK_OPEN_COOLDOWN_MS) },
       },
     });
     if (recent) {
-      throw new BadRequestException('Подождите 30 сек перед повторным открытием');
+      throw new BadRequestException(
+        `Подождите ${cooldownSec} сек перед повторным открытием`
+      );
     }
 
     if (!this.inDoorWindow(booking.startAt, booking.endAt)) {
@@ -735,13 +739,23 @@ export class BookingsService {
       seatNumber,
       cellLock: lockId,
       type: 'lock_open_main',
-      payload: { lockId, ok: lockResult.ok },
+      payload: {
+        lockId,
+        ok: lockResult.ok,
+        provider: lockResult.provider,
+        pulseSeconds: lockResult.pulseSeconds,
+        simulated: lockResult.simulated,
+      },
     });
 
+    // Клиенту не светим mock/real — UX один и тот же. Симуляция видна только в админке/логах.
     return {
       ...this.formatBooking(updated),
       lockCommandSent: true,
-      lockType: 'main',
+      lockType: 'main' as const,
+      lockPulseSeconds: lockResult.pulseSeconds,
+      lockCooldownSeconds: Math.round(LOCK_OPEN_COOLDOWN_MS / 1000),
+      lockMessage: `Дверь открыта на ~${lockResult.pulseSeconds} сек`,
     };
   }
 
@@ -1021,6 +1035,13 @@ export class BookingsService {
     const canAccessDoors =
       doorOpen && ['awaiting_arrival', 'arrival', 'playing'].includes(phase);
 
+    let doorHint: string | null = null;
+    if (!doorOpen && doorOpensMs > 0) {
+      doorHint = `Дверь откроется за ${DOOR_EARLY_MIN} мин до начала брони`;
+    } else if (canAccessDoors) {
+      doorHint = 'Можно открыть главную дверь';
+    }
+
     return {
       id: booking.id,
       seatNumbers: booking.seats.map((s) => s.seatNumber),
@@ -1039,6 +1060,8 @@ export class BookingsService {
       timerLabel,
       displayRemainingMs,
       doorWindowOpen: doorOpen,
+      doorOpensInMs: doorOpensMs,
+      doorHint,
       untilStartMs,
       untilEndMs,
       canOpenMainDoor: canAccessDoors,

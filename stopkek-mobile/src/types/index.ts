@@ -161,6 +161,8 @@ export interface Booking {
   status: BookingStatus;
   sessionPhase?: SessionPhase;
   doorWindowOpen?: boolean;
+  doorOpensInMs?: number;
+  doorHint?: string | null;
   untilStartMs?: number;
   untilEndMs?: number;
   gameRunning?: boolean;
@@ -168,4 +170,10 @@ export interface Booking {
   timerLabel?: string;
   displayRemainingMs?: number;
   canOpenMainDoor?: boolean;
+  /** После POST /door — без mock/real, для юзера всегда одинаково */
+  lockCommandSent?: boolean;
+  lockType?: 'main';
+  lockPulseSeconds?: number;
+  lockCooldownSeconds?: number;
+  lockMessage?: string;
 }
