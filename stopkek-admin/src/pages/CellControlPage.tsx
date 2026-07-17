@@ -50,8 +50,8 @@ export function CellControlPage() {
     <div className="cell-page-full">
       <h1 className="page-title">Журнал доступа</h1>
       <p className="muted page-subtitle">
-        Открытия главной двери из приложения. Настройка замка и API — в{' '}
-        <Link to="/settings">Настройки</Link>.
+        Открытия главной двери из приложения. Настройка замка — в{' '}
+        <Link to="/locks">Замок</Link>.
       </p>
 
       <input

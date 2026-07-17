@@ -10,6 +10,7 @@ const nav = [
   { to: '/bookings', label: 'Брони' },
   { to: '/pricing', label: 'Тарифы' },
   { to: '/cell-control', label: 'Журнал доступа' },
+  { to: '/locks', label: 'Замок' },
   { to: '/users', label: 'Клиенты' },
   { to: '/transactions', label: 'Транзакции' },
   { to: '/feedback', label: 'Отзывы' },

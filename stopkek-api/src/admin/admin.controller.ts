@@ -282,8 +282,11 @@ export class AdminController {
 
   @Get('locks/events')
   @UseGuards(AdminJwtGuard)
-  lockEvents() {
-    return this.locks.listEvents(80);
+  lockEvents(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string
+  ) {
+    return this.locks.listEvents(Number(page) || 1, Number(pageSize) || 20);
   }
 
   @Get('transactions')

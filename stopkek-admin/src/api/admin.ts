@@ -449,8 +449,20 @@ export type LockEventRow = {
   createdAt: string;
 };
 
-export function fetchLockEvents() {
-  return api<LockEventRow[]>('/admin/locks/events');
+export type LockEventsPage = {
+  items: LockEventRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+export function fetchLockEvents(params?: { page?: number; pageSize?: number }) {
+  const q = new URLSearchParams();
+  if (params?.page != null) q.set('page', String(params.page));
+  if (params?.pageSize != null) q.set('pageSize', String(params.pageSize));
+  const qs = q.toString();
+  return api<LockEventsPage>(`/admin/locks/events${qs ? `?${qs}` : ''}`);
 }
 
 export type LockerLogRow = {

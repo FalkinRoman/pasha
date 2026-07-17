@@ -6,7 +6,6 @@ import {
   updateClubSettings,
   uploadClubImage,
 } from '../api/admin';
-import { ClubLocksSettings } from '../components/ClubLocksSettings';
 import { ClubPaymentSettings } from '../components/ClubPaymentSettings';
 import { TestNotifications } from '../components/TestNotifications';
 
@@ -262,7 +261,6 @@ export function SettingsPage() {
           </form>
 
           <ClubPaymentSettings />
-          <ClubLocksSettings />
           <TestNotifications />
         </div>
       )}

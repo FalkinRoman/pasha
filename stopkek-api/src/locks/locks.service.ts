@@ -272,11 +272,23 @@ export class LocksService {
     return this.getClubLockConfig();
   }
 
-  listEvents(limit = 50) {
-    return this.prisma.lockEvent.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-    });
+  listEvents(page = 1, pageSize = 20) {
+    const take = Math.min(100, Math.max(1, pageSize));
+    const skip = (Math.max(1, page) - 1) * take;
+    return Promise.all([
+      this.prisma.lockEvent.findMany({
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip,
+      }),
+      this.prisma.lockEvent.count(),
+    ]).then(([items, total]) => ({
+      items,
+      total,
+      page: Math.max(1, page),
+      pageSize: take,
+      totalPages: Math.max(1, Math.ceil(total / take)),
+    }));
   }
 
   private sleep(ms: number) {

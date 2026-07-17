@@ -13,6 +13,7 @@ import { UsersPage } from './pages/UsersPage';
 import { CellControlPage } from './pages/CellControlPage';
 import { PricingPage } from './pages/PricingPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { LocksPage } from './pages/LocksPage';
 import { VerificationsPage } from './pages/VerificationsPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -53,7 +54,7 @@ export default function App() {
             <Route path="feedback" element={<FeedbackPage />} />
             <Route path="pricing" element={<PricingPage />} />
             <Route path="settings" element={<SettingsPage />} />
-            <Route path="locks" element={<Navigate to="/settings" replace />} />
+            <Route path="locks" element={<LocksPage />} />
           </Route>
         </Routes>
       </BrowserRouter>
