@@ -34,6 +34,13 @@ yarn-error.*
 .env
 .env*.local
 
+# store assets tooling (huge; not needed for app binary)
+store-assets/.playwright-browsers/
+store-assets/node_modules/
+*.ipa
+*.apk
+*.aab
+
 # typescript
 *.tsbuildinfo
 

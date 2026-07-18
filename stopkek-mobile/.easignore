@@ -1,0 +1,11 @@
+# EAS upload — не тащим мусор / локальный native
+node_modules/
+.expo/
+.git/
+android/
+ios/
+store-assets/
+**/*.ipa
+**/*.apk
+**/*.aab
+KIOSK_*.md

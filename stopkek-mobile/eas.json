@@ -21,6 +21,9 @@
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_API_URL": "https://stopkek.site/api"
+      },
+      "android": {
+        "gradleCommand": ":app:bundleRelease --no-configure-on-demand"
       }
     }
   },
