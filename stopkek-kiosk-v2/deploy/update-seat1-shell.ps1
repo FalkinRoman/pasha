@@ -3,8 +3,19 @@
   .cmd-переключателя ограничений в C:\stopkek\shell. Требует прав администратора —
   скрипт сам себя повышает (UAC). Запускать, когда подложка не активна (между сменами).
 #>
-if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole('Administrators')) {
-  Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',$PSCommandPath
+param([switch]$Elevated)
+
+# Проверка по SID, а не по имени группы: на локализованной Windows группа зовётся
+# «Администраторы», и IsInRole('Administrators') всегда False — скрипт бесконечно
+# перезапускал сам себя. Флаг -Elevated делает второй виток невозможным.
+$id = [Security.Principal.WindowsIdentity]::GetCurrent()
+$p  = New-Object Security.Principal.WindowsPrincipal($id)
+if (-not $p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+  if ($Elevated) {
+    Write-Host 'Не удалось получить права администратора. Запусти вручную от админа.' -ForegroundColor Red
+    Read-Host 'Enter для выхода'; return
+  }
+  Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',"`"$PSCommandPath`"",'-Elevated'
   return
 }
 
