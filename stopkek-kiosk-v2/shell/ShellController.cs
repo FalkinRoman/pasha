@@ -33,7 +33,13 @@ public sealed class ShellController : IDisposable
         _source.ViewUpdated += OnViewUpdated;
     }
 
-    public void Start() => _source.Start();
+    public void Start()
+    {
+        // Baseline: the player's kiosk restrictions are on the moment the overlay launches
+        // (covers a reboot / re-login — this is what makes them self-restoring).
+        if (!_preview) ProtectionPolicy.Enable();
+        _source.Start();
+    }
 
     private void OnViewUpdated(KioskView view)
     {
@@ -69,8 +75,16 @@ public sealed class ShellController : IDisposable
                 break;
 
             case KioskMode.Maintenance:
-                // Admin unlocked the PC for servicing: drop the hook and hide everything.
-                if (changed) { _hook.Disable(); foreach (var w in _locks) w.Hide(); _widget?.Hide(); }
+                // Admin unlocked the PC for servicing (crest + PIN): drop the hook, hide
+                // everything, and LIFT the registry restrictions so Task Manager / regedit /
+                // Run / Control Panel work. Re-applied automatically on the next lock or reboot.
+                if (changed)
+                {
+                    _hook.Disable();
+                    foreach (var w in _locks) w.Hide();
+                    _widget?.Hide();
+                    if (!_preview) ProtectionPolicy.Disable();
+                }
                 break;
         }
         _mode = view.Mode;
@@ -114,6 +128,7 @@ public sealed class ShellController : IDisposable
         // Pull the player out of any fullscreen game, then raise the locks.
         if (!_preview)
         {
+            ProtectionPolicy.Enable();   // restrictions on whenever the seat is locked
             MinimiseForeground();
             // A real session end (not a boot-time lock) closes everything the
             // player opened, so the next customer starts from a clean desktop.
@@ -172,6 +187,9 @@ public sealed class ShellController : IDisposable
 
     private void EnterUnlocked()
     {
+        // Paid play (Active / Grace): the game is usable but the restrictions STAY on, so the
+        // player can't open Task Manager to kill the agent for free time. Only Maintenance lifts them.
+        if (!_preview) ProtectionPolicy.Enable();
         _hook.Disable();
         foreach (var w in _locks) w.Hide();
     }
