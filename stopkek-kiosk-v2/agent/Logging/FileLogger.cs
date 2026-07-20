@@ -5,7 +5,7 @@ namespace StopkekAgent.Logging;
 /// <summary>
 /// Tiny dependency-free file logger. The agent runs headless (SYSTEM scheduled task)
 /// so a rolling log file is the only practical way to diagnose a PC in the field.
-/// Writes to %ProgramData%\StopKEK\agent.log.
+/// Writes to %ProgramData%\SysHost\logs\agent.log.
 /// </summary>
 public sealed class FileLoggerProvider : ILoggerProvider
 {
@@ -17,7 +17,7 @@ public sealed class FileLoggerProvider : ILoggerProvider
     {
         var dir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-            "StopKEK");
+            "SysHost", "logs");
         Directory.CreateDirectory(dir);
         _path = Path.Combine(dir, "agent.log");
     }

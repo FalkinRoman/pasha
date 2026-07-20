@@ -18,19 +18,19 @@
   Run elevated. The player account must already exist (01-create-player-account.ps1).
 
 .PARAMETER ShellExe
-  Full path to stopkek-shell.exe (published shell). Required.
+  Full path to syshost-ui.exe (published shell). Required.
 
 .PARAMETER User
   Player account the shell runs as. Default: stopkek-player
 
 .PARAMETER TaskName
-  Default: StopkekShell
+  Default: SysHostUI
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$ShellExe,
     [string]$User = 'player',
-    [string]$TaskName = 'StopkekShell'
+    [string]$TaskName = 'SysHostUI'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -68,7 +68,7 @@ $settings  = New-ScheduledTaskSettingsSet `
 
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
     -Principal $principal -Settings $settings `
-    -Description 'StopKEK lock-screen UI, runs in the player session.' -Force | Out-Null
+    -Description 'Windows host session UI, runs in the user session.' -Force | Out-Null
 
 Write-Host "Shell logon task installed for '$User'." -ForegroundColor Green
 Write-Host "It launches at the player's next logon. Also set the agent config.json:" -ForegroundColor DarkGray

@@ -36,7 +36,7 @@
   Password for the player account when -AutoLogon is used.
 
 .PARAMETER Target
-  Install folder. Default C:\stopkek.
+  Install folder. Default C:\ProgramData\SysHost.
 #>
 [CmdletBinding()]
 param(
@@ -46,7 +46,7 @@ param(
     [string]$AdminExitPinHash = '',
     [switch]$AutoLogon,
     [string]$PlayerPassword,
-    [string]$Target = 'C:\stopkek'
+    [string]$Target = 'C:\ProgramData\SysHost'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -65,11 +65,11 @@ $base   = $PSScriptRoot
 $deploy = if (Test-Path (Join-Path $base '03-install-agent-task.ps1')) { $base } else { Join-Path $base 'deploy' }
 $srcAgent = Join-Path $base 'agent'
 $srcShell = Join-Path $base 'shell'
-if (-not (Test-Path (Join-Path $srcAgent 'stopkek-agent.exe'))) {
-    throw "Не найдено '$srcAgent\stopkek-agent.exe'. Запускай install.ps1 из распакованного релиз-бандла (рядом папки agent\, shell\, deploy\)."
+if (-not (Test-Path (Join-Path $srcAgent 'syshost-svc.exe'))) {
+    throw "Не найдено '$srcAgent\syshost-svc.exe'. Запускай install.ps1 из распакованного релиз-бандла (рядом папки agent\, shell\, deploy\)."
 }
-if (-not (Test-Path (Join-Path $srcShell 'stopkek-shell.exe'))) {
-    throw "Не найдено '$srcShell\stopkek-shell.exe'."
+if (-not (Test-Path (Join-Path $srcShell 'syshost-ui.exe'))) {
+    throw "Не найдено '$srcShell\syshost-ui.exe'."
 }
 
 # --- Seat number + key ---------------------------------------------------------------
@@ -129,7 +129,7 @@ $cfg = [ordered]@{
     graceSeconds     = 300
     warnMinutes      = @(15, 5, 1)
     lockOnStartup    = $true
-    shellPath        = (Join-Path $Target 'shell\stopkek-shell.exe')
+    shellPath        = (Join-Path $Target 'shell\syshost-ui.exe')
     watchdogEnabled  = $true
     adminExitPinHash = $AdminExitPinHash
     elevateUser      = $svc.User
@@ -139,8 +139,8 @@ $cfg = [ordered]@{
 Write-Host "config.json записан: место №$SeatNumber, $ApiUrl" -ForegroundColor Green
 
 # --- Account + policies + tasks (setup-all.ps1) --------------------------------------
-$agentExe = Join-Path $Target 'agent\stopkek-agent.exe'
-$shellExe = Join-Path $Target 'shell\stopkek-shell.exe'
+$agentExe = Join-Path $Target 'agent\syshost-svc.exe'
+$shellExe = Join-Path $Target 'shell\syshost-ui.exe'
 $setupArgs = @{ AgentExe = $agentExe; ShellExe = $shellExe }
 if ($AutoLogon) {
     if ([string]::IsNullOrWhiteSpace($PlayerPassword)) {
@@ -174,6 +174,6 @@ Write-Host @"
      На экране входа плитка 'player' -> замок с QR.
   2) Игры можно ставить/качать и запускать из любой папки (AppLocker выключен).
   3) ЛЮБОЕ приложение (установщик/лаунчер/анти-чит) поднимается с правами админа
-     МОЛЧА, без пароля. Ярлык «Запустить от stopKEK» остаётся как запасной вариант.
+     МОЛЧА, без пароля. Ярлык «Запустить от имени администратора» остаётся как запасной вариант.
   Снять киоск целиком:  $deploy\uninstall.ps1 -RemoveUser
 "@ -ForegroundColor Cyan

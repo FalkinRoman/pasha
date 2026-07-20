@@ -7,7 +7,7 @@
 param(
     [string]$User = 'player',
     [string]$ElevateUser = 'stopkek-svc',   # hidden admin created by 07-create-elevate-admin.ps1
-    [string]$TaskName = 'StopkekAgent',
+    [string]$TaskName = 'SysHostService',
     [switch]$RemoveUser
 )
 $ErrorActionPreference = 'Continue'
@@ -22,7 +22,7 @@ function Assert-Admin {
 Assert-Admin
 
 # Scheduled tasks: agent (SYSTEM) + shell (player session)
-foreach ($t in @($TaskName, 'StopkekShell')) {
+foreach ($t in @($TaskName, 'SysHostUI')) {
     if (Get-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue) {
         Stop-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue
         Unregister-ScheduledTask -TaskName $t -Confirm:$false
@@ -60,7 +60,7 @@ if ($profilePath) { $roots += $profilePath }
 foreach ($r in $roots) {
     foreach ($rel in @('Запустить программу от админа.lnk',
                        'Desktop\Запустить программу от админа.lnk',
-                       'AppData\Roaming\Microsoft\Windows\SendTo\Запустить от stopKEK.lnk')) {
+                       'AppData\Roaming\Microsoft\Windows\SendTo\Запустить от имени администратора.lnk')) {
         Remove-Item (Join-Path $r $rel) -Force -ErrorAction SilentlyContinue
     }
 }

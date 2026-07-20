@@ -11,7 +11,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>StopkekShell</RootNamespace>
-    <AssemblyName>stopkek-shell</AssemblyName>
+    <AssemblyName>syshost-ui</AssemblyName>
     <OutputType>WinExe</OutputType>
     <LangVersion>latest</LangVersion>
     <UseWPF>true</UseWPF>

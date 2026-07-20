@@ -81,8 +81,8 @@
   Одинаково:  бинарники, папка C:\stopkek, apiUrl, скрипты, AppLocker.
   Разное:     номер места (1…6) и ключ места — спрашивает установщик.
 
-  Логи:  агент  C:\ProgramData\StopKEK\agent.log
-         замок  %LOCALAPPDATA%\StopKEK\shell.log
+  Логи:  агент  C:\ProgramData\SysHost\logs\agent.log
+         замок  %LOCALAPPDATA%\SysHost\logs\shell.log
 
 Подробный технический рунбук: docs\QUICKSTART-PROD-PC.md, docs\INSTALL-CLUB-PC.md
 ═══════════════════════════════════════════════════════════════════════════════

@@ -54,11 +54,11 @@ if (Get-LocalUser -Name $User -ErrorAction SilentlyContinue) {
     Set-LocalUser -Name $User -Password $securePass
 } elseif ($hasPassword) {
     Write-Host "Creating standard user '$User' (with password)." -ForegroundColor Cyan
-    New-LocalUser -Name $User -Password $securePass -FullName 'StopKEK Player' `
+    New-LocalUser -Name $User -Password $securePass -FullName 'Player' `
         -Description 'Restricted club game account' -PasswordNeverExpires
 } else {
     Write-Host "Creating standard user '$User' (no password, one-click login)." -ForegroundColor Cyan
-    New-LocalUser -Name $User -NoPassword -FullName 'StopKEK Player' `
+    New-LocalUser -Name $User -NoPassword -FullName 'Player' `
         -Description 'Restricted club game account'
 }
 

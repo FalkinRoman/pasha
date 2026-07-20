@@ -1,12 +1,12 @@
 ﻿<#
 .SYNOPSIS
-  Create the player-facing "Запустить от stopKEK" affordances (Desktop shortcut + SendTo entry)
+  Create the player-facing "run as administrator" affordances (Desktop shortcut + SendTo entry)
   that launch a program as administrator without a password (via the agent elevation pipe).
 
 .DESCRIPTION
   Drops two shortcuts, both pointing at the shell in --run mode:
     * Desktop\Запустить программу от админа.lnk   -> opens a file picker, then runs it as admin
-    * SendTo\Запустить от stopKEK.lnk             -> right-click a file -> Отправить -> runs it as admin
+    * SendTo\Запустить от имени администратора.lnk -> right-click a file -> Отправить -> runs it as admin
   The shell (--run) hands the path to the SYSTEM agent, which starts it under the hidden admin.
 
   Written to the Public desktop and the Default profile template (so a fresh install works before
@@ -21,12 +21,12 @@
   Player account name. Default: player
 
 .PARAMETER ShellExe
-  Path to stopkek-shell.exe. Default: C:\stopkek\shell\stopkek-shell.exe
+  Path to syshost-ui.exe. Default: C:\ProgramData\SysHost\shell\syshost-ui.exe
 #>
 [CmdletBinding()]
 param(
     [string]$User = 'player',
-    [string]$ShellExe = 'C:\stopkek\shell\stopkek-shell.exe'
+    [string]$ShellExe = 'C:\ProgramData\SysHost\shell\syshost-ui.exe'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -41,7 +41,7 @@ function Assert-Admin {
 Assert-Admin
 
 if (-not (Test-Path $ShellExe)) {
-    Write-Warning "stopkek-shell.exe не найден ($ShellExe) — ярлыки не созданы."
+    Write-Warning "syshost-ui.exe не найден ($ShellExe) — ярлыки не созданы."
     return
 }
 
@@ -91,8 +91,8 @@ try {
 foreach ($p in $profiles) {
     New-Item -ItemType Directory -Force -Path $p.Desktop, $p.SendTo | Out-Null
     New-Lnk (Join-Path $p.Desktop 'Запустить программу от админа.lnk') '--run' `
-        'Выбрать и запустить программу от имени администратора (stopKEK)'
-    New-Lnk (Join-Path $p.SendTo 'Запустить от stopKEK.lnk') '--run' `
-        'Запустить выбранный файл от имени администратора (stopKEK)'
-    Write-Host "Ярлыки «Запустить от stopKEK» созданы: $($p.Label)" -ForegroundColor Green
+        'Выбрать и запустить программу от имени администратора'
+    New-Lnk (Join-Path $p.SendTo 'Запустить от имени администратора.lnk') '--run' `
+        'Запустить выбранный файл от имени администратора'
+    Write-Host "Ярлыки запуска от админа созданы: $($p.Label)" -ForegroundColor Green
 }

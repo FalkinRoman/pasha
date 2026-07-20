@@ -20,7 +20,7 @@ try
 catch (Exception ex)
 {
     // Without valid config the agent must NOT silently run unlocked. Fail loudly.
-    await Console.Error.WriteLineAsync($"[stopkek-agent] config error: {ex.Message}");
+    await Console.Error.WriteLineAsync($"[syshost-svc] config error: {ex.Message}");
     Environment.ExitCode = 2;
     return;
 }

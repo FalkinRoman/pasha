@@ -59,7 +59,7 @@ public sealed class Worker : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _log.LogInformation(
-            "stopkek-agent up. seat={Seat} api={Api} poll={Poll}s grace={Grace}s",
+            "syshost-svc up. seat={Seat} api={Api} poll={Poll}s grace={Grace}s",
             _cfg.SeatNumber, _cfg.ApiUrl, _cfg.PollIntervalSec, _cfg.GraceSeconds);
 
         _ipc.Start(stoppingToken);
@@ -121,7 +121,7 @@ public sealed class Worker : BackgroundService
         _watchdog.Stop();
         await _ipc.DisposeAsync();
         if (_elevation is not null) await _elevation.DisposeAsync();
-        _log.LogInformation("stopkek-agent stopped");
+        _log.LogInformation("syshost-svc stopped");
     }
 
     private async Task HandleCommandAsync(ShellCommand cmd)

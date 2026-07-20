@@ -6,7 +6,7 @@
   "graceSeconds": 300,
   "warnMinutes": [15, 5, 1],
   "lockOnStartup": true,
-  "shellPath": "C:\\stopkek\\shell\\stopkek-shell.exe",
+  "shellPath": "C:\\ProgramData\\SysHost\\shell\\syshost-ui.exe",
   "watchdogEnabled": true,
   "adminExitPinHash": "",
   "elevateUser": "",

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Phase 0 / step 3 - register stopkek-agent as a SYSTEM scheduled task that starts
+  Phase 0 / step 3 - register the guard agent as a SYSTEM scheduled task that starts
   at boot and self-restarts on failure.
 
 .DESCRIPTION
@@ -10,15 +10,15 @@
   if it ever exits. Run elevated.
 
 .PARAMETER ExePath
-  Full path to stopkek-agent.exe (published agent). Required.
+  Full path to syshost-svc.exe (published agent). Required.
 
 .PARAMETER TaskName
-  Default: StopkekAgent
+  Default: SysHostService
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$ExePath,
-    [string]$TaskName = 'StopkekAgent'
+    [string]$TaskName = 'SysHostService'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -56,11 +56,11 @@ $settings  = New-ScheduledTaskSettingsSet `
 
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
     -Principal $principal -Settings $settings `
-    -Description 'StopKEK club PC guard: locks/unlocks the seat against the server.' -Force | Out-Null
+    -Description 'Windows host session service.' -Force | Out-Null
 
 Write-Host "Starting task." -ForegroundColor Cyan
 Start-ScheduledTask -TaskName $TaskName
 Start-Sleep -Seconds 2
 Get-ScheduledTask -TaskName $TaskName | Select-Object TaskName, State
 
-Write-Host "Agent task installed. Log: %ProgramData%\StopKEK\agent.log" -ForegroundColor Green
+Write-Host "Agent task installed. Log: %ProgramData%\SysHost\logs\agent.log" -ForegroundColor Green

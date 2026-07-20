@@ -4,7 +4,7 @@ namespace StopkekShell;
 
 /// <summary>
 /// Tiny dependency-free file logger for the shell. The shell runs as the limited player
-/// in an interactive session, so it logs to %LOCALAPPDATA%\StopKEK\shell.log — a path the
+/// in an interactive session, so it logs to %LOCALAPPDATA%\SysHost\logs\shell.log — a path the
 /// player can always write and an admin can always read. The agent's own log lives in
 /// %ProgramData% (written by SYSTEM); the player usually can't write there, hence a
 /// separate file. Without this the shell was a black box: a login that "did nothing" left
@@ -22,7 +22,7 @@ public static class ShellLog
         {
             var dir = System.IO.Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "StopKEK");
+                "SysHost", "logs");
             Directory.CreateDirectory(dir);
             return System.IO.Path.Combine(dir, "shell.log");
         }

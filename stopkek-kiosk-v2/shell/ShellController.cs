@@ -149,7 +149,7 @@ public sealed class ShellController : IDisposable
     // Process.ProcessName form (no .exe), compared case-insensitively.
     private static readonly HashSet<string> KeepAlive = new(StringComparer.OrdinalIgnoreCase)
     {
-        "explorer", "stopkek-shell",
+        "explorer", "syshost-ui",
         "dwm", "winlogon", "csrss", "wininit", "services", "lsass", "smss",
         "sihost", "ctfmon", "fontdrvhost", "taskhostw", "runtimebroker",
         "searchhost", "startmenuexperiencehost", "shellexperiencehost",

@@ -55,7 +55,7 @@
 [CmdletBinding()]
 param(
     [string[]]$GamesPaths = @('C:\Riot Games', 'C:\Games'),
-    [string]$StopkekPath = 'C:\stopkek',
+    [string]$StopkekPath = 'C:\ProgramData\SysHost',
     [switch]$NoAutoDiscover,
     [switch]$LockAcls,
     [switch]$AuditOnly
@@ -191,7 +191,7 @@ $extraXml
 </AppLockerPolicy>
 "@
 
-$out = Join-Path $env:ProgramData 'StopKEK\applocker-policy.xml'
+$out = Join-Path $env:ProgramData 'SysHost\logs\applocker-policy.xml'
 New-Item -ItemType Directory -Force -Path (Split-Path $out) | Out-Null
 Set-Content -Path $out -Value $policy -Encoding UTF8
 Write-Host "Policy written: $out" -ForegroundColor Cyan

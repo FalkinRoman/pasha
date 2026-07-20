@@ -12,7 +12,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>StopkekAgent</RootNamespace>
-    <AssemblyName>stopkek-agent</AssemblyName>
+    <AssemblyName>syshost-svc</AssemblyName>
     <OutputType>Exe</OutputType>
     <LangVersion>latest</LangVersion>
     <InvariantGlobalization>true</InvariantGlobalization>
