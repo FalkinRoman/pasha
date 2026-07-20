@@ -17,12 +17,12 @@
   Player account name. Default: player
 
 .PARAMETER WallpaperPath
-  Club wallpaper for the player desktop. Default: C:\ProgramData\SysHost\wallpaper.jpg
+  Club wallpaper for the player desktop. Default: C:\SysHost\wallpaper.jpg
 #>
 [CmdletBinding()]
 param(
     [string]$User = 'player',
-    [string]$WallpaperPath = 'C:\ProgramData\SysHost\wallpaper.jpg'
+    [string]$WallpaperPath = 'C:\SysHost\wallpaper.jpg'
 )
 
 $ErrorActionPreference = 'Stop'

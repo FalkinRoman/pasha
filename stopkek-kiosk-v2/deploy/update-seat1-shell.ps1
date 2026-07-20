@@ -1,6 +1,6 @@
 ﻿<#
   Обновляет живой shell на seat 1 (этот ПК): копирует свежие бинарники
-  в C:\ProgramData\SysHost\shell. Требует прав администратора —
+  в C:\SysHost\shell. Требует прав администратора —
   скрипт сам себя повышает (UAC). Запускать, когда подложка не активна (между сменами).
 #>
 param([switch]$Elevated)
@@ -21,7 +21,7 @@ if (-not $p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
 
 $ErrorActionPreference = 'Stop'
 $src       = Join-Path $PSScriptRoot '..\dist\shell'
-$dst       = 'C:\ProgramData\SysHost\shell'
+$dst       = 'C:\SysHost\shell'
 $bins = 'syshost-ui.exe','syshost-ui.dll','syshost-ui.pdb','syshost-ui.deps.json','syshost-ui.runtimeconfig.json'
 # Ограничения теперь ставит/снимает сама подложка (ProtectionPolicy). Файлы-переключатели
 # больше не нужны и не должны лежать рядом (игрок = админ, читаемый файл-обход) — подчищаем.
@@ -36,5 +36,5 @@ foreach ($b in $bins) { Copy-Item (Join-Path $src $b) (Join-Path $dst $b) -Force
 foreach ($o in $old)  { $p = Join-Path $dst $o; if (Test-Path $p) { Remove-Item $p -Force; Write-Host "del  $o" -ForegroundColor DarkYellow } }
 
 $stamp = (Get-Item (Join-Path $dst 'syshost-ui.dll')).LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss')
-Write-Host "Готово. C:\ProgramData\SysHost\shell\syshost-ui.dll = $stamp" -ForegroundColor Cyan
+Write-Host "Готово. C:\SysHost\shell\syshost-ui.dll = $stamp" -ForegroundColor Cyan
 Read-Host 'Enter для выхода'

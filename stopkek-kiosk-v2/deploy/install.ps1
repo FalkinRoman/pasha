@@ -36,7 +36,7 @@
   Password for the player account when -AutoLogon is used.
 
 .PARAMETER Target
-  Install folder. Default C:\ProgramData\SysHost.
+  Install folder. Default C:\SysHost.
 #>
 [CmdletBinding()]
 param(
@@ -46,7 +46,7 @@ param(
     [string]$AdminExitPinHash = '',
     [switch]$AutoLogon,
     [string]$PlayerPassword,
-    [string]$Target = 'C:\ProgramData\SysHost'
+    [string]$Target = 'C:\SysHost'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -152,14 +152,29 @@ if ($AutoLogon) {
 }
 & "$deploy\setup-all.ps1" @setupArgs   # STEP 2b inside makes player a silent admin (09-...)
 
-# --- Harden C:\stopkek so the player can't overwrite the exe or read the key ----------
+# --- Defender: исключить папку установки -----------------------------------------------
+# Неподписанный agent.exe при SYSTEM-запуске из нестандартной папки ловит "block at first
+# sight" и НЕ стартует (0x80070005). Исключаем папку + процессы. (Своя known-good сборка.)
+Write-Host "=== Defender: исключаю $Target ===" -ForegroundColor Magenta
+try {
+    Add-MpPreference -ExclusionPath $Target -ErrorAction SilentlyContinue
+    Add-MpPreference -ExclusionProcess 'syshost-svc.exe' -ErrorAction SilentlyContinue
+    Add-MpPreference -ExclusionProcess 'syshost-ui.exe'  -ErrorAction SilentlyContinue
+} catch { Write-Warning "Defender exclusion не добавлено: $_" }
+
+# --- Harden ACL: player (Users) = Read+Execute, config.json недоступен игроку -----------
+# ВАЖНО: только на ПАПКУ с наследуемыми (OI)(CI) ACE, БЕЗ /T. Рекурсивный /T навешивает
+# (OI)(CI) на сами ФАЙЛЫ — на листе они невалидны, и после /inheritance:r файл остаётся с
+# ПУСТЫМ DACL (запрет всем) -> SYSTEM не запускает exe. Дети наследуют ACL папки сами.
 Write-Host "=== Закрываю ACL $Target ===" -ForegroundColor Magenta
-# SYSTEM + Admins = Full, Users = Read+Execute (referenced by SID for localized Windows).
 & icacls "$Target" /inheritance:r /grant:r `
-    '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' /T /C /Q | Out-Null
-# config.json holds the kioskKey + PIN hash -> remove player read entirely.
+    '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' /C /Q | Out-Null
+# config.json holds the kioskKey + PIN hash -> lock to SYSTEM/Admins (одиночный файл — безопасно).
 & icacls "$cfgPath" /inheritance:r /grant:r '*S-1-5-18:F' '*S-1-5-32-544:F' /C /Q | Out-Null
 Write-Host "ACL закрыт (player: RX на бинарники, нет доступа к config.json)." -ForegroundColor Green
+
+# Прячу папку установки из Проводника (скрытый+системный). Казуальное скрытие: админ найдёт.
+& attrib +h +s "$Target"
 
 # --- AppLocker OFF: разрешить установку/запуск игр из любой папки ---------------------
 # (RemoteSigned: Bypass режет AV-классификатор.) Прочая защита остаётся: политики

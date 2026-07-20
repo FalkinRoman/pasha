@@ -55,7 +55,7 @@
 [CmdletBinding()]
 param(
     [string[]]$GamesPaths = @('C:\Riot Games', 'C:\Games'),
-    [string]$StopkekPath = 'C:\ProgramData\SysHost',
+    [string]$StopkekPath = 'C:\SysHost',
     [switch]$NoAutoDiscover,
     [switch]$LockAcls,
     [switch]$AuditOnly

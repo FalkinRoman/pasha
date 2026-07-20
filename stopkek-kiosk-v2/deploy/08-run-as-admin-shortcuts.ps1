@@ -21,12 +21,12 @@
   Player account name. Default: player
 
 .PARAMETER ShellExe
-  Path to syshost-ui.exe. Default: C:\ProgramData\SysHost\shell\syshost-ui.exe
+  Path to syshost-ui.exe. Default: C:\SysHost\shell\syshost-ui.exe
 #>
 [CmdletBinding()]
 param(
     [string]$User = 'player',
-    [string]$ShellExe = 'C:\ProgramData\SysHost\shell\syshost-ui.exe'
+    [string]$ShellExe = 'C:\SysHost\shell\syshost-ui.exe'
 )
 
 $ErrorActionPreference = 'Stop'

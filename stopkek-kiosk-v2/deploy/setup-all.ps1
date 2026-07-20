@@ -9,8 +9,8 @@
 
 .EXAMPLE
   .\setup-all.ps1 -Password 'long-random' `
-                  -AgentExe 'C:\ProgramData\SysHost\agent\syshost-svc.exe' `
-                  -ShellExe 'C:\ProgramData\SysHost\shell\syshost-ui.exe'
+                  -AgentExe 'C:\SysHost\agent\syshost-svc.exe' `
+                  -ShellExe 'C:\SysHost\shell\syshost-ui.exe'
 #>
 [CmdletBinding()]
 param(
