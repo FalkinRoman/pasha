@@ -57,6 +57,27 @@ function Set-Policy($subPath, $name, $value) {
     New-ItemProperty -Path $full -Name $name -Value $value -PropertyType DWord -Force | Out-Null
 }
 
+# By default HKCU\...\Policies grants a standard user only ReadKey (owner = Administrators),
+# so the shell — which runs under the player's LIMITED token (05, RunLevel Limited) — cannot
+# write these values at runtime: its ProtectionPolicy.Disable() on the admin crest+PIN silently
+# failed with access-denied, and the restrictions never lifted. Grant the player WRITE on the two
+# policy subkeys in their own hive so the overlay can flip DisableTaskMgr / NoControlPanel / ... at
+# runtime with no elevation. The player is a local admin anyway, so this loosens no real boundary.
+function Grant-PlayerWrite($subPath) {
+    $full = "Registry::$hiveRoot\Software\Microsoft\Windows\CurrentVersion\Policies\$subPath"
+    if (-not (Test-Path $full)) { New-Item -Path $full -Force | Out-Null }
+    $acl  = Get-Acl -Path $full
+    $rule = New-Object System.Security.AccessControl.RegistryAccessRule(
+        (New-Object Security.Principal.SecurityIdentifier($sid)),
+        ([System.Security.AccessControl.RegistryRights]'ReadKey,WriteKey'),
+        ([System.Security.AccessControl.InheritanceFlags]::ContainerInherit),
+        ([System.Security.AccessControl.PropagationFlags]::None),
+        ([System.Security.AccessControl.AccessControlType]::Allow))
+    $acl.AddAccessRule($rule)
+    Set-Acl -Path $full -AclObject $acl
+    Write-Host "Granted player write on Policies\$subPath." -ForegroundColor Green
+}
+
 try {
     # Kill the escape hatches for the player.
     Set-Policy 'System'   'DisableTaskMgr'         1   # no Task Manager
@@ -74,6 +95,10 @@ try {
     Set-Policy 'Explorer' 'StartMenuLogOff'        0
     Set-Policy 'Explorer' 'NoClose'                0
     Write-Host "Player policies applied." -ForegroundColor Green
+
+    # Let the limited-token shell toggle these two subkeys at runtime (see Grant-PlayerWrite).
+    Grant-PlayerWrite 'System'
+    Grant-PlayerWrite 'Explorer'
 
     # Default desktop wallpaper for the player (the club branding image). Takes effect at the
     # player's next sign-in. Fill (WallpaperStyle=10) so it covers any resolution.

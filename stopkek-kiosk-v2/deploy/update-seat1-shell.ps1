@@ -22,7 +22,7 @@ if (-not $p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
 $ErrorActionPreference = 'Stop'
 $src       = Join-Path $PSScriptRoot '..\dist\shell'
 $dst       = 'C:\SysHost\shell'
-$bins = 'syshost-ui.exe','syshost-ui.dll','syshost-ui.pdb','syshost-ui.deps.json','syshost-ui.runtimeconfig.json'
+$bins = 'syshost-ui.exe','syshost-ui.dll','syshost-ui.deps.json','syshost-ui.runtimeconfig.json'
 # Ограничения теперь ставит/снимает сама подложка (ProtectionPolicy). Файлы-переключатели
 # больше не нужны и не должны лежать рядом (игрок = админ, читаемый файл-обход) — подчищаем.
 $old  = 'ОГРАНИЧЕНИЯ-СНЯТЬ.cmd','ОГРАНИЧЕНИЯ-ВЕРНУТЬ.cmd','unlock.cmd','lock.cmd'
